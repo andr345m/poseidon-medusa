@@ -36,7 +36,8 @@
   make -j3
 
 启动 Medusa：
-  # 不需要 sudo。加 -d 表示使用 gdb 启动，加 -v 表示使用 valgrind 启动（建议关掉 tcmalloc）。
+  # 不需要 sudo。
+  # 加 -d 表示使用 gdb 启动，加 -v 表示使用 valgrind 启动（建议关掉 tcmalloc）。
   # 若直接启动，ssh 掉线之后会结束，可以用 nohup 或 screen 启动挂在后台。
   ./runserver.sh
 
