@@ -16,4 +16,6 @@ lib_LTLIBRARIES = \
 	lib/libposeidon-medusa.la
 
 lib_libposeidon_medusa_la_SOURCES = \
+	src/proxy_http_session.cpp	\
+	src/proxy_http_server.cpp	\
 	src/mmain.cpp
