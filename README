@@ -9,7 +9,7 @@
   pkg-config
   gettext
   make
-  g++ *
+  g++
   libboost-dev
   libmysqlclient-dev
   libssl-dev
@@ -22,11 +22,11 @@
   make -j3
 
 安装 Poseidon（不建议使用 sudo make install）：
-  # Debian 
-  # 需要先安装 checkinstall
+  # Debian：
+  # （需要先安装 checkinstall）
   sudo ./makedeb.sh
 
-  # 非 Debian 的 Linux 发行版
+  # 非 Debian 的 Linux 发行版：
   # 请使用系统自带的包管理器安装。
 
 编译 Medusa：
