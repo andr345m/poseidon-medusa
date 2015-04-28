@@ -23,14 +23,18 @@ void ProxyHttpSession::onReadHup() NOEXCEPT {
 		}
 	}
 }
-boost::shared_ptr<Poseidon::Http::UpgradedSessionBase> ProxyHttpSession::onHeader(
-	const Poseidon::Http::Header &header, boost::uint64_t contentLength)
+boost::shared_ptr<Poseidon::Http::UpgradedSessionBase> ProxyHttpSession::onRequestHeaders(
+	const Poseidon::Http::RequestHeaders &requestHeaders, boost::uint64_t contentLength)
 {
-	return Base::onHeader(header, contentLength);
+	if(requestHeaders.verb == Poseidon::Http::V_CONNECT){
+	}
+	if(requestHeaders.uri[0] != '/'){
+	}
+	return Base::onRequestHeaders(requestHeaders, contentLength);
 }
 
-void ProxyHttpSession::onRequest(const Poseidon::Http::Header &header, const Poseidon::StreamBuffer &entity){
-	(void)header;
+void ProxyHttpSession::onRequest(const Poseidon::Http::RequestHeaders &requestHeaders, const Poseidon::StreamBuffer &entity){
+	(void)requestHeaders;
 	(void)entity;
 
 	sendDefault(Poseidon::Http::ST_FORBIDDEN, true);

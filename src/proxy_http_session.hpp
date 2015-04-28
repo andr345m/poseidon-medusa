@@ -19,10 +19,10 @@ public:
 
 protected:
 	void onReadHup() NOEXCEPT OVERRIDE;
-	boost::shared_ptr<Poseidon::Http::UpgradedSessionBase> onHeader(
-		const Poseidon::Http::Header &header, boost::uint64_t contentLength) OVERRIDE;
 
-	void onRequest(const Poseidon::Http::Header &header, const Poseidon::StreamBuffer &entity) OVERRIDE;
+	boost::shared_ptr<Poseidon::Http::UpgradedSessionBase> onRequestHeaders(
+		const Poseidon::Http::RequestHeaders &requestHeaders, boost::uint64_t contentLength) OVERRIDE;
+	void onRequest(const Poseidon::Http::RequestHeaders &requestHeaders, const Poseidon::StreamBuffer &entity) OVERRIDE;
 };
 
 }
