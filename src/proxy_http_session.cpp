@@ -1,5 +1,6 @@
 #include "precompiled.hpp"
 #include "proxy_http_session.hpp"
+#include <poseidon/http/exception.hpp>
 #include <poseidon/http/upgraded_session_base.hpp>
 #include <poseidon/tcp_session_base.hpp>
 
@@ -17,7 +18,7 @@ ProxyHttpSession::~ProxyHttpSession(){
 void ProxyHttpSession::onReadHup() NOEXCEPT {
 	const AUTO(upgradedSession, getUpgradedSession());
 	if(upgradedSession){
-		const AUTO(client, upgradedSession->virtualSharedFromThis<Poseidon::TcpSessionBase>());
+		const AUTO(client, boost::dynamic_pointer_cast<Poseidon::TcpSessionBase>(upgradedSession));
 		if(client){
 			client->forceShutdown(); // noexcept
 		}
@@ -26,11 +27,15 @@ void ProxyHttpSession::onReadHup() NOEXCEPT {
 boost::shared_ptr<Poseidon::Http::UpgradedSessionBase> ProxyHttpSession::onRequestHeaders(
 	const Poseidon::Http::RequestHeaders &requestHeaders, boost::uint64_t contentLength)
 {
+	(void)contentLength;
+
 	if(requestHeaders.verb == Poseidon::Http::V_CONNECT){
 	}
 	if(requestHeaders.uri[0] != '/'){
 	}
-	return Base::onRequestHeaders(requestHeaders, contentLength);
+
+	DEBUG_THROW(Poseidon::Http::Exception, Poseidon::Http::ST_FORBIDDEN);
+	// return Base::onRequestHeaders(requestHeaders, contentLength);
 }
 
 void ProxyHttpSession::onRequest(const Poseidon::Http::RequestHeaders &requestHeaders, const Poseidon::StreamBuffer &entity){
