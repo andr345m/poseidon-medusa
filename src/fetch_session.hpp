@@ -7,7 +7,13 @@ namespace Medusa {
 
 class FetchSession : public Poseidon::Cbpp::Session {
 private:
-	std::string m_password;
+	class FetchClient;
+	class FetchJob;
+
+private:
+	const std::string m_password;
+
+	boost::weak_ptr<FetchClient> m_client;
 
 public:
 	FetchSession(Poseidon::UniqueFile socket, std::string password);
@@ -15,6 +21,9 @@ public:
 
 protected:
 	void onRequest(boost::uint16_t messageId, const Poseidon::StreamBuffer &payload) OVERRIDE;
+
+public:
+	bool send(Poseidon::StreamBuffer payload);
 };
 
 }

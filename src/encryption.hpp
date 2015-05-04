@@ -2,13 +2,13 @@
 #define MEDUSA_ENCRYPTION_HPP_
 
 #include <string>
-#include <boost/cstdint.hpp>
-#include <poseidon/stream_buffer.hpp>
 
 namespace Medusa {
 
-extern Poseidon::StreamBuffer encryptBuffer(Poseidon::StreamBuffer data, const std::string &key, boost::uint64_t nonce);
-extern Poseidon::StreamBuffer decryptBuffer(Poseidon::StreamBuffer data, const std::string &key, boost::uint64_t nonce);
+extern std::string generateNonce();
+
+extern std::string encrypt(std::string data, const std::string &key, const std::string &nonce);
+extern std::string decrypt(std::string data, const std::string &key, const std::string &nonce);
 
 }
 
