@@ -4,7 +4,8 @@
 #include <poseidon/job_base.hpp>
 #include <poseidon/tcp_client_base.hpp>
 #include "singletons/dns_cache.hpp"
-#include "fetch_protocol.hpp"
+#include "msg/fetch_protocol.hpp"
+#include "msg/error_codes.hpp"
 #include "encryption.hpp"
 
 namespace Medusa {
@@ -69,10 +70,10 @@ protected:
 class FetchSession::FetchJob : public Poseidon::JobBase {
 private:
 	const boost::weak_ptr<FetchSession> m_session;
-	const FetchRequest m_request;
+	const Msg::FetchRequest m_request;
 
 public:
-	FetchJob(boost::weak_ptr<FetchSession> session, FetchRequest request)
+	FetchJob(boost::weak_ptr<FetchSession> session, Msg::FetchRequest request)
 		: m_session(STD_MOVE(session)), m_request(STD_MOVE(request))
 	{
 	}
@@ -90,8 +91,7 @@ protected:
 		}
 
 		try {
-			// TODO DNS lookup
-			const AUTO(serverIpPort, Poseidon::IpPort(SSLIT("115.239.211.112"), 80));
+			const AUTO(serverIp, DnsCache::lookUp(m_request.host));
 
 			AUTO(client, session->m_client.lock());
 			if(!client){
@@ -100,7 +100,7 @@ protected:
 					LOG_MEDUSA_INFO("Tunnel connection lost");
 					DEBUG_THROW(Exception, SSLIT("Tunnel connection lost"));
 				}
-				client = FetchClient::create(session, serverIpPort, m_request.useSsl);
+				client = FetchClient::create(session, Poseidon::IpPort(serverIp, m_request.port), m_request.useSsl);
 			}
 			client->send(Poseidon::StreamBuffer(m_request.body));
 		} catch(Poseidon::JobBase::TryAgainLater &){
@@ -124,28 +124,34 @@ FetchSession::~FetchSession(){
 void FetchSession::onRequest(boost::uint16_t messageId, const Poseidon::StreamBuffer &payload){
 	PROFILE_ME;
 
-	if(messageId != FetchEncryptedMessage::ID){
-		LOG_MEDUSA_DEBUG("Unexpected message: messageId = ", messageId);
-		DEBUG_THROW(Exception, SSLIT("Unexpected message"));
-	}
+	try {
+		if(messageId != Msg::FetchEncryptedMessage::ID){
+			LOG_MEDUSA_DEBUG("Unexpected message: messageId = ", messageId);
+			DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ST_NOT_FOUND);
+		}
 
-	FetchEncryptedMessage encrypted(payload);
-	AUTO(decryptedData, decrypt(STD_MOVE(encrypted.data),  m_password, encrypted.nonce));
-	const AUTO(crc32, Poseidon::crc32Sum(decryptedData.data(), decryptedData.size()));
-	if(crc32 != encrypted.crc32){
-		LOG_MEDUSA_DEBUG("CRC32 mismatch");
-		DEBUG_THROW(Exception, SSLIT("CRC32 mismatch"));
+		Msg::FetchEncryptedMessage encrypted(payload);
+		AUTO(decryptedData, decrypt(STD_MOVE(encrypted.data),  m_password, encrypted.nonce));
+		const AUTO(crc32, Poseidon::crc32Sum(decryptedData.data(), decryptedData.size()));
+		if(crc32 != encrypted.crc32){
+			LOG_MEDUSA_DEBUG("CRC32 mismatch");
+			DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_FETCH_CRC_MISMATCH);
+		}
+		Poseidon::enqueueJob(boost::make_shared<FetchJob>(
+			virtualSharedFromThis<FetchSession>(), Msg::FetchRequest(Poseidon::StreamBuffer(decryptedData))));
+	} catch(Poseidon::Cbpp::Exception &e){
+		LOG_MEDUSA_INFO("Cbpp::Exception thrown: statusCode = ", e.statusCode(), ", what = ", e.what());
+		Poseidon::Cbpp::Session::sendControl(messageId, e.statusCode(), e.what());
+		shutdownRead();
+		shutdownWrite();
 	}
-
-	Poseidon::enqueueJob(boost::make_shared<FetchJob>(
-		virtualSharedFromThis<FetchSession>(), FetchRequest(Poseidon::StreamBuffer(decryptedData))));
 }
 bool FetchSession::send(Poseidon::StreamBuffer payload){
 	PROFILE_ME;
 
 	AUTO(decryptedData, payload.dump());
 
-	FetchEncryptedMessage encrypted;
+	Msg::FetchEncryptedMessage encrypted;
 	encrypted.nonce = generateNonce();
 	encrypted.crc32 = Poseidon::crc32Sum(decryptedData.data(), decryptedData.size());
 	encrypted.data = encrypt(STD_MOVE(decryptedData), m_password, encrypted.nonce);

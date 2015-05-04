@@ -1,9 +1,11 @@
-#ifndef MEDUSA_FETCH_PROTOCOL_HPP_
-#define MEDUSA_FETCH_PROTOCOL_HPP_
+#ifndef MEDUSA_MSG_FETCH_PROTOCOL_HPP_
+#define MEDUSA_MSG_FETCH_PROTOCOL_HPP_
 
 #include <poseidon/cbpp/message_base.hpp>
 
 namespace Medusa {
+
+namespace Msg {
 
 #define MESSAGE_NAME	FetchEncryptedMessage
 #define MESSAGE_ID		100
@@ -22,6 +24,8 @@ namespace Medusa {
 	FIELD_VUINT			(isTunnel)	\
 	FIELD_STRING		(body)
 #include <poseidon/cbpp/message_generator.hpp>
+
+}
 
 }
 

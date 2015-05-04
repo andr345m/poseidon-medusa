@@ -1,7 +1,7 @@
 #include "precompiled.hpp"
 #include "proxy_session.hpp"
 #include <poseidon/http/upgraded_session_base.hpp>
-#include "fetch_protocol.hpp"
+#include "msg/fetch_protocol.hpp"
 
 namespace Medusa {
 
