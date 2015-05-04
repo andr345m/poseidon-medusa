@@ -21,4 +21,5 @@ lib_libposeidon_medusa_la_SOURCES = \
 	src/singletons/fetch_server.cpp	\
 	src/proxy_session.cpp	\
 	src/fetch_session.cpp	\
+	src/encryption.cpp	\
 	src/mmain.cpp
