@@ -1,6 +1,8 @@
 #ifndef MEDUSA_FETCH_SESSION_HPP_
 #define MEDUSA_FETCH_SESSION_HPP_
 
+#include <map>
+#include <boost/cstdint.hpp>
 #include <poseidon/cbpp/session.hpp>
 
 namespace Medusa {
@@ -13,7 +15,7 @@ private:
 private:
 	const std::string m_password;
 
-	boost::weak_ptr<FetchClient> m_client;
+	std::map<boost::uint64_t, boost::weak_ptr<FetchClient> > m_fetchClients;
 
 public:
 	FetchSession(Poseidon::UniqueFile socket, std::string password);
@@ -23,7 +25,8 @@ protected:
 	void onRequest(boost::uint16_t messageId, const Poseidon::StreamBuffer &payload) OVERRIDE;
 
 public:
-	bool send(Poseidon::StreamBuffer payload);
+	bool sendSuccess(boost::uint64_t context, Poseidon::StreamBuffer payload);
+	bool sendFailure(boost::uint64_t context, long errCode, Poseidon::StreamBuffer payload);
 };
 
 }

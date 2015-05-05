@@ -9,7 +9,7 @@
 #include "encryption.hpp"
 
 namespace Medusa {
-
+/*
 class FetchSession::FetchClient : public Poseidon::TcpClientBase {
 public:
 	static boost::shared_ptr<FetchClient> create(boost::weak_ptr<FetchSession> parent,
@@ -112,7 +112,7 @@ protected:
 		}
 	}
 };
-
+*/
 FetchSession::FetchSession(Poseidon::UniqueFile socket, std::string password)
 	: Poseidon::Cbpp::Session(STD_MOVE(socket))
 	, m_password(STD_MOVE(password))
@@ -123,7 +123,7 @@ FetchSession::~FetchSession(){
 
 void FetchSession::onRequest(boost::uint16_t messageId, const Poseidon::StreamBuffer &payload){
 	PROFILE_ME;
-
+/*
 	try {
 		if(messageId != Msg::FetchEncryptedMessage::ID){
 			LOG_MEDUSA_DEBUG("Unexpected message: messageId = ", messageId);
@@ -144,9 +144,9 @@ void FetchSession::onRequest(boost::uint16_t messageId, const Poseidon::StreamBu
 		Poseidon::Cbpp::Session::sendControl(messageId, e.statusCode(), e.what());
 		shutdownRead();
 		shutdownWrite();
-	}
+	}*/
 }
-bool FetchSession::send(Poseidon::StreamBuffer payload){
+/*bool FetchSession::send(Poseidon::StreamBuffer payload){
 	PROFILE_ME;
 
 	AUTO(decryptedData, payload.dump());
@@ -157,5 +157,5 @@ bool FetchSession::send(Poseidon::StreamBuffer payload){
 	encrypted.data = encrypt(STD_MOVE(decryptedData), m_password, encrypted.nonce);
 	return Poseidon::Cbpp::Session::send(encrypted);
 }
-
+*/
 }
