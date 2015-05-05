@@ -25,8 +25,7 @@ protected:
 	void onRequest(boost::uint16_t messageId, const Poseidon::StreamBuffer &payload) OVERRIDE;
 
 public:
-	bool sendSuccess(boost::uint64_t context, Poseidon::StreamBuffer payload);
-	bool sendFailure(boost::uint64_t context, long errCode, Poseidon::StreamBuffer payload);
+	bool send(boost::uint64_t context, boost::uint16_t messageId, std::string data);
 };
 
 }

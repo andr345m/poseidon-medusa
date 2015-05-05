@@ -137,25 +137,27 @@ void FetchSession::onRequest(boost::uint16_t messageId, const Poseidon::StreamBu
 			LOG_MEDUSA_DEBUG("CRC32 mismatch");
 			DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_FETCH_CRC_MISMATCH);
 		}
-		Poseidon::enqueueJob(boost::make_shared<FetchJob>(
-			virtualSharedFromThis<FetchSession>(), Msg::FetchRequest(Poseidon::StreamBuffer(decryptedData))));
+
+		Msg::FetchRequest request(Poseidon::StreamBuffer(decryptedData));
+		Poseidon::enqueueJob(boost::make_shared<FetchJob>(virtualSharedFromThis<FetchSession>(),
+			STD_MOVE(request.host), request.port, request.useSsl, STD_MOVE(request.contents)))
 	} catch(Poseidon::Cbpp::Exception &e){
 		LOG_MEDUSA_INFO("Cbpp::Exception thrown: statusCode = ", e.statusCode(), ", what = ", e.what());
 		Poseidon::Cbpp::Session::sendControl(messageId, e.statusCode(), e.what());
-		shutdownRead();
-		shutdownWrite();
+		Poseidon::Cbpp::Session::shutdownRead();
+		Poseidon::Cbpp::Session::shutdownWrite();
 	}*/
 }
-/*bool FetchSession::send(Poseidon::StreamBuffer payload){
+
+bool FetchSession::send(boost::uint64_t context, boost::uint16_t messageId, std::string data){
 	PROFILE_ME;
 
-	AUTO(decryptedData, payload.dump());
-
-	Msg::FetchEncryptedMessage encrypted;
-	encrypted.nonce = generateNonce();
-	encrypted.crc32 = Poseidon::crc32Sum(decryptedData.data(), decryptedData.size());
-	encrypted.data = encrypt(STD_MOVE(decryptedData), m_password, encrypted.nonce);
-	return Poseidon::Cbpp::Session::send(encrypted);
+	Msg::GN_FetchEncryptedMessage msg;
+	msg.context = context;
+	msg.nonce = generateNonce();
+	msg.crc32 = Poseidon::crc32Sum(data.data(), data.size());
+	msg.data = encrypt(STD_MOVE(data), m_password, msg.nonce);
+	return Poseidon::Cbpp::Session::send(messageId, Poseidon::StreamBuffer(msg));
 }
-*/
+
 }
