@@ -34,7 +34,8 @@ namespace Msg {
 #define MESSAGE_NAME	SC_FetchFailure
 #define MESSAGE_ID		198
 #define MESSAGE_FIELDS	\
-	FIELD_VINT			(errCode)	\
+	FIELD_VINT			(cbppErrCode)	\
+	FIELD_VINT			(sysErrCode)	\
 	FIELD_STRING		(description)
 #include <poseidon/cbpp/message_generator.hpp>
 

@@ -95,11 +95,8 @@ Poseidon::StreamBuffer encrypt(Poseidon::StreamBuffer data, const std::string &k
 
 	TinyEncryptor enc(key, nonce);
 	Poseidon::StreamBuffer ret;
-	for(;;){
-		const int c = data.get();
-		if(c < 0){
-			break;
-		}
+	int c;
+	while((c = data.get()) > 0){
 		const AUTO(byte, static_cast<unsigned char>(c));
 		ret.put(enc.encryptByte(byte));
 	}
@@ -110,11 +107,8 @@ Poseidon::StreamBuffer decrypt(Poseidon::StreamBuffer data, const std::string &k
 
 	TinyDecryptor dec(key, nonce);
 	Poseidon::StreamBuffer ret;
-	for(;;){
-		const int c = data.get();
-		if(c < 0){
-			break;
-		}
+	int c;
+	while((c = data.get()) > 0){
 		const AUTO(byte, static_cast<unsigned char>(c));
 		ret.put(dec.decryptByte(byte));
 	}
