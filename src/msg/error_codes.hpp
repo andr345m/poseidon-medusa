@@ -9,6 +9,8 @@ namespace Msg {
 	using namespace Poseidon::Cbpp::StatusCodes;
 
 	enum {
+		ERR_CRC32_MISMATCH			= 9301,
+
 		ERR_FETCH_CONNECTION_LOST	= 9501,
 		ERR_FETCH_CONNECTION_CLOSED	= 9502,
 		ERR_FETCH_DNS_FAILURE		= 9503,

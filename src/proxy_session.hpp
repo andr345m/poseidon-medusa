@@ -14,11 +14,10 @@ public:
 	~ProxySession();
 
 protected:
-	boost::shared_ptr<Poseidon::Http::UpgradedSessionBase> onRequestHeaders(
+	boost::shared_ptr<Poseidon::Http::UpgradedLowLevelSessionBase> onLowLevelRequestHeaders(
 		Poseidon::Http::RequestHeaders &requestHeaders, boost::uint64_t contentLength) OVERRIDE;
 
-	void onRequest(
-		const Poseidon::Http::RequestHeaders &requestHeaders, const Poseidon::StreamBuffer &entity) OVERRIDE;
+	void onRequest(const Poseidon::Http::RequestHeaders &requestHeaders, const Poseidon::StreamBuffer &entity) OVERRIDE;
 };
 
 }

@@ -10,9 +10,8 @@ namespace Msg {
 #define MESSAGE_NAME	GN_FetchEncryptedMessage
 #define MESSAGE_ID		0
 #define MESSAGE_FIELDS	\
-	FIELD_VUINT			(context)	\
 	FIELD_STRING		(nonce)	\
-	FIELD_VUINT			(crc32)	\
+	FIELD_STRING		(challenge)	\
 	FIELD_STRING		(data)
 #include <poseidon/cbpp/message_generator.hpp>
 
@@ -21,6 +20,7 @@ namespace Msg {
 #define MESSAGE_FIELDS	\
 	FIELD_STRING		(host)	\
 	FIELD_VUINT			(port)	\
+	FIELD_VUINT			(opaque)	\
 	FIELD_VUINT			(useSsl)	\
 	FIELD_STRING		(contents)
 #include <poseidon/cbpp/message_generator.hpp>
@@ -28,12 +28,18 @@ namespace Msg {
 #define MESSAGE_NAME	SC_FetchSuccess
 #define MESSAGE_ID		199
 #define MESSAGE_FIELDS	\
+	FIELD_STRING		(host)	\
+	FIELD_VUINT			(port)	\
+	FIELD_VUINT			(opaque)	\
 	FIELD_STRING		(contents)
 #include <poseidon/cbpp/message_generator.hpp>
 
 #define MESSAGE_NAME	SC_FetchFailure
 #define MESSAGE_ID		198
 #define MESSAGE_FIELDS	\
+	FIELD_STRING		(host)	\
+	FIELD_VUINT			(port)	\
+	FIELD_VUINT			(opaque)	\
 	FIELD_VINT			(cbppErrCode)	\
 	FIELD_VINT			(sysErrCode)	\
 	FIELD_STRING		(description)

@@ -58,7 +58,7 @@ namespace {
 	};
 }
 
-std::string generateNonce(unsigned lenMin, unsigned lenDelta){
+std::string generateRandomBytes(unsigned lenMin, unsigned lenDelta){
 	PROFILE_ME;
 
 	std::string ret;

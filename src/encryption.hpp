@@ -6,7 +6,7 @@
 
 namespace Medusa {
 
-extern std::string generateNonce(unsigned lenMin = 16, unsigned lenDelta = 16);
+extern std::string generateRandomBytes(unsigned lenMin = 16, unsigned lenDelta = 16);
 
 extern std::string encrypt(std::string data, const std::string &key, const std::string &nonce);
 extern std::string decrypt(std::string data, const std::string &key, const std::string &nonce);

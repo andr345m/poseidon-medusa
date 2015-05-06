@@ -1,14 +1,14 @@
 #include "precompiled.hpp"
 #include "proxy_session.hpp"
-#include <poseidon/http/upgraded_session_base.hpp>
+#include <poseidon/http/upgraded_low_level_session_base.hpp>
 #include "msg/fetch_protocol.hpp"
 
 namespace Medusa {
 
-class ProxySession::TunnelSession : public Poseidon::Http::UpgradedSessionBase {
+class ProxySession::TunnelSession : public Poseidon::Http::UpgradedLowLevelSessionBase {
 public:
 	TunnelSession(const boost::shared_ptr<Session> &parent, std::string uri)
-		: Poseidon::Http::UpgradedSessionBase(parent, STD_MOVE(uri))
+		: Poseidon::Http::UpgradedLowLevelSessionBase(parent, STD_MOVE(uri))
 	{
 	}
 
@@ -31,7 +31,7 @@ ProxySession::~ProxySession(){
 	}
 }
 
-boost::shared_ptr<Poseidon::Http::UpgradedSessionBase> ProxySession::onRequestHeaders(
+boost::shared_ptr<Poseidon::Http::UpgradedLowLevelSessionBase> ProxySession::onLowLevelRequestHeaders(
 	Poseidon::Http::RequestHeaders &requestHeaders, boost::uint64_t contentLength)
 {
 	if(requestHeaders.verb == Poseidon::Http::V_CONNECT){
@@ -39,11 +39,10 @@ boost::shared_ptr<Poseidon::Http::UpgradedSessionBase> ProxySession::onRequestHe
 		
 		return STD_MOVE_IDN(tunnel);
 	}
-	return Poseidon::Http::Session::onRequestHeaders(requestHeaders, contentLength);
+	return Poseidon::Http::Session::onLowLevelRequestHeaders(requestHeaders, contentLength);
 }
-void ProxySession::onRequest(
-	const Poseidon::Http::RequestHeaders &requestHeaders, const Poseidon::StreamBuffer &entity)
-{
+
+void ProxySession::onRequest(const Poseidon::Http::RequestHeaders &requestHeaders, const Poseidon::StreamBuffer &entity){
 	sendDefault(Poseidon::Http::ST_FORBIDDEN);
 }
 
