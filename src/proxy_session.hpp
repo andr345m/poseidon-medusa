@@ -1,11 +1,11 @@
 #ifndef MEDUSA_PROXY_SESSION_HPP_
 #define MEDUSA_PROXY_SESSION_HPP_
 
-#include <poseidon/http/session.hpp>
+#include <poseidon/http/low_level_session.hpp>
 
 namespace Medusa {
 
-class ProxySession : public Poseidon::Http::Session {
+class ProxySession : public Poseidon::Http::LowLevelSession {
 private:
 	class TunnelSession;
 
@@ -14,10 +14,11 @@ public:
 	~ProxySession();
 
 protected:
-	boost::shared_ptr<Poseidon::Http::UpgradedLowLevelSessionBase> onLowLevelRequestHeaders(
-		Poseidon::Http::RequestHeaders &requestHeaders, boost::uint64_t contentLength) OVERRIDE;
+	boost::shared_ptr<Poseidon::Http::UpgradedLowLevelSessionBase>
+		onLowLevelRequestHeaders(Poseidon::Http::RequestHeaders &requestHeaders, boost::uint64_t contentLength) OVERRIDE;
 
-	void onRequest(const Poseidon::Http::RequestHeaders &requestHeaders, const Poseidon::StreamBuffer &entity) OVERRIDE;
+	void onLowLevelRequest(Poseidon::Http::RequestHeaders requestHeaders, Poseidon::StreamBuffer entity) OVERRIDE;
+	void onLowLevelError(Poseidon::Http::StatusCode statusCode, Poseidon::OptionalMap headers) OVERRIDE;
 };
 
 }

@@ -1,10 +1,10 @@
 #include "precompiled.hpp"
 #include "proxy_session.hpp"
 #include <poseidon/http/upgraded_low_level_session_base.hpp>
-#include "msg/fetch_protocol.hpp"
+#include "msg/fetch.hpp"
 
 namespace Medusa {
-
+/*
 class ProxySession::TunnelSession : public Poseidon::Http::UpgradedLowLevelSessionBase {
 public:
 	TunnelSession(const boost::shared_ptr<Session> &parent, std::string uri)
@@ -45,5 +45,5 @@ boost::shared_ptr<Poseidon::Http::UpgradedLowLevelSessionBase> ProxySession::onL
 void ProxySession::onRequest(const Poseidon::Http::RequestHeaders &requestHeaders, const Poseidon::StreamBuffer &entity){
 	sendDefault(Poseidon::Http::ST_FORBIDDEN);
 }
-
+*/
 }

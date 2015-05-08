@@ -1,16 +1,41 @@
 #include "precompiled.hpp"
 #include "fetch_session.hpp"
-#include <poseidon/random.hpp>
-#include <poseidon/endian.hpp>
+#include <poseidon/hash.hpp>
 #include <poseidon/job_base.hpp>
 #include <poseidon/tcp_client_base.hpp>
-#include "singletons/dns_cache.hpp"
-#include "msg/fetch_protocol.hpp"
+#include "singletons/dns_daemon.hpp"
+#include "msg/fetch.hpp"
 #include "msg/error_codes.hpp"
 #include "encryption.hpp"
 
 namespace Medusa {
 /*
+struct FetchSession::ClientContext {
+	std::string host;
+	unsigned port;
+	boost::uint64_t opaque;
+
+	ClientContext(std::string host_, unsigned port_, boost::uint64_t opaque_)
+		: host(STD_MOVE(host_)), port(port_), opaque(opaque_)
+	{
+	}
+
+	bool operator<(const ClientContext &rhs) const {
+		int cmp = host.compare(rhs.host);
+		if(cmp != 0){
+			return cmp < 0;
+		}
+		if(port != rhs.port){
+			return port < rhs.port;
+		}
+		return opaque < rhs.opaque;
+	}
+};
+
+struct FetchSession::ClientControl {
+};
+
+
 class FetchSession::FetchClient : public Poseidon::TcpClientBase {
 public:
 	static boost::shared_ptr<FetchClient> create(boost::weak_ptr<FetchSession> parent, ClientContext context, bool useSsl){
@@ -91,7 +116,7 @@ protected:
 		}
 	}
 };
-*/
+
 FetchSession::FetchSession(Poseidon::UniqueFile socket, std::string password)
 	: Poseidon::Cbpp::Session(STD_MOVE(socket))
 	, m_password(STD_MOVE(password))
@@ -142,7 +167,7 @@ void FetchSession::onLowLevelRequest(boost::uint16_t messageId, Poseidon::Stream
 	AUTO(decryptedPayload, 
 
 	Poseidon::Cbpp::Session::onLowLevelRequest(messageId, Poseidon::StreamBuffer(req.data
-	
+
 }
 void FetchSession::onLowLevelControl(Poseidon::Cbpp::ControlCode controlCode, Poseidon::Cbpp::StatusCode statusCode, std::string reason){
 	PROFILE_ME;
@@ -164,7 +189,7 @@ bool FetchSession::send(boost::uint16_t messageId, Poseidon::StreamBuffer payloa
 }
 
 
-/*
+
 std::string FetchSession::encryptClientContext(const FetchSession::ClientContext &context, const std::string &nonce) const {
 	PROFILE_ME;
 
@@ -329,5 +354,100 @@ bool FetchSession::send(const ClientContext &context, boost::uint16_t messageId,
 	encryptedMsg.data = encrypt(STD_MOVE(data), m_password, encryptedMsg.nonce);
 	return Poseidon::Cbpp::LowLevelSession::send(messageId, Poseidon::StreamBuffer(encryptedMsg));
 }
+
+
+void FetchSession::shutdownAllClients(bool force) NOEXCEPT {
+	PROFILE_ME;
+
+	const Poseidon::Mutex::UniqueLock lock(m_clientMutex);
+	while(!m_clients.empty()){
+		const AUTO(client, m_clients.begin()->second.lock());
+		if(client){
+			if(force){
+				client->forceShutdown();
+			} else {
+				client->shutdownRead();
+				client->shutdownWrite();
+			}
+		}
+		m_clients.erase(m_clients.begin());
+	}
+}
+
+void FetchSession::onLowLevelPlainMessage(boost::uint16_t messageId, Poseidon::StreamBuffer plain){
+	PROFILE_ME;
+
+	{
+		const Poseidon::Mutex::UniqueLock lock(m_clientMutex);
+	}
+	// TODO
+}
+
+void FetchSession::onClose(int errCode) NOEXCEPT {
+	shutdownAllClients(errCode != 0);
+}
+
+void FetchSession::onLowLevelRequest(boost::uint16_t messageId, Poseidon::StreamBuffer payload){
+	PROFILE_ME;
+
+	Msg::G_FetchEncryptedHeader header;
+	// TODO
+}
+void FetchSession::onLowLevelControl(Poseidon::Cbpp::ControlCode controlCode, boost::int64_t intParam, std::string strParam){
+	PROFILE_ME;
+
+	if(controlCode == Poseidon::Cbpp::CTL_HEARTBEAT){
+		return;
+	}
+
+	sendError(controlCode, intParam, STD_MOVE(strParam));
+}
+
+void FetchSession::onLowLevelError(unsigned messageId, Poseidon::Cbpp::StatusCode statusCode, const char *reason){
+	PROFILE_ME;
+
+	sendError(messageId, statusCode, std::string(reason));
+}
+
+bool FetchSession::send(boost::uint16_t messageId, Poseidon::StreamBuffer plain){
+	PROFILE_ME;
+
+	Msg::G_FetchEncryptedMessage msg;
+	msg.nonce = generateRandomBytes();
+	msg.
+
+	Poseidon::StreamBuffer payload;
+
+
+	// TODO
+
+	std::string nonce = generateRandomBytes();
+	AUTO(noncedPassword, nonce + m_password);
+	std::string hash(32);
+	Poseidon::sha256Sum(reinterpret_cast<unsigned char (*)[32]>(hash.data())[0], noncedPassword.data(), noncedPassword.size());
+
+	Msg::G_FetchEncryptedHeader header(STD;
+	heaeder.nonce = STD_MOVE(nonce);
+	header.noncedPasswordSha256.assign(reinterpret_cast<const char *>(sha256), sizeof(sha256));
+	header >>payload;
+
+	Poseidon::StreamBuffer plain;
+	plain.put(header.challenge);
+	plain.splice(payload);
+	AUTO(encrypted, encrypt(STD_MOVE(plain), m_password, header.nonce));
+	payload.splice(encrypted);
+
+	return Poseidon::Cbpp::LowLevelSession::send(messageId, STD_MOVE(payload));
+}
+
+bool FetchSession::sendError(boost::uint16_t messageId, Poseidon::Cbpp::StatusCode statusCode, std::string reason){
+	PROFILE_ME;
+
+	const bool ret = Poseidon::Cbpp::LowLevelSession::sendError(messageId, statusCode, STD_MOVE(reason));
+	Poseidon::Cbpp::LowLevelSession::shutdownRead();
+	Poseidon::Cbpp::LowLevelSession::shutdownWrite();
+	return ret;
+}
 */
+
 }

@@ -20,7 +20,7 @@ namespace {
 	};
 }
 
-MODULE_RAII {
+MODULE_RAII(handles){
 	AUTO(bind, getConfig()->get<std::string>("proxy_server_bind", "0.0.0.0"));
 	AUTO(port, getConfig()->get<unsigned>("proxy_server_port", 5322));
 
@@ -28,7 +28,7 @@ MODULE_RAII {
 	LOG_MEDUSA_INFO("Creating proxy HTTP server on ", bindAddr);
 	AUTO(server, boost::make_shared<ProxyServer>(bindAddr));
 	Poseidon::EpollDaemon::registerServer(server);
-	return STD_MOVE_IDN(server);
+	handles.push(STD_MOVE_IDN(server));
 }
 
 }

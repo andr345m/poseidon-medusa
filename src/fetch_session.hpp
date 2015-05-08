@@ -3,6 +3,7 @@
 
 #include <map>
 #include <boost/cstdint.hpp>
+#include <poseidon/mutex.hpp>
 #include <poseidon/stream_buffer.hpp>
 #include <poseidon/cbpp/low_level_session.hpp>
 
@@ -10,39 +11,14 @@ namespace Medusa {
 
 class FetchSession : public Poseidon::Cbpp::LowLevelSession {
 private:
-	class FetchClient;
-
-public:
-	struct ClientContext {
-		std::string host;
-		unsigned port;
-		boost::uint64_t opaque;
-
-		ClientContext()
-			: host(), port(), opaque()
-		{
-		}
-		ClientContext(std::string host_, unsigned port_, boost::uint64_t opaque_)
-			: host(STD_MOVE(host_)), port(port_), opaque(opaque_)
-		{
-		}
-
-		bool operator<(const ClientContext &rhs) const {
-			const int cmp = host.compare(rhs.host);
-			if(cmp != 0){
-				return cmp < 0;
-			}
-			if(port != rhs.port){
-				return port < rhs.port;
-			}
-			return opaque < rhs.opaque;
-		}
-	};
+	struct ClientContext;
+	struct ClientControl;
 
 private:
 	const std::string m_password;
 
-	std::map<ClientContext, boost::weak_ptr<FetchClient> > m_clients;
+	mutable Poseidon::Mutex m_clientMutex;
+	std::map<ClientContext, ClientControl> m_clients;
 
 public:
 	FetchSession(Poseidon::UniqueFile socket, std::string password);
@@ -51,19 +27,25 @@ public:
 private:
 	void shutdownAllClients(bool force) NOEXCEPT;
 
+	void onLowLevelPlainMessage(boost::uint16_t messageId, Poseidon::StreamBuffer plain);
+
 protected:
 	void onClose(int errCode) NOEXCEPT OVERRIDE;
 
 	void onLowLevelRequest(boost::uint16_t messageId, Poseidon::StreamBuffer payload) OVERRIDE;
-	void onLowLevelControl(Poseidon::Cbpp::ControlCode controlCode, Poseidon::Cbpp::StatusCode statusCode, std::string reason) OVERRIDE;
+	void onLowLevelControl(Poseidon::Cbpp::ControlCode controlCode, boost::int64_t intParam, std::string strParam) OVERRIDE;
+
+	void onLowLevelError(unsigned messageId, Poseidon::Cbpp::StatusCode statusCode, const char *reason) OVERRIDE;
 
 public:
-	bool send(boost::uint16_t messageId, Poseidon::StreamBuffer payload);
+	bool send(boost::uint16_t messageId, Poseidon::StreamBuffer plain);
 
-	template<class MessageT>
-	typename boost::enable_if<boost::is_base_of<Poseidon::Cbpp::MessageBase, MessageT>, bool>::type send(const MessageT &payload){
-		return send(MessageT::ID, Poseidon::StreamBuffer(payload));
+	template<class MsgT>
+	bool send(const MsgT &msg){
+		return send(MsgT::ID, Poseidon::StreamBuffer(msg));
 	}
+
+	bool sendError(boost::uint16_t messageId, Poseidon::Cbpp::StatusCode statusCode, std::string reason);
 };
 
 }

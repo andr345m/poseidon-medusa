@@ -25,7 +25,7 @@ namespace {
 	};
 }
 
-MODULE_RAII {
+MODULE_RAII(handles){
 	AUTO(bind, getConfig()->get<std::string>("fetch_server_bind", "127.0.0.1"));
 	AUTO(port, getConfig()->get<unsigned>("fetch_server_port", 5326));
 	AUTO(cert, getConfig()->get<std::string>("fetch_server_certificate"));
@@ -36,7 +36,7 @@ MODULE_RAII {
 	LOG_MEDUSA_INFO("Creating fetch CBPP server on ", bindAddr);
 	AUTO(server, boost::make_shared<FetchServer>(bindAddr, cert, pkey, STD_MOVE(pass)));
 	Poseidon::EpollDaemon::registerServer(server);
-	return STD_MOVE_IDN(server);
+	handles.push(STD_MOVE_IDN(server));
 }
 
 }
