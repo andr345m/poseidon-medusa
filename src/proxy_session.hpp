@@ -6,14 +6,13 @@
 namespace Medusa {
 
 class ProxySession : public Poseidon::Http::LowLevelSession {
-private:
-	class TunnelSession;
-
 public:
 	explicit ProxySession(Poseidon::UniqueFile socket);
 	~ProxySession();
 
 protected:
+	void onClose(int errCode) NOEXCEPT OVERRIDE;
+
 	boost::shared_ptr<Poseidon::Http::UpgradedLowLevelSessionBase>
 		onLowLevelRequestHeaders(Poseidon::Http::RequestHeaders &requestHeaders, boost::uint64_t contentLength) OVERRIDE;
 

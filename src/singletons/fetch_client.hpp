@@ -5,9 +5,10 @@
 
 namespace Medusa {
 
-class FetchClient : public Posiedon::Cbpp::LowLevelClient {
+class FetchClient : public Poseidon::Cbpp::LowLevelClient {
 public:
 	static boost::shared_ptr<FetchClient> get();
+	static boost::shared_ptr<FetchClient> require();
 
 private:
 	FetchClient(const Poseidon::IpPort &addr, boost::uint64_t keepAliveTimeout, bool useSsl);
@@ -15,9 +16,9 @@ private:
 
 protected:
 	void onLowLevelResponse(boost::uint16_t messageId, boost::uint64_t payloadLen) OVERRIDE;
-	void onLowLevelPayload(boost::uint64_t payloadOffset, Posiedon::StreamBuffer payload) OVERRIDE;
+	void onLowLevelPayload(boost::uint64_t payloadOffset, Poseidon::StreamBuffer payload) OVERRIDE;
 
-	void onLowLevelError(boost::uint16_t messageId, Posiedon::Cbpp::StatusCode statusCode, std::string reason) OVERRIDE;
+	void onLowLevelError(boost::uint16_t messageId, Poseidon::Cbpp::StatusCode statusCode, std::string reason) OVERRIDE;
 
 public:
 	bool send(boost::uint16_t messageId, Poseidon::StreamBuffer plain);
@@ -27,7 +28,7 @@ public:
 		return send(MsgT::ID, Poseidon::StreamBuffer(msg));
 	}
 
-	bool sendControl(Posiedon::Cbpp::ControlCode controlCode, boost::int64_t intParam, std::string strParam);
+	bool sendControl(Poseidon::Cbpp::ControlCode controlCode, boost::int64_t intParam, std::string strParam);
 };
 
 }

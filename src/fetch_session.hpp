@@ -35,7 +35,7 @@ protected:
 	void onLowLevelRequest(boost::uint16_t messageId, Poseidon::StreamBuffer payload) OVERRIDE;
 	void onLowLevelControl(Poseidon::Cbpp::ControlCode controlCode, boost::int64_t intParam, std::string strParam) OVERRIDE;
 
-	void onLowLevelError(unsigned messageId, Poseidon::Cbpp::StatusCode statusCode, const char *reason) OVERRIDE;
+	void onLowLevelError(boost::uint16_t messageId, Poseidon::Cbpp::StatusCode statusCode, const char *reason) OVERRIDE;
 
 public:
 	bool send(boost::uint16_t messageId, Poseidon::StreamBuffer plain);

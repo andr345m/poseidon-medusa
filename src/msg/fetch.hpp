@@ -18,44 +18,51 @@ namespace Msg {
 #define MESSAGE_NAME	CS_FetchDnsRequest
 #define MESSAGE_ID		100
 #define MESSAGE_FIELDS	\
+	FIELD_VUINT			(opaque)	\
 	FIELD_STRING		(host)	\
-	FIELD_VUINT			(port)	\
-	FIELD_VUINT			(opaque)
+	FIELD_VUINT			(port)
 #include <poseidon/cbpp/message_generator.hpp>
 
 #define MESSAGE_NAME	CS_FetchRequest
 #define MESSAGE_ID		101
 #define MESSAGE_FIELDS	\
+	FIELD_VUINT			(opaque)	\
 	FIELD_STRING		(host)	\
 	FIELD_VUINT			(port)	\
-	FIELD_VUINT			(opaque)	\
 	FIELD_VUINT			(useSsl)	\
 	FIELD_STRING		(contents)
+#include <poseidon/cbpp/message_generator.hpp>
+
+#define MESSAGE_NAME	CS_FetchClose
+#define MESSAGE_ID		102
+#define MESSAGE_FIELDS	\
+	FIELD_VUINT			(opaque)	\
+	FIELD_VINT			(errCode)
 #include <poseidon/cbpp/message_generator.hpp>
 
 #define MESSAGE_NAME	SC_FetchDnsResult
 #define MESSAGE_ID		199
 #define MESSAGE_FIELDS	\
+	FIELD_VUINT			(opaque)	\
 	FIELD_STRING		(ip)	\
-	FIELD_VUINT			(port)	\
-	FIELD_VUINT			(opaque)
+	FIELD_VUINT			(port)
 #include <poseidon/cbpp/message_generator.hpp>
 
 #define MESSAGE_NAME	SC_FetchSuccess
 #define MESSAGE_ID		198
 #define MESSAGE_FIELDS	\
+	FIELD_VUINT			(opaque)	\
 	FIELD_STRING		(host)	\
 	FIELD_VUINT			(port)	\
-	FIELD_VUINT			(opaque)	\
 	FIELD_STRING		(contents)
 #include <poseidon/cbpp/message_generator.hpp>
 
 #define MESSAGE_NAME	SC_FetchFailure
 #define MESSAGE_ID		197
 #define MESSAGE_FIELDS	\
+	FIELD_VUINT			(opaque)	\
 	FIELD_STRING		(host)	\
 	FIELD_VUINT			(port)	\
-	FIELD_VUINT			(opaque)	\
 	FIELD_VINT			(cbppErrCode)	\
 	FIELD_VINT			(sysErrCode)	\
 	FIELD_STRING		(description)
