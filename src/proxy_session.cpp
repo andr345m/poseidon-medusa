@@ -101,9 +101,11 @@ boost::shared_ptr<Poseidon::Http::UpgradedLowLevelSessionBase>
 	PROFILE_ME;
 
 	if(contentLength == CONTENT_CHUNKED){
-		LOG_MEDUSA_DEBUG("Proxy HTTP chunked request: URI = ", requestHeaders.uri);
+		LOG_MEDUSA_DEBUG("Proxy HTTP chunked request: verb = ", Poseidon::Http::getStringFromVerb(requestHeaders.verb),
+			", URI = ", requestHeaders.uri);
 	} else {
-		LOG_MEDUSA_DEBUG("Proxy HTTP request: URI = ", requestHeaders.uri,", contentLength = ", contentLength);
+		LOG_MEDUSA_DEBUG("Proxy HTTP request: verb = ", Poseidon::Http::getStringFromVerb(requestHeaders.verb),
+			", URI = ", requestHeaders.uri,", contentLength = ", contentLength);
 	}
 
 	const AUTO(fetch, m_fetch.lock());
