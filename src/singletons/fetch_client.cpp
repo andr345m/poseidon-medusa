@@ -50,6 +50,7 @@ void FetchClient::onLowLevelPlainMessage(const Poseidon::Uuid &sessionUuid, boos
 	const AUTO(session, ProxySession::findByUuid(sessionUuid));
 	if(!session){
 		LOG_MEDUSA_DEBUG("Session has gone away: sessionUuid = ", sessionUuid);
+		send(sessionUuid, Msg::CS_FetchClose(EPIPE));
 		return;
 	}
 
