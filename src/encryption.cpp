@@ -108,7 +108,7 @@ Poseidon::StreamBuffer encryptHeader(EncryptionContextPtr &context, const Poseid
 
 	EncryptedHeader header;
 	std::memcpy(header.uuid, uuid.data(), uuid.size());
-	for(unsigned i = 0; i < 32; ++i){
+	for(unsigned i = 0; i < 16; ++i){
 		header.nonce[i] = Poseidon::rand32();
 	}
 	unsigned char noncedKey[32];
