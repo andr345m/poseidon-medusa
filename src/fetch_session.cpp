@@ -3,12 +3,20 @@
 #include <poseidon/hash.hpp>
 #include <poseidon/job_base.hpp>
 #include <poseidon/tcp_client_base.hpp>
+#include "encryption.hpp"
 #include "singletons/dns_daemon.hpp"
 #include "msg/fetch.hpp"
 #include "msg/error_codes.hpp"
-#include "encryption.hpp"
 
 namespace Medusa {
+
+namespace {
+	typedef Poseidon::Cbpp::LowLevelSession LowLevelSession;
+}
+
+struct FetchSession::ClientControl {
+};
+
 /*
 struct FetchSession::ClientContext {
 	std::string host;
@@ -117,32 +125,6 @@ protected:
 	}
 };
 
-FetchSession::FetchSession(Poseidon::UniqueFile socket, std::string password)
-	: Poseidon::Cbpp::Session(STD_MOVE(socket))
-	, m_password(STD_MOVE(password))
-{
-}
-FetchSession::~FetchSession(){
-	shutdownAllClients(true);
-}
-
-void FetchSession::shutdownAllClients(bool force) NOEXCEPT {
-	PROFILE_ME;
-
-	for(AUTO(it, m_clients.begin()); it != m_clients.end(); ++it){
-		const AUTO(client, it->second.lock());
-		if(!client){
-			continue;
-		}
-		if(force){
-			client->forceShutdown();
-		} else {
-			client->shutdownRead();
-			client->shutdownWrite();
-		}
-	}
-	m_clients.clear();
-}
 
 void FetchSession::onClose(int errCode) NOEXCEPT {
 	PROFILE_ME;
@@ -322,12 +304,6 @@ void FetchSession::onLowLevelControl(Poseidon::Cbpp::ControlCode controlCode,
 }
 
 void FetchSession::onLowLevelError(unsigned messageId, Poseidon::Cbpp::StatusCode statusCode, const char *reason){
-	PROFILE_ME;
-	LOG_MEDUSA_DEBUG("Fetch session error: messageId = ", messageId, ", statusCode = ", statusCode, ", reason = ", reason);
-
-	Poseidon::Cbpp::LowLevelSession::sendControl(messageId, statusCode, std::string(reason));
-	Poseidon::Cbpp::LowLevelSession::shutdownRead();
-	Poseidon::Cbpp::LowLevelSession::shutdownWrite();
 }
 
 void FetchSession::onLowLevelRequest(boost::uint16_t messageId, const Poseidon::StreamBuffer &payload){
@@ -352,7 +328,7 @@ bool FetchSession::send(const ClientContext &context, boost::uint16_t messageId,
 	encryptedMsg.context = encryptClientContext(context, encryptedMsg.nonce);
 	encryptedMsg.dataCrc32 = Poseidon::crc32Sum(data.data(), data.size());
 	encryptedMsg.data = encrypt(STD_MOVE(data), m_password, encryptedMsg.nonce);
-	return Poseidon::Cbpp::LowLevelSession::send(messageId, Poseidon::StreamBuffer(encryptedMsg));
+	return LowLevelSession::send(messageId, Poseidon::StreamBuffer(encryptedMsg));
 }
 
 
@@ -394,13 +370,6 @@ void FetchSession::onLowLevelRequest(boost::uint16_t messageId, Poseidon::Stream
 	// TODO
 }
 void FetchSession::onLowLevelControl(Poseidon::Cbpp::ControlCode controlCode, boost::int64_t intParam, std::string strParam){
-	PROFILE_ME;
-
-	if(controlCode == Poseidon::Cbpp::CTL_HEARTBEAT){
-		return;
-	}
-
-	sendError(controlCode, intParam, STD_MOVE(strParam));
 }
 
 void FetchSession::onLowLevelError(unsigned messageId, Poseidon::Cbpp::StatusCode statusCode, const char *reason){
@@ -437,17 +406,116 @@ bool FetchSession::send(boost::uint16_t messageId, Poseidon::StreamBuffer plain)
 	AUTO(encrypted, encrypt(STD_MOVE(plain), m_password, header.nonce));
 	payload.splice(encrypted);
 
-	return Poseidon::Cbpp::LowLevelSession::send(messageId, STD_MOVE(payload));
+	return LowLevelSession::send(messageId, STD_MOVE(payload));
 }
 
 bool FetchSession::sendError(boost::uint16_t messageId, Poseidon::Cbpp::StatusCode statusCode, std::string reason){
 	PROFILE_ME;
 
-	const bool ret = Poseidon::Cbpp::LowLevelSession::sendError(messageId, statusCode, STD_MOVE(reason));
-	Poseidon::Cbpp::LowLevelSession::shutdownRead();
-	Poseidon::Cbpp::LowLevelSession::shutdownWrite();
+	const bool ret = LowLevelSession::sendError(messageId, statusCode, STD_MOVE(reason));
+	LowLevelSession::shutdownRead();
+	LowLevelSession::shutdownWrite();
 	return ret;
 }
 */
+
+FetchSession::FetchSession(Poseidon::UniqueFile socket, std::string password)
+	: LowLevelSession(STD_MOVE(socket))
+	, m_password(STD_MOVE(password))
+{
+}
+FetchSession::~FetchSession(){
+	shutdownAllClients(true);
+}
+
+void FetchSession::shutdownAllClients(bool force) NOEXCEPT {
+	PROFILE_ME;
+
+	for(AUTO(it, m_clients.begin()); it != m_clients.end(); ++it){
+/*		const AUTO(client, it->second.lock());
+		if(!client){
+			continue;
+		}
+		if(force){
+			client->forceShutdown();
+		} else {
+			client->shutdownRead();
+			client->shutdownWrite();
+		}
+*/	}
+	m_clients.clear();
+}
+
+void FetchSession::onLowLevelPlainMessage(const Poseidon::Uuid &sessionUuid, boost::uint16_t messageId, Poseidon::StreamBuffer plain){
+	PROFILE_ME;
+
+}
+
+void FetchSession::onClose(int errCode) NOEXCEPT {
+	PROFILE_ME;
+
+	LOG_MEDUSA_INFO("Fetch session closed: errCode = ", errCode);
+	shutdownAllClients(errCode != 0);
+
+	LowLevelSession::onClose(errCode);
+}
+
+void FetchSession::onLowLevelRequest(boost::uint16_t messageId, Poseidon::StreamBuffer payload){
+	PROFILE_ME;
+
+	const AUTO(headerSize, getEncryptedHeaderSize());
+
+	if(payload.size() < headerSize){
+		LOG_MEDUSA_ERROR("Frame from fetch client is too small, expecting ", headerSize);
+		DEBUG_THROW(Exception, SSLIT("Frame from fetch client is too small"));
+	}
+
+	EncryptionContextPtr decContext;
+	if(!tryDecryptHeader(decContext, m_password, payload)){
+		LOG_MEDUSA_ERROR("Error decrypting header. Maybe you provided a wrong password?");
+		DEBUG_THROW(Exception, SSLIT("Error decrypting header"));
+	}
+	payload.discard(getEncryptedHeaderSize());
+
+	AUTO(plain, decryptPayload(decContext, STD_MOVE(payload)));
+	onLowLevelPlainMessage(decContext->uuid, messageId, STD_MOVE(plain));
+}
+void FetchSession::onLowLevelControl(Poseidon::Cbpp::ControlCode controlCode, boost::int64_t intParam, std::string strParam){
+	PROFILE_ME;
+
+	if(controlCode == Poseidon::Cbpp::CTL_HEARTBEAT){
+		return;
+	}
+
+	sendError(controlCode, intParam, STD_MOVE(strParam));
+}
+
+void FetchSession::onLowLevelError(boost::uint16_t messageId, Poseidon::Cbpp::StatusCode statusCode, const char *reason){
+	PROFILE_ME;
+	LOG_MEDUSA_DEBUG("Fetch session error: messageId = ", messageId, ", statusCode = ", statusCode, ", reason = ", reason);
+
+	LowLevelSession::sendError(messageId, statusCode, std::string(reason));
+	LowLevelSession::shutdownRead();
+	LowLevelSession::shutdownWrite();
+}
+
+bool FetchSession::send(const Poseidon::Uuid &sessionUuid, boost::uint16_t messageId, Poseidon::StreamBuffer plain){
+	PROFILE_ME;
+
+	EncryptionContextPtr encContext;
+	AUTO(data, encryptHeader(encContext, sessionUuid, m_password));
+	AUTO(payload, encryptPayload(encContext, STD_MOVE(plain)));
+	data.splice(payload);
+	return LowLevelSession::send(messageId, STD_MOVE(data));
+}
+
+bool FetchSession::sendError(boost::uint16_t messageId, Poseidon::Cbpp::StatusCode statusCode, std::string reason){
+	PROFILE_ME;
+
+	const bool ret = FetchSession::sendError(messageId, statusCode, STD_MOVE(reason));
+	shutdownRead();
+	shutdownWrite();
+	return ret;
+}
 
 }

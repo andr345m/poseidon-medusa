@@ -27,7 +27,7 @@ public:
 private:
 	void shutdownAllClients(bool force) NOEXCEPT;
 
-	void onLowLevelPlainMessage(const Poseidon::Uuid &sessionId, boost::uint16_t messageId, Poseidon::StreamBuffer plain);
+	void onLowLevelPlainMessage(const Poseidon::Uuid &sessionUuid, boost::uint16_t messageId, Poseidon::StreamBuffer plain);
 
 protected:
 	void onClose(int errCode) NOEXCEPT OVERRIDE;
@@ -38,11 +38,11 @@ protected:
 	void onLowLevelError(boost::uint16_t messageId, Poseidon::Cbpp::StatusCode statusCode, const char *reason) OVERRIDE;
 
 public:
-	bool send(const Poseidon::Uuid &sessionId, boost::uint16_t messageId, Poseidon::StreamBuffer plain);
+	bool send(const Poseidon::Uuid &sessionUuid, boost::uint16_t messageId, Poseidon::StreamBuffer plain);
 
 	template<class MsgT>
-	bool send(const Poseidon::Uuid &sessionId, const MsgT &msg){
-		return send(sessionId, MsgT::ID, Poseidon::StreamBuffer(msg));
+	bool send(const Poseidon::Uuid &sessionUuid, const MsgT &msg){
+		return send(sessionUuid, MsgT::ID, Poseidon::StreamBuffer(msg));
 	}
 
 	bool sendError(boost::uint16_t messageId, Poseidon::Cbpp::StatusCode statusCode, std::string reason);

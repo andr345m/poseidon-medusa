@@ -1,117 +1,174 @@
 #include "precompiled.hpp"
 #include "encryption.hpp"
-#include <poseidon/random.hpp>
 #include <poseidon/hash.hpp>
+#include <poseidon/random.hpp>
+#include <poseidon/string.hpp>
 
 namespace Medusa {
 
 namespace {
-	class TinyEncryptorBase {
-	protected:
-		unsigned char m_box[32];
-		unsigned m_idx;
+	struct EncryptedHeader {
+		unsigned char uuid[16];
+		unsigned char nonce[16];
+		unsigned char md5[16];
+	};
 
-	protected:
-		TinyEncryptorBase(const std::string &key, const std::string &nonce){
-			unsigned char keyHash[32], nonceHash[32];
-			Poseidon::sha256Sum(keyHash, key.data(), key.size());
-			Poseidon::sha256Sum(nonceHash, nonce.data(), nonce.size());
+	void makeNoncedKey(unsigned char (&ret)[32], const unsigned char (&nonce)[16], const std::string &key){
+		PROFILE_ME;
 
-			for(unsigned i = 0; i < 32; ++i){
-				m_box[i] = keyHash[i] ^ nonceHash[i];
+		AUTO(noncedKey, reinterpret_cast<unsigned char (&)[2][16]>(ret));
+		std::memcpy(noncedKey[0], nonce, 16);
+		Poseidon::md5Sum(noncedKey[1], key.data(), key.size());
+	}
+
+	// http://en.wikipedia.org/wiki/RC4#Spritz
+
+	void createContext(boost::scoped_ptr<EncryptionContext> &ret, const Poseidon::Uuid &uuid, const unsigned char (&noncedKey)[32]){
+		PROFILE_ME;
+
+		boost::scoped_ptr<EncryptionContext> ctx(new EncryptionContext);
+
+		ctx->uuid = uuid;
+		ctx->i = 0;
+		ctx->j = 0;
+
+		for(unsigned i = 0; i < 256; ++i){
+			ctx->s[i] = i;
+		}
+		unsigned i = 0, j = 0;
+		while(i < 256){
+			unsigned tmp;
+
+#define GEN_S(k_)	\
+			tmp = ctx->s[i];	\
+			j = (j + tmp + (k_)) & 0xFF;	\
+			ctx->s[i] = ctx->s[j];	\
+			ctx->s[j] = tmp;	\
+			++i;
+
+			for(unsigned r = 0; r < 16; ++r){
+				GEN_S(uuid[r]);
 			}
-			m_idx = 0;
-		}
-	};
-
-	class TinyEncryptor : private TinyEncryptorBase {
-	public:
-		TinyEncryptor(const std::string &key, const std::string &nonce)
-			: TinyEncryptorBase(key, nonce)
-		{
+			for(unsigned r = 0; r < 32; ++r){
+				GEN_S(noncedKey[r]);
+			}
+			for(unsigned r = 0; r < 16; ++r){
+				GEN_S(uuid[r]);
+			}
 		}
 
-	public:
-		unsigned encryptByte(unsigned char byte){
-			AUTO_REF(mask, m_box[m_idx++ & 0x1F]);
-			byte ^= mask;
-			AUTO_REF(xchg, m_box[byte >> 3]);
-			std::swap(mask, xchg);
-			return byte;
-		}
-	};
-	class TinyDecryptor : private TinyEncryptorBase {
-	public:
-		TinyDecryptor(const std::string &key, const std::string &nonce)
-			: TinyEncryptorBase(key, nonce)
-		{
-		}
+		ret.swap(ctx);
+	}
+	void encryptBytes(EncryptionContext *ctx, unsigned char *data, std::size_t size){
+		PROFILE_ME;
 
-	public:
-		unsigned decryptByte(unsigned char byte){
-			AUTO_REF(mask, m_box[m_idx++ & 0x1F]);
-			AUTO_REF(xchg, m_box[byte >> 3]);
-			byte ^= mask;
-			std::swap(mask, xchg);
-			return byte;
+		for(std::size_t i = 0; i < size; ++i){
+			unsigned byte = data[i];
+
+			ctx->i = (ctx->i + 1) & 0xFF;
+			const unsigned k1 = ctx->s[ctx->i];
+			ctx->j = (ctx->j + k1) & 0xFF;
+			const unsigned k2 = ctx->s[ctx->j];
+			ctx->s[ctx->i] = k2;
+			ctx->s[ctx->j] = k1;
+
+			byte ^= k1 + k2;
+			ctx->i ^= byte; // RC4 改。
+
+			data[i] = byte;
 		}
-	};
+	}
+	void decryptBytes(EncryptionContext *ctx, unsigned char *data, std::size_t size){
+		PROFILE_ME;
+
+		for(std::size_t i = 0; i < size; ++i){
+			unsigned byte = data[i];
+
+			ctx->i = (ctx->i + 1) & 0xFF;
+			const unsigned k1 = ctx->s[ctx->i];
+			ctx->j = (ctx->j + k1) & 0xFF;
+			const unsigned k2 = ctx->s[ctx->j];
+			ctx->s[ctx->i] = k2;
+			ctx->s[ctx->j] = k1;
+
+			ctx->i ^= byte; // RC4 改。
+			byte ^= k1 + k2;
+
+			data[i] = byte;
+		}
+	}
 }
 
-std::string generateRandomBytes(unsigned lenMin, unsigned lenDelta){
+std::size_t getEncryptedHeaderSize(){
+	return sizeof(EncryptedHeader);
+}
+
+Poseidon::StreamBuffer encryptHeader(EncryptionContextPtr &context, const Poseidon::Uuid &uuid, const std::string &key){
 	PROFILE_ME;
 
-	std::string ret;
-	ret.resize(lenMin + Poseidon::rand32() % lenDelta);
-	for(AUTO(it, ret.begin()); it != ret.end(); ++it){
-		*it = static_cast<char>(Poseidon::rand32());
+	EncryptedHeader header;
+	std::memcpy(header.uuid, uuid.data(), uuid.size());
+	for(unsigned i = 0; i < 32; ++i){
+		header.nonce[i] = Poseidon::rand32();
 	}
+	unsigned char noncedKey[32];
+	makeNoncedKey(noncedKey, header.nonce, key);
+	Poseidon::md5Sum(header.md5, noncedKey, sizeof(noncedKey));
+
+	Poseidon::StreamBuffer ret(&header, sizeof(header));
+	createContext(context, uuid, noncedKey);
+	return ret;
+}
+Poseidon::StreamBuffer encryptPayload(const EncryptionContextPtr &context, Poseidon::StreamBuffer plain){
+	PROFILE_ME;
+
+	struct Helper {
+		static bool callback(void *context, void *data, std::size_t size){
+			encryptBytes(static_cast<EncryptionContext *>(context), static_cast<unsigned char *>(data), size);
+			return true;
+		}
+	};
+
+	Poseidon::StreamBuffer ret(STD_MOVE(plain));
+	ret.traverse(&Helper::callback, context.get());
 	return ret;
 }
 
-std::string encrypt(std::string data, const std::string &key, const std::string &nonce){
+bool tryDecryptHeader(EncryptionContextPtr &context, const std::string &key, const Poseidon::StreamBuffer &encrypted){
 	PROFILE_ME;
 
-	TinyEncryptor enc(key, nonce);
-	for(std::size_t i = 0; i < data.size(); ++i){
-		AUTO_REF(byte, reinterpret_cast<unsigned char &>(data[i]));
-		byte = enc.encryptByte(byte);
+	const AUTO(headerSize, getEncryptedHeaderSize());
+	if(encrypted.size() < headerSize){
+		LOG_MEDUSA_ERROR("No enough data provided, expecting at least ", headerSize, " bytes.");
+		DEBUG_THROW(Exception, SSLIT("No enough data provided"));
 	}
-	return STD_MOVE(data);
+
+	EncryptedHeader header;
+	encrypted.peek(&header, sizeof(header));
+	unsigned char noncedKey[32];
+	makeNoncedKey(noncedKey, header.nonce, key);
+	unsigned char md5[16];
+	Poseidon::md5Sum(md5, noncedKey, sizeof(noncedKey));
+	if(std::memcmp(md5, header.md5, 16) != 0){
+		using Poseidon::HexDumper;
+		LOG_MEDUSA_DEBUG("Unexpected MD5: expecting ", HexDumper(md5, 16), ", got ", HexDumper(header.md5, 16));
+		return false;
+	}
+	createContext(context, Poseidon::Uuid(header.uuid), noncedKey);
+	return true;
 }
-std::string decrypt(std::string data, const std::string &key, const std::string &nonce){
+Poseidon::StreamBuffer decryptPayload(const EncryptionContextPtr &context, Poseidon::StreamBuffer encrypted){
 	PROFILE_ME;
 
-	TinyDecryptor dec(key, nonce);
-	for(std::size_t i = 0; i < data.size(); ++i){
-		AUTO_REF(byte, reinterpret_cast<unsigned char &>(data[i]));
-		byte = dec.decryptByte(byte);
-	}
-	return STD_MOVE(data);
-}
+	struct Helper {
+		static bool callback(void *context, void *data, std::size_t size){
+			decryptBytes(static_cast<EncryptionContext *>(context), static_cast<unsigned char *>(data), size);
+			return true;
+		}
+	};
 
-Poseidon::StreamBuffer encrypt(Poseidon::StreamBuffer data, const std::string &key, const std::string &nonce){
-	PROFILE_ME;
-
-	TinyEncryptor enc(key, nonce);
-	Poseidon::StreamBuffer ret;
-	int c;
-	while((c = data.get()) >= 0){
-		const AUTO(byte, static_cast<unsigned char>(c));
-		ret.put(enc.encryptByte(byte));
-	}
-	return ret;
-}
-Poseidon::StreamBuffer decrypt(Poseidon::StreamBuffer data, const std::string &key, const std::string &nonce){
-	PROFILE_ME;
-
-	TinyDecryptor dec(key, nonce);
-	Poseidon::StreamBuffer ret;
-	int c;
-	while((c = data.get()) >= 0){
-		const AUTO(byte, static_cast<unsigned char>(c));
-		ret.put(dec.decryptByte(byte));
-	}
+	Poseidon::StreamBuffer ret(STD_MOVE(encrypted));
+	ret.traverse(&Helper::callback, context.get());
 	return ret;
 }
 
