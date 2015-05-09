@@ -60,8 +60,14 @@ void FetchClient::onLowLevelPlainMessage(const Poseidon::Uuid &sessionUuid, boos
 		session->notifyFetchConnected();
 	} else if(messageId == Msg::SC_FetchError::ID){
 		Msg::SC_FetchError msg(plain);
-		LOG_MEDUSA_INFO("Fetch error: cbppErrCode = ", msg.cbppErrCode, ", sysErrCode = ", msg.sysErrCode, ", description = ", msg.description);
-		session->forceShutdown();
+		LOG_MEDUSA_DEBUG("Fetch error: cbppErrCode = ", msg.cbppErrCode,
+			", sysErrCode = ", msg.sysErrCode, ", description = ", msg.description);
+		if(msg.sysErrCode == 0){
+			session->shutdownRead();
+			session->shutdownWrite();
+		} else {
+			session->forceShutdown();
+		}
 	} else {
 		LOG_MEDUSA_WARNING("Unknown message from fetch server: messageId = ", messageId, ", size = ", plain.size());
 	}
