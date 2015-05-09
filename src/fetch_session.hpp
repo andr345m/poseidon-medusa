@@ -3,40 +3,37 @@
 
 #include <map>
 #include <boost/cstdint.hpp>
+#include <poseidon/fwd.hpp>
+#include <poseidon/cbpp/session.hpp>
 #include <poseidon/uuid.hpp>
-#include <poseidon/mutex.hpp>
 #include <poseidon/stream_buffer.hpp>
-#include <poseidon/cbpp/low_level_session.hpp>
 
 namespace Medusa {
 
-class FetchSession : public Poseidon::Cbpp::LowLevelSession {
+class FetchSession : public Poseidon::Cbpp::Session {
 private:
-	struct ClientControl;
+	class Client;
+	class ClientControl;
 
 private:
-	const boost::uint64_t m_timeToLive;
+	static void clientGcProc(const boost::weak_ptr<FetchSession> &weakSession, boost::uint64_t now, boost::uint64_t period);
+
+private:
 	const std::string m_password;
 
-	mutable Poseidon::Mutex m_clientMutex;
-	std::map<boost::uint64_t, ClientControl> m_clients;
+	boost::shared_ptr<Poseidon::TimerItem> m_clientGcTimer;
+
+	std::map<Poseidon::Uuid, ClientControl> m_clients;
 
 public:
 	FetchSession(Poseidon::UniqueFile socket, std::string password);
 	~FetchSession();
 
 private:
-	void shutdownAllClients(bool force) NOEXCEPT;
-
-	void onLowLevelPlainMessage(const Poseidon::Uuid &sessionUuid, boost::uint16_t messageId, Poseidon::StreamBuffer plain);
+	void onPlainMessage(const Poseidon::Uuid &sessionUuid, boost::uint16_t messageId, Poseidon::StreamBuffer plain);
 
 protected:
-	void onClose(int errCode) NOEXCEPT OVERRIDE;
-
-	void onLowLevelRequest(boost::uint16_t messageId, Poseidon::StreamBuffer payload) OVERRIDE;
-	void onLowLevelControl(Poseidon::Cbpp::ControlCode controlCode, boost::int64_t intParam, std::string strParam) OVERRIDE;
-
-	void onLowLevelError(boost::uint16_t messageId, Poseidon::Cbpp::StatusCode statusCode, const char *reason) OVERRIDE;
+	void onRequest(boost::uint16_t messageId, const Poseidon::StreamBuffer &payload) OVERRIDE;
 
 public:
 	bool send(const Poseidon::Uuid &sessionUuid, boost::uint16_t messageId, Poseidon::StreamBuffer plain);

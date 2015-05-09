@@ -7,15 +7,8 @@ namespace Medusa {
 
 namespace Msg {
 
-#define MESSAGE_NAME	CS_FetchDnsRequest
-#define MESSAGE_ID		100
-#define MESSAGE_FIELDS	\
-	FIELD_STRING		(host)	\
-	FIELD_VUINT			(port)
-#include <poseidon/cbpp/message_generator.hpp>
-
 #define MESSAGE_NAME	CS_FetchConnect
-#define MESSAGE_ID		101
+#define MESSAGE_ID		100
 #define MESSAGE_FIELDS	\
 	FIELD_STRING		(host)	\
 	FIELD_VUINT			(port)	\
@@ -23,28 +16,27 @@ namespace Msg {
 #include <poseidon/cbpp/message_generator.hpp>
 
 #define MESSAGE_NAME	CS_FetchSend
-#define MESSAGE_ID		102
+#define MESSAGE_ID		101
 #define MESSAGE_FIELDS	\
 	FIELD_STRING		(payload)
 #include <poseidon/cbpp/message_generator.hpp>
 
 #define MESSAGE_NAME	CS_FetchClose
-#define MESSAGE_ID		103
+#define MESSAGE_ID		102
 #define MESSAGE_FIELDS	\
 	FIELD_VINT			(errCode)
 #include <poseidon/cbpp/message_generator.hpp>
 
-#define MESSAGE_NAME	SC_FetchDnsResult
+#define MESSAGE_NAME	SC_FetchContents
 #define MESSAGE_ID		199
 #define MESSAGE_FIELDS	\
-	FIELD_STRING		(ip)	\
-	FIELD_VUINT			(port)
+	// 这个结构并不使用，我们只用协议号。
 #include <poseidon/cbpp/message_generator.hpp>
 
-#define MESSAGE_NAME	SC_FetchContents
+#define MESSAGE_NAME	SC_FetchConnected
 #define MESSAGE_ID		198
 #define MESSAGE_FIELDS	\
-	// 这个结构并不使用，我们只用协议号。
+	//
 #include <poseidon/cbpp/message_generator.hpp>
 
 #define MESSAGE_NAME	SC_FetchError

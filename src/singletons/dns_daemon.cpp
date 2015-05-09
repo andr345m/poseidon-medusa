@@ -1,7 +1,7 @@
 #include "../precompiled.hpp"
 #include "dns_daemon.hpp"
-#include <poseidon/raii.hpp>
 #include <poseidon/ip_port.hpp>
+#include <poseidon/raii.hpp>
 #include <poseidon/mutex.hpp>
 #include <poseidon/atomic.hpp>
 #include <poseidon/thread.hpp>
@@ -13,9 +13,6 @@
 namespace Medusa {
 
 namespace {
-	typedef DnsDaemon::SuccessCallback SuccessCallback;
-	typedef DnsDaemon::FailureCallback FailureCallback;
-
 	struct AddrInfoDeleter {
 		CONSTEXPR ::addrinfo *operator()() const NOEXCEPT {
 			return NULLPTR;
@@ -28,12 +25,13 @@ namespace {
 	class DnsQueue : NONCOPYABLE {
 	private:
 		struct Element {
-			Poseidon::IpPort ipPort;
-			SuccessCallback success;
-			FailureCallback failure;
+			std::string host;
+			unsigned port;
+			DnsDaemon::SuccessCallback success;
+			DnsDaemon::FailureCallback failure;
 
-			Element(Poseidon::IpPort ipPort_, SuccessCallback success_, FailureCallback failure_)
-				: ipPort(STD_MOVE(ipPort_)), success(STD_MOVE_IDN(success_)), failure(STD_MOVE_IDN(failure_))
+			Element(std::string host_, unsigned port_, DnsDaemon::SuccessCallback success_, DnsDaemon::FailureCallback failure_)
+				: host(STD_MOVE(host_)), port(port_), success(STD_MOVE_IDN(success_)), failure(STD_MOVE_IDN(failure_))
 			{
 			}
 		};
@@ -72,17 +70,19 @@ namespace {
 				Poseidon::UniqueHandle<AddrInfoDeleter> addrInfo;
 				{
 					char port[32];
-					std::sprintf(port, "%u", elem.ipPort.port);
+					std::sprintf(port, "%u", elem.port);
 					::addrinfo *res = NULLPTR;
-					gaiCode = ::getaddrinfo(elem.ipPort.ip.get(), port, NULLPTR, &res);
+					gaiCode = ::getaddrinfo(elem.host.c_str(), port, NULLPTR, &res);
 					errCode = errno;
 					addrInfo.reset(res);
-					LOG_MEDUSA_DEBUG("DNS lookup result: ipPort = ", elem.ipPort, ", gaiCode = ", gaiCode, ", errCode = ", errCode);
+					LOG_MEDUSA_DEBUG("DNS lookup result: host:port = ", elem.host, ':', elem.port,
+						", gaiCode = ", gaiCode, ", errCode = ", errCode);
 				}
 				if(gaiCode == 0){
 					const Poseidon::SockAddr sockAddr(addrInfo.get()->ai_addr, addrInfo.get()->ai_addrlen);
-					LOG_MEDUSA_DEBUG("DNS: ", elem.ipPort, ", is resolved as ", Poseidon::getIpPortFromSockAddr(sockAddr));
-					elem.success(elem.ipPort, sockAddr);
+					LOG_MEDUSA_DEBUG("DNS lookup: host:port = ", elem.host, ':', elem.port,
+						", result ip:port = ", Poseidon::getIpPortFromSockAddr(sockAddr));
+					elem.success(elem.host, elem.port, sockAddr);
 				} else {
 					char temp[1024];
 					const char *errMsg;
@@ -91,7 +91,7 @@ namespace {
 					} else {
 						errMsg = ::gai_strerror(gaiCode);
 					}
-					elem.failure(elem.ipPort, gaiCode, errCode, errMsg);
+					elem.failure(elem.host, elem.port, gaiCode, errCode, errMsg);
 				}
 			} catch(std::exception &e){
 				LOG_MEDUSA_ERROR("std::exception thrown in DNS loop: what = ", e.what());
@@ -123,9 +123,9 @@ namespace {
 		}
 
 	public:
-		void push(Poseidon::IpPort ipPort, SuccessCallback success, FailureCallback failure){
+		void push(std::string host, unsigned port, DnsDaemon::SuccessCallback success, DnsDaemon::FailureCallback failure){
 			const Poseidon::Mutex::UniqueLock lock(m_mutex);
-			m_queue.push_back(Element(STD_MOVE(ipPort), STD_MOVE(success), STD_MOVE(failure)));
+			m_queue.push_back(Element(STD_MOVE(host), port, STD_MOVE(success), STD_MOVE(failure)));
 		}
 	};
 
@@ -138,7 +138,7 @@ namespace {
 	}
 }
 
-void DnsDaemon::asyncLookup(Poseidon::IpPort ipPort, SuccessCallback success, FailureCallback failure){
+void DnsDaemon::asyncLookup(std::string host, unsigned port, DnsDaemon::SuccessCallback success, DnsDaemon::FailureCallback failure){
 	PROFILE_ME;
 
 	const AUTO(queue, g_queue.lock());
@@ -147,7 +147,7 @@ void DnsDaemon::asyncLookup(Poseidon::IpPort ipPort, SuccessCallback success, Fa
 		DEBUG_THROW(Exception, SSLIT("DNS queue has not been created"));
 	}
 
-	queue->push(STD_MOVE(ipPort), STD_MOVE(success), STD_MOVE(failure));
+	queue->push(STD_MOVE(host), port, STD_MOVE(success), STD_MOVE(failure));
 }
 
 }

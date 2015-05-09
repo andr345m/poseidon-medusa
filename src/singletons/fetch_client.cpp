@@ -1,6 +1,5 @@
 #include "../precompiled.hpp"
 #include "fetch_client.hpp"
-#include <poseidon/json.hpp>
 #include "../proxy_session.hpp"
 #include "../encryption.hpp"
 #include "../msg/fetch.hpp"
@@ -9,8 +8,6 @@
 namespace Medusa {
 
 namespace {
-	typedef Poseidon::Cbpp::LowLevelClient LowLevelClient;
-
 	Poseidon::Mutex g_clientMutex;
 	boost::weak_ptr<FetchClient> g_client;
 }
@@ -39,7 +36,7 @@ boost::shared_ptr<FetchClient> FetchClient::require(){
 }
 
 FetchClient::FetchClient(const Poseidon::IpPort &addr, boost::uint64_t keepAliveTimeout, bool useSsl, std::string password)
-	: LowLevelClient(addr, keepAliveTimeout, useSsl)
+	: Poseidon::Cbpp::LowLevelClient(addr, keepAliveTimeout, useSsl)
 	, m_password(STD_MOVE(password))
 {
 }
@@ -52,18 +49,14 @@ void FetchClient::onLowLevelPlainMessage(const Poseidon::Uuid &sessionUuid, boos
 
 	const AUTO(session, ProxySession::findByUuid(sessionUuid));
 	if(!session){
-		LOG_MEDUSA_DEBUG("Session has gone away: uuid = ", sessionUuid);
-		DEBUG_THROW(Exception, SSLIT("Session has gone away"));
+		LOG_MEDUSA_DEBUG("Session has gone away: sessionUuid = ", sessionUuid);
+		return;
 	}
 
-	if(messageId == Msg::SC_FetchDnsResult::ID){
-		Msg::SC_FetchDnsResult msg(plain);
-		Poseidon::JsonObject root;
-		root[SSLIT("ip")] = STD_MOVE(msg.ip);
-		root[SSLIT("port")] = msg.port;
-		session->send(Poseidon::Http::ST_OK, Poseidon::StreamBuffer(root.dump()));
-	} else if(messageId == Msg::SC_FetchContents::ID){
+	if(messageId == Msg::SC_FetchContents::ID){
 		session->sendRaw(STD_MOVE(plain));
+	} else if(messageId == Msg::SC_FetchConnected::ID){
+		session->notifyFetchConnected();
 	} else if(messageId == Msg::SC_FetchError::ID){
 		Msg::SC_FetchError msg(plain);
 		LOG_MEDUSA_INFO("Fetch error: cbppErrCode = ", msg.cbppErrCode, ", sysErrCode = ", msg.sysErrCode, ", description = ", msg.description);
@@ -102,8 +95,8 @@ void FetchClient::onLowLevelPayload(boost::uint64_t payloadOffset, Poseidon::Str
 			return;
 		}
 		if(!tryDecryptHeader(m_decContext, m_password, m_payload)){
-			LOG_MEDUSA_ERROR("Error decrypting header. Maybe you provided a wrong password?");
-			DEBUG_THROW(Exception, SSLIT("Error decrypting header"));
+			LOG_MEDUSA_ERROR("Checksums mismatch. Maybe you provided a wrong password?");
+			DEBUG_THROW(Exception, SSLIT("Checksums mismatch"));
 		}
 	}
 	if(m_payload.size() < m_payloadLen){
@@ -117,8 +110,12 @@ void FetchClient::onLowLevelPayload(boost::uint64_t payloadOffset, Poseidon::Str
 
 void FetchClient::onLowLevelError(boost::uint16_t messageId, Poseidon::Cbpp::StatusCode statusCode, std::string reason){
 	PROFILE_ME;
-	LOG_MEDUSA_ERROR("Fetch error: messageId = ", messageId, ", statusCode = ", statusCode, ", reason = ", reason);
 
+	if(statusCode != Msg::ST_OK){
+		return;
+	}
+
+	LOG_MEDUSA_ERROR("Fetch error: messageId = ", messageId, ", statusCode = ", statusCode, ", reason = ", reason);
 	forceShutdown();
 }
 
@@ -129,7 +126,7 @@ bool FetchClient::send(const Poseidon::Uuid &sessionUuid, boost::uint16_t messag
 	AUTO(data, encryptHeader(encContext, sessionUuid, m_password));
 	AUTO(payload, encryptPayload(encContext, STD_MOVE(plain)));
 	data.splice(payload);
-	return LowLevelClient::send(messageId, STD_MOVE(data));
+	return Poseidon::Cbpp::LowLevelClient::send(messageId, STD_MOVE(data));
 }
 
 }

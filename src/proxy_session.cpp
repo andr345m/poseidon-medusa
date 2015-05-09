@@ -71,6 +71,7 @@ void ProxySession::shutdownAll(bool force){
 ProxySession::ProxySession(Poseidon::UniqueFile socket)
 	: Poseidon::Http::LowLevelSession(STD_MOVE(socket))
 	, m_uuid(Poseidon::Uuid::random()), m_fetch(FetchClient::require())
+	, m_tunnelEstablished(false)
 {
 	const Poseidon::Mutex::UniqueLock lock(g_mapMutex);
 	g_sessionMap[m_uuid] = this;
@@ -105,7 +106,7 @@ boost::shared_ptr<Poseidon::Http::UpgradedLowLevelSessionBase>
 			", URI = ", requestHeaders.uri);
 	} else {
 		LOG_MEDUSA_DEBUG("Proxy HTTP request: verb = ", Poseidon::Http::getStringFromVerb(requestHeaders.verb),
-			", URI = ", requestHeaders.uri,", contentLength = ", contentLength);
+			", URI = ", requestHeaders.uri, ", contentLength = ", contentLength);
 	}
 
 	const AUTO(fetch, m_fetch.lock());
@@ -117,7 +118,6 @@ boost::shared_ptr<Poseidon::Http::UpgradedLowLevelSessionBase>
 	std::string host;
 	unsigned port;
 	bool useSsl;
-	std::string uri;
 
 	if(::strncasecmp(requestHeaders.uri.c_str(), "https://", 8) == 0){
 		requestHeaders.uri.erase(0, 8);
@@ -134,17 +134,17 @@ boost::shared_ptr<Poseidon::Http::UpgradedLowLevelSessionBase>
 	}
 	AUTO(pos, host.find('/'));
 	if(pos != std::string::npos){
-		uri = host.substr(pos);
+		requestHeaders.uri = host.substr(pos);
 		host.erase(pos);
 	} else {
-		uri = "/";
+		requestHeaders.uri = "/";
 	}
 	pos = host.find(':');
 	if(pos != std::string::npos){
 		port = boost::lexical_cast<unsigned>(host.substr(pos + 1));
 		host.erase(pos);
 	}
-	LOG_MEDUSA_DEBUG("Request: host:port = ", host, ':', port, ", useSsl = ", useSsl, ", uri = ", uri);
+	LOG_MEDUSA_DEBUG("Request: host:port = ", host, ':', port, ", useSsl = ", useSsl, ", URI = ", requestHeaders.uri);
 	fetch->send(m_uuid, Msg::CS_FetchConnect(STD_MOVE(host), port, useSsl));
 	setTimeout(getConfig()->get<boost::uint64_t>("proxy_http_keep_alive_timeout", 15000));
 
@@ -237,6 +237,18 @@ void ProxySession::onLowLevelError(Poseidon::Http::StatusCode statusCode, Poseid
 	sendDefault(statusCode, STD_MOVE(headers));
 	shutdownRead();
 	shutdownWrite();
+}
+
+bool ProxySession::notifyFetchConnected(){
+	PROFILE_ME;
+
+	const AUTO(tunnelSession, boost::dynamic_pointer_cast<TunnelLowLevelSession>(getUpgradedSession()));
+	if(tunnelSession && !m_tunnelEstablished){
+		sendDefault(Poseidon::Http::ST_OK);
+		m_tunnelEstablished = true;
+		return true;
+	}
+	return false;
 }
 
 bool ProxySession::sendRaw(Poseidon::StreamBuffer bytes){

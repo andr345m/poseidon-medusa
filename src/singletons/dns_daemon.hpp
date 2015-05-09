@@ -3,22 +3,21 @@
 
 #include <string>
 #include <boost/function.hpp>
-#include <poseidon/ip_port.hpp>
 #include <poseidon/sock_addr.hpp>
 
 namespace Medusa {
 
 struct DnsDaemon {
 	typedef boost::function<
-		void (const Poseidon::IpPort &ipPort, const Poseidon::SockAddr &addr)
+		void (const std::string &host, unsigned port, const Poseidon::SockAddr &addr)
 		> SuccessCallback;
 
 	typedef boost::function<
 		// gaiCode 是 getaddrinfo() 的返回值，errCode 是 errno 当时的值。
-		void (const Poseidon::IpPort &ipPort, int gaiCode, int errCode, const char *errMsg)
+		void (const std::string &host, unsigned port, int gaiCode, int errCode, const char *errMsg)
 		> FailureCallback;
 
-	static void asyncLookup(Poseidon::IpPort ipPort, SuccessCallback success, FailureCallback failure);
+	static void asyncLookup(std::string host, unsigned port, SuccessCallback success, FailureCallback failure);
 
 private:
 	DnsDaemon();
