@@ -28,7 +28,7 @@ public:
 protected:
 	void onReadAvail(const void *data, std::size_t size) OVERRIDE {
 		PROFILE_ME;
-		LOG_MEDUSA_DEBUG("Fetch client has received some data: size = ", size);
+		LOG_MEDUSA_DEBUG("Fetch client has received some data: size = ", size, ", fetchUuid = ", m_fetchUuid);
 
 		const AUTO(parent, m_parent.lock());
 		if(!parent){
@@ -42,7 +42,7 @@ protected:
 
 	void onClose(int errCode) NOEXCEPT {
 		PROFILE_ME;
-		LOG_MEDUSA_DEBUG("Fetch client is shutting down...");
+		LOG_MEDUSA_DEBUG("Fetch client is shutting down: fetchUuid = ", m_fetchUuid);
 
 		const AUTO(parent, m_parent.lock());
 		if(!parent){
@@ -77,7 +77,7 @@ private:
 		}
 		const AUTO(it, session->m_clients.find(fetchUuid));
 		if(it == session->m_clients.end()){
-			LOG_MEDUSA_DEBUG("Lost connection to client?");
+			LOG_MEDUSA_DEBUG("Lost connection to client? fetchUuid = ", fetchUuid);
 			return;
 		}
 

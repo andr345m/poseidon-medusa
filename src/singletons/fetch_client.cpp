@@ -60,7 +60,7 @@ void FetchClient::onLowLevelPlainMessage(const Poseidon::Uuid &sessionUuid, boos
 		session->notifyFetchConnected();
 	} else if(messageId == Msg::SC_FetchError::ID){
 		Msg::SC_FetchError msg(plain);
-		LOG_MEDUSA_DEBUG("Fetch error: cbppErrCode = ", msg.cbppErrCode,
+		LOG_MEDUSA_DEBUG("Fetch error: sessionUuid = ", sessionUuid, ", cbppErrCode = ", msg.cbppErrCode,
 			", sysErrCode = ", msg.sysErrCode, ", description = ", msg.description);
 		if(msg.sysErrCode == 0){
 			session->shutdownRead();
