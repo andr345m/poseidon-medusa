@@ -39,7 +39,7 @@ protected:
 		}
 
 		fetch->send(parent->m_uuid, Msg::CS_FetchSend(std::string(static_cast<const char *>(data), size)));
-		setTimeout(getConfig()->get<boost::uint64_t>("proxy_tunnel_keep_alive_timeout", 30000));
+		setTimeout(getConfig()->get<boost::uint64_t>("proxy_tunnel_keep_alive_timeout", 300000));
 	}
 };
 
