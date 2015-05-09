@@ -41,19 +41,15 @@ namespace Msg {
 	FIELD_VUINT			(port)
 #include <poseidon/cbpp/message_generator.hpp>
 
-#define MESSAGE_NAME	SC_FetchSuccess
+#define MESSAGE_NAME	SC_FetchContents
 #define MESSAGE_ID		198
 #define MESSAGE_FIELDS	\
-	FIELD_STRING		(host)	\
-	FIELD_VUINT			(port)	\
-	FIELD_STRING		(contents)
+	// 这个结构并不使用，我们只用协议号。
 #include <poseidon/cbpp/message_generator.hpp>
 
-#define MESSAGE_NAME	SC_FetchFailure
+#define MESSAGE_NAME	SC_FetchError
 #define MESSAGE_ID		197
 #define MESSAGE_FIELDS	\
-	FIELD_STRING		(host)	\
-	FIELD_VUINT			(port)	\
 	FIELD_VINT			(cbppErrCode)	\
 	FIELD_VINT			(sysErrCode)	\
 	FIELD_STRING		(description)

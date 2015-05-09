@@ -37,6 +37,8 @@ public:
 	const Poseidon::Uuid &getUuid() const {
 		return m_uuid;
 	}
+
+	bool sendRaw(Poseidon::StreamBuffer bytes);
 };
 
 }

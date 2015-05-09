@@ -15,6 +15,7 @@ private:
 	struct ClientControl;
 
 private:
+	const boost::uint64_t m_timeToLive;
 	const std::string m_password;
 
 	mutable Poseidon::Mutex m_clientMutex;

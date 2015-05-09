@@ -421,6 +421,7 @@ bool FetchSession::sendError(boost::uint16_t messageId, Poseidon::Cbpp::StatusCo
 
 FetchSession::FetchSession(Poseidon::UniqueFile socket, std::string password)
 	: LowLevelSession(STD_MOVE(socket))
+	, m_timeToLive(getConfig()->get<boost::uint64_t>("fetch_session_time_to_live", 30000))
 	, m_password(STD_MOVE(password))
 {
 }
@@ -479,15 +480,20 @@ void FetchSession::onLowLevelRequest(boost::uint16_t messageId, Poseidon::Stream
 
 	AUTO(plain, decryptPayload(decContext, STD_MOVE(payload)));
 	onLowLevelPlainMessage(decContext->uuid, messageId, STD_MOVE(plain));
+
+	setTimeout(m_timeToLive);
 }
 void FetchSession::onLowLevelControl(Poseidon::Cbpp::ControlCode controlCode, boost::int64_t intParam, std::string strParam){
 	PROFILE_ME;
 
 	if(controlCode == Poseidon::Cbpp::CTL_HEARTBEAT){
+		LOG_MEDUSA_DEBUG("Fetch session heartbeat: remote = ", getRemoteInfo());
+	} else {
+		onLowLevelError(controlCode, intParam, strParam.c_str());
 		return;
 	}
 
-	sendError(controlCode, intParam, STD_MOVE(strParam));
+	setTimeout(m_timeToLive);
 }
 
 void FetchSession::onLowLevelError(boost::uint16_t messageId, Poseidon::Cbpp::StatusCode statusCode, const char *reason){

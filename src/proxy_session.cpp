@@ -39,6 +39,7 @@ protected:
 		}
 
 		fetch->send(parent->m_uuid, Msg::CS_FetchSend(std::string(static_cast<const char *>(data), size)));
+		setTimeout(getConfig()->get<boost::uint64_t>("proxy_tunnel_keep_alive_timeout", 30000));
 	}
 };
 
@@ -56,7 +57,7 @@ void ProxySession::shutdownAll(bool force){
 	PROFILE_ME;
 
 	const Poseidon::Mutex::UniqueLock lock(g_mapMutex);
-	while(g_sessionMap.empty()){
+	while(!g_sessionMap.empty()){
 		if(force){
 			g_sessionMap.begin()->second->forceShutdown();
 		} else {
@@ -98,8 +99,12 @@ boost::shared_ptr<Poseidon::Http::UpgradedLowLevelSessionBase>
 	ProxySession::onLowLevelRequestHeaders(Poseidon::Http::RequestHeaders &requestHeaders, boost::uint64_t contentLength)
 {
 	PROFILE_ME;
-	LOG_MEDUSA_DEBUG("Proxy HTTP request: URI = ", requestHeaders.uri,
-		", contentLength = ", (contentLength == CONTENT_CHUNKED) ? "<chunked>" : boost::lexical_cast<std::string>(contentLength));
+
+	if(contentLength == CONTENT_CHUNKED){
+		LOG_MEDUSA_DEBUG("Proxy HTTP chunked request: URI = ", requestHeaders.uri);
+	} else {
+		LOG_MEDUSA_DEBUG("Proxy HTTP request: URI = ", requestHeaders.uri,", contentLength = ", contentLength);
+	}
 
 	const AUTO(fetch, m_fetch.lock());
 	if(!fetch){
@@ -139,6 +144,7 @@ boost::shared_ptr<Poseidon::Http::UpgradedLowLevelSessionBase>
 	}
 	LOG_MEDUSA_DEBUG("Request: host:port = ", host, ':', port, ", useSsl = ", useSsl, ", uri = ", uri);
 	fetch->send(m_uuid, Msg::CS_FetchConnect(STD_MOVE(host), port, useSsl));
+	setTimeout(getConfig()->get<boost::uint64_t>("proxy_http_keep_alive_timeout", 15000));
 
 	if(requestHeaders.verb == Poseidon::Http::V_CONNECT){
 		return boost::make_shared<TunnelLowLevelSession>(virtualSharedFromThis<ProxySession>());
@@ -229,6 +235,12 @@ void ProxySession::onLowLevelError(Poseidon::Http::StatusCode statusCode, Poseid
 	sendDefault(statusCode, STD_MOVE(headers));
 	shutdownRead();
 	shutdownWrite();
+}
+
+bool ProxySession::sendRaw(Poseidon::StreamBuffer bytes){
+	PROFILE_ME;
+
+	return Poseidon::TcpSessionBase::send(STD_MOVE(bytes));
 }
 
 }
