@@ -1,5 +1,6 @@
 #include "../precompiled.hpp"
 #include "dns_daemon.hpp"
+#include <poseidon/job_base.hpp>
 #include <poseidon/ip_port.hpp>
 #include <poseidon/raii.hpp>
 #include <poseidon/mutex.hpp>
@@ -22,18 +23,43 @@ namespace {
 		}
 	};
 
+	class CallbackJob : public Poseidon::JobBase {
+	private:
+		const DnsDaemon::Callback m_callback;
+		const std::string m_host;
+		const unsigned m_port;
+		const int m_gaiCode;
+		const Poseidon::SockAddr m_addr;
+		const int m_errCode;
+		const std::string m_errMsg;
+
+	public:
+		CallbackJob(DnsDaemon::Callback callback, std::string host, unsigned port,
+			int gaiCode, Poseidon::SockAddr addr, int errCode, std::string errMsg)
+			: m_callback(STD_MOVE_IDN(callback)), m_host(STD_MOVE(host)), m_port(port)
+			, m_gaiCode(gaiCode), m_addr(addr), m_errCode(errCode), m_errMsg(errMsg)
+		{
+		}
+
+	public:
+		boost::weak_ptr<const void> getCategory() const OVERRIDE {
+			return VAL_INIT;
+		}
+		void perform() const OVERRIDE {
+			PROFILE_ME;
+
+			m_callback(m_host, m_port, m_gaiCode, m_addr, m_errCode, m_errMsg.c_str());
+		}
+	};
+
 	class DnsQueue : NONCOPYABLE {
 	private:
 		struct Element {
 			std::string host;
 			unsigned port;
-			DnsDaemon::SuccessCallback success;
-			DnsDaemon::FailureCallback failure;
-
-			Element(std::string host_, unsigned port_, DnsDaemon::SuccessCallback success_, DnsDaemon::FailureCallback failure_)
-				: host(STD_MOVE(host_)), port(port_), success(STD_MOVE_IDN(success_)), failure(STD_MOVE_IDN(failure_))
-			{
-			}
+			DnsDaemon::Callback callback;
+			bool isLowLevel;
+			DnsDaemon::ExceptionCallback except;
 		};
 
 	private:
@@ -62,43 +88,53 @@ namespace {
 				return false;
 			}
 
-			try {
-				const AUTO_REF(elem, m_queue.front());
+			AUTO(elem, STD_MOVE(m_queue.front()));
+			m_queue.pop_front();
 
-				int gaiCode;
-				int errCode;
-				Poseidon::UniqueHandle<AddrInfoDeleter> addrInfo;
-				{
-					char port[32];
-					std::sprintf(port, "%u", elem.port);
-					::addrinfo *res = NULLPTR;
-					gaiCode = ::getaddrinfo(elem.host.c_str(), port, NULLPTR, &res);
-					errCode = errno;
-					addrInfo.reset(res);
-					LOG_MEDUSA_DEBUG("DNS lookup result: host:port = ", elem.host, ':', elem.port,
-						", gaiCode = ", gaiCode, ", errCode = ", errCode);
-				}
-				if(gaiCode == 0){
-					const Poseidon::SockAddr sockAddr(addrInfo.get()->ai_addr, addrInfo.get()->ai_addrlen);
-					LOG_MEDUSA_DEBUG("DNS lookup: host:port = ", elem.host, ':', elem.port,
-						", result ip:port = ", Poseidon::getIpPortFromSockAddr(sockAddr));
-					elem.success(elem.host, elem.port, sockAddr);
-				} else {
+			try {
+				try {
+					int gaiCode;
+					Poseidon::SockAddr sockAddr;
+					int errCode;
+
 					char temp[1024];
 					const char *errMsg;
-					if(gaiCode == EAI_SYSTEM){
+
+					Poseidon::UniqueHandle<AddrInfoDeleter> addrInfo;
+					{
+						char port[32];
+						std::sprintf(port, "%u", elem.port);
+						::addrinfo *res = NULLPTR;
+						gaiCode = ::getaddrinfo(elem.host.c_str(), port, NULLPTR, &res);
+						errCode = errno;
+						addrInfo.reset(res);
+					}
+					if(gaiCode == 0){
+						errMsg = "";
+					} else if(gaiCode == EAI_SYSTEM){
 						errMsg = ::strerror_r(errCode, temp, sizeof(temp));
 					} else {
 						errMsg = ::gai_strerror(gaiCode);
 					}
-					elem.failure(elem.host, elem.port, gaiCode, errCode, errMsg);
+					LOG_MEDUSA_DEBUG("DNS lookup result: host:port = ", elem.host, ':', elem.port,
+						", gaiCode = ", gaiCode, ", errCode = ", errCode, ", errMsg = ", errMsg);
+					if(elem.isLowLevel){
+						elem.callback(elem.host, elem.port, gaiCode, sockAddr, errCode, errMsg);
+					} else {
+						Poseidon::enqueueJob(boost::make_shared<CallbackJob>(STD_MOVE(elem.callback),
+							STD_MOVE(elem.host), elem.port, gaiCode, sockAddr, errCode, std::string(errMsg)));
+					}
+				} catch(...){
+					if(elem.except){
+						elem.except();
+					}
+					throw;
 				}
 			} catch(std::exception &e){
 				LOG_MEDUSA_ERROR("std::exception thrown in DNS loop: what = ", e.what());
 			} catch(...){
 				LOG_MEDUSA_ERROR("Unknown exception thrown in DNS loop");
 			}
-			m_queue.pop_front();
 
 			return true;
 		}
@@ -123,9 +159,18 @@ namespace {
 		}
 
 	public:
-		void push(std::string host, unsigned port, DnsDaemon::SuccessCallback success, DnsDaemon::FailureCallback failure){
+		void push(std::string host, unsigned port, DnsDaemon::Callback callback,
+			bool isLowLevel, DnsDaemon::ExceptionCallback except)
+		{
+			Element elem;
+			elem.host = STD_MOVE(host);
+			elem.port = port;
+			elem.callback = STD_MOVE_IDN(callback);
+			elem.isLowLevel = isLowLevel;
+			elem.except = STD_MOVE_IDN(except);
+
 			const Poseidon::Mutex::UniqueLock lock(m_mutex);
-			m_queue.push_back(Element(STD_MOVE(host), port, STD_MOVE(success), STD_MOVE(failure)));
+			m_queue.push_back(STD_MOVE(elem));
 		}
 	};
 
@@ -138,7 +183,9 @@ namespace {
 	}
 }
 
-void DnsDaemon::asyncLookup(std::string host, unsigned port, DnsDaemon::SuccessCallback success, DnsDaemon::FailureCallback failure){
+void DnsDaemon::asyncLookup(std::string host, unsigned port, Callback callback,
+	bool isLowLevel, DnsDaemon::ExceptionCallback except)
+{
 	PROFILE_ME;
 
 	const AUTO(queue, g_queue.lock());
@@ -147,7 +194,7 @@ void DnsDaemon::asyncLookup(std::string host, unsigned port, DnsDaemon::SuccessC
 		DEBUG_THROW(Exception, SSLIT("DNS queue has not been created"));
 	}
 
-	queue->push(STD_MOVE(host), port, STD_MOVE(success), STD_MOVE(failure));
+	queue->push(STD_MOVE(host), port, STD_MOVE(callback), isLowLevel, STD_MOVE(except));
 }
 
 }

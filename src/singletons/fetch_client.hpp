@@ -1,13 +1,16 @@
 #ifndef MEDUSA_FETCH_CLIENT_HPP_
 #define MEDUSA_FETCH_CLIENT_HPP_
 
+#include <map>
 #include <boost/scoped_ptr.hpp>
-#include <poseidon/uuid.hpp>
 #include <poseidon/cbpp/low_level_client.hpp>
+#include <poseidon/uuid.hpp>
+#include <poseidon/mutex.hpp>
 
 namespace Medusa {
 
 class EncryptionContext;
+class ProxySession;
 
 class FetchClient : public Poseidon::Cbpp::LowLevelClient {
 public:
@@ -22,6 +25,9 @@ private:
 	Poseidon::StreamBuffer m_payload;
 	boost::scoped_ptr<EncryptionContext> m_decContext;
 
+	mutable Poseidon::Mutex m_sessionMutex;
+	std::map<Poseidon::Uuid, boost::weak_ptr<ProxySession> > m_sessions;
+
 private:
 	FetchClient(const Poseidon::IpPort &addr, boost::uint64_t keepAliveTimeout, bool useSsl, std::string password);
 
@@ -29,7 +35,7 @@ public:
 	~FetchClient();
 
 private:
-	void onLowLevelPlainMessage(const Poseidon::Uuid &sessionUuid, boost::uint16_t messageId, Poseidon::StreamBuffer plain);
+	void onLowLevelPlainMessage(const Poseidon::Uuid &fetchUuid, boost::uint16_t messageId, Poseidon::StreamBuffer plain);
 
 protected:
 	void onLowLevelResponse(boost::uint16_t messageId, boost::uint64_t payloadLen) OVERRIDE;
@@ -38,11 +44,15 @@ protected:
 	void onLowLevelError(boost::uint16_t messageId, Poseidon::Cbpp::StatusCode statusCode, std::string reason) OVERRIDE;
 
 public:
-	bool send(const Poseidon::Uuid &sessionUuid, boost::uint16_t messageId, Poseidon::StreamBuffer plain);
+	boost::shared_ptr<ProxySession> getSession(const Poseidon::Uuid &fetchUuid);
+	void link(const boost::shared_ptr<ProxySession> &session);
+	void unlink(const Poseidon::Uuid &fetchUuid) NOEXCEPT;
+
+	bool send(const Poseidon::Uuid &fetchUuid, boost::uint16_t messageId, Poseidon::StreamBuffer plain);
 
 	template<class MsgT>
-	bool send(const Poseidon::Uuid &sessionUuid, const MsgT &msg){
-		return send(sessionUuid, MsgT::ID, Poseidon::StreamBuffer(msg));
+	bool send(const Poseidon::Uuid &fetchUuid, const MsgT &msg){
+		return send(fetchUuid, MsgT::ID, Poseidon::StreamBuffer(msg));
 	}
 };
 

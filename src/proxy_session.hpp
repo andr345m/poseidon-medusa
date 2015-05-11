@@ -12,10 +12,6 @@ class ProxySession : public Poseidon::Http::LowLevelSession {
 private:
 	class TunnelLowLevelSession;
 
-public:
-	static boost::shared_ptr<ProxySession> findByUuid(const Poseidon::Uuid &uuid);
-	static void shutdownAll(bool force);
-
 private:
 	const Poseidon::Uuid m_uuid;
 	const boost::weak_ptr<FetchClient> m_fetch;
@@ -39,8 +35,6 @@ public:
 	const Poseidon::Uuid &getUuid() const {
 		return m_uuid;
 	}
-
-	bool notifyFetchConnected();
 
 	bool sendRaw(Poseidon::StreamBuffer bytes);
 };

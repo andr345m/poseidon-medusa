@@ -41,35 +41,62 @@ FetchClient::FetchClient(const Poseidon::IpPort &addr, boost::uint64_t keepAlive
 {
 }
 FetchClient::~FetchClient(){
-	ProxySession::shutdownAll(true);
+	for(AUTO(it, m_sessions.begin()); it != m_sessions.end(); ++it){
+		const AUTO(client, it->second.lock());
+		if(!client){
+			continue;
+		}
+		client->forceShutdown();
+	}
 }
 
-void FetchClient::onLowLevelPlainMessage(const Poseidon::Uuid &sessionUuid, boost::uint16_t messageId, Poseidon::StreamBuffer plain){
+void FetchClient::onLowLevelPlainMessage(const Poseidon::Uuid &fetchUuid, boost::uint16_t messageId, Poseidon::StreamBuffer plain){
 	PROFILE_ME;
 
-	const AUTO(session, ProxySession::findByUuid(sessionUuid));
+	const AUTO(session, getSession(fetchUuid));
 	if(!session){
-		LOG_MEDUSA_DEBUG("Session has gone away: sessionUuid = ", sessionUuid);
-		send(sessionUuid, Msg::CS_FetchClose(EPIPE));
+		LOG_MEDUSA_DEBUG("Session has gone away: fetchUuid = ", fetchUuid);
+		send(fetchUuid, Msg::CS_FetchClose(EPIPE));
 		return;
 	}
 
-	if(messageId == Msg::SC_FetchContents::ID){
-		session->sendRaw(STD_MOVE(plain));
-	} else if(messageId == Msg::SC_FetchConnected::ID){
-		session->notifyFetchConnected();
-	} else if(messageId == Msg::SC_FetchError::ID){
-		Msg::SC_FetchError msg(plain);
-		LOG_MEDUSA_DEBUG("Fetch error: sessionUuid = ", sessionUuid, ", cbppErrCode = ", msg.cbppErrCode,
-			", sysErrCode = ", msg.sysErrCode, ", description = ", msg.description);
-		if(msg.sysErrCode == 0){
-			session->shutdownRead();
-			session->shutdownWrite();
-		} else {
-			session->forceShutdown();
+	switch(messageId){
+		{{
+#define ON_MESSAGE(Msg_, msg_)	\
+		}}	\
+		break;	\
+	case Msg_::ID: {	\
+		Msg_ msg(plain);	\
+		{ //
+#define ON_RAW_MESSAGE(Msg_)	\
+		}}	\
+		break;	\
+	case Msg_::ID: {	\
+		{ //
+//=============================================================================
+		ON_MESSAGE(Msg::SC_FetchResponseHeaders, msg){
+			Poseidon::Http::ResponseHeaders responseHeaders;
+			session->send(STD_MOVE(responseHeaders));
 		}
-	} else {
+		ON_RAW_MESSAGE(Msg::SC_FetchReceive){
+			session->sendRaw(STD_MOVE(plain));
+		}
+		ON_MESSAGE(Msg::SC_FetchError, msg){
+			LOG_MEDUSA_DEBUG("Fetch error: fetchUuid = ", fetchUuid,
+				", cbppErrCode = ", msg.cbppErrCode, ", sysErrCode = ", msg.sysErrCode, ", description = ", msg.description);
+			if(msg.cbppErrCode == Msg::ST_OK){
+				session->shutdownRead();
+				session->shutdownWrite();
+			} else {
+				session->forceShutdown();
+			}
+		}
+//=============================================================================
+		}}
+		break;
+	default:
 		LOG_MEDUSA_WARNING("Unknown message from fetch server: messageId = ", messageId, ", size = ", plain.size());
+		break;
 	}
 }
 
@@ -77,12 +104,11 @@ void FetchClient::onLowLevelResponse(boost::uint16_t messageId, boost::uint64_t 
 	PROFILE_ME;
 
 	const AUTO(headerSize, getEncryptedHeaderSize());
-
 	if(payloadLen < headerSize){
 		LOG_MEDUSA_ERROR("Frame from fetch server is too small, expecting ", headerSize);
-		DEBUG_THROW(Exception, SSLIT("Frame from fetch server is too small"));
+		forceShutdown();
+		return;
 	}
-
 	m_messageId = messageId;
 	m_payloadLen = payloadLen;
 	m_payload.clear();
@@ -92,10 +118,9 @@ void FetchClient::onLowLevelPayload(boost::uint64_t payloadOffset, Poseidon::Str
 	PROFILE_ME;
 	LOG_MEDUSA_DEBUG("Received payload from fetch server: offset = ", payloadOffset, ", size = ", payload.size());
 
-	const AUTO(headerSize, getEncryptedHeaderSize());
-
 	m_payload.splice(payload);
 
+	const AUTO(headerSize, getEncryptedHeaderSize());
 	if(!m_decContext){
 		assert(m_payloadLen >= headerSize);
 		if(m_payload.size() < headerSize){
@@ -110,7 +135,6 @@ void FetchClient::onLowLevelPayload(boost::uint64_t payloadOffset, Poseidon::Str
 		return;
 	}
 	m_payload.discard(headerSize);
-
 	AUTO(plain, decryptPayload(m_decContext, STD_MOVE(m_payload)));
 	onLowLevelPlainMessage(m_decContext->uuid, m_messageId, STD_MOVE(plain));
 }
@@ -118,19 +142,43 @@ void FetchClient::onLowLevelPayload(boost::uint64_t payloadOffset, Poseidon::Str
 void FetchClient::onLowLevelError(boost::uint16_t messageId, Poseidon::Cbpp::StatusCode statusCode, std::string reason){
 	PROFILE_ME;
 
-	if(statusCode != Msg::ST_OK){
-		return;
-	}
-
 	LOG_MEDUSA_ERROR("Fetch error: messageId = ", messageId, ", statusCode = ", statusCode, ", reason = ", reason);
 	forceShutdown();
 }
 
-bool FetchClient::send(const Poseidon::Uuid &sessionUuid, boost::uint16_t messageId, Poseidon::StreamBuffer plain){
+boost::shared_ptr<ProxySession> FetchClient::getSession(const Poseidon::Uuid &fetchUuid){
+	PROFILE_ME;
+
+	const Poseidon::Mutex::UniqueLock lock(m_sessionMutex);
+	const AUTO(it, m_sessions.find(fetchUuid));
+	if(it == m_sessions.end()){
+		return VAL_INIT;
+	}
+	AUTO(session, it->second.lock());
+	if(!session){
+		m_sessions.erase(it);
+		return VAL_INIT;
+	}
+	return STD_MOVE(session);
+}
+void FetchClient::link(const boost::shared_ptr<ProxySession> &session){
+	PROFILE_ME;
+
+	const Poseidon::Mutex::UniqueLock lock(m_sessionMutex);
+	m_sessions[session->getUuid()] = session;
+}
+void FetchClient::unlink(const Poseidon::Uuid &fetchUuid) NOEXCEPT {
+	PROFILE_ME;
+
+	const Poseidon::Mutex::UniqueLock lock(m_sessionMutex);
+	m_sessions.erase(fetchUuid);
+}
+
+bool FetchClient::send(const Poseidon::Uuid &fetchUuid, boost::uint16_t messageId, Poseidon::StreamBuffer plain){
 	PROFILE_ME;
 
 	EncryptionContextPtr encContext;
-	AUTO(data, encryptHeader(encContext, sessionUuid, m_password));
+	AUTO(data, encryptHeader(encContext, fetchUuid, m_password));
 	AUTO(payload, encryptPayload(encContext, STD_MOVE(plain)));
 	data.splice(payload);
 	return Poseidon::Cbpp::LowLevelClient::send(messageId, STD_MOVE(data));

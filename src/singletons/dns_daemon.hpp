@@ -9,15 +9,18 @@ namespace Medusa {
 
 struct DnsDaemon {
 	typedef boost::function<
-		void (const std::string &host, unsigned port, const Poseidon::SockAddr &addr)
-		> SuccessCallback;
+		void (const std::string &host, unsigned port,
+			// gaiCode 是 getaddrinfo() 的返回值，errCode 是 errno 当时的值。
+			int gaiCode, const Poseidon::SockAddr &addr, int errCode, const char *errMsg)
+		> Callback;
 
 	typedef boost::function<
-		// gaiCode 是 getaddrinfo() 的返回值，errCode 是 errno 当时的值。
-		void (const std::string &host, unsigned port, int gaiCode, int errCode, const char *errMsg)
-		> FailureCallback;
+		void ()
+		> ExceptionCallback;
 
-	static void asyncLookup(std::string host, unsigned port, SuccessCallback success, FailureCallback failure);
+	// except 不是线程安全的。
+	static void asyncLookup(std::string host, unsigned port, Callback callback,
+		bool isLowLevel = false, ExceptionCallback except = ExceptionCallback());
 
 private:
 	DnsDaemon();
