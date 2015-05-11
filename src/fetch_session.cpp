@@ -75,16 +75,19 @@ private:
 		}
 
 	protected:
-		void onRead
-
 		void onClose(int errCode) NOEXCEPT OVERRIDE {
+			PROFILE_ME;
+
+		}
+
+		void onReadAvail(const void *data, std::size_t size) OVERRIDE {
 			PROFILE_ME;
 
 		}
 	};
 
 private:
-	static void timerProc(const boost::weak_ptr<ClientControl> &weakControl, boost::uint64_t now){
+/*	static void timerProc(const boost::weak_ptr<ClientControl> &weakControl, boost::uint64_t now){
 		PROFILE_ME;
 
 		const AUTO(control, weakControl.lock());
@@ -144,7 +147,7 @@ private:
 
 		control->close(Msg::ST_INTERNAL_ERROR, ECONNRESET, VAL_INIT);
 	}
-
+*/
 private:
 	const boost::weak_ptr<FetchSession> m_session;
 	const Poseidon::Uuid m_fetchUuid;
@@ -169,7 +172,7 @@ public:
 	}
 
 private:
-	void createFetchClient(const Poseidon::SockAddr &addr){
+/*	void createFetchClient(const Poseidon::SockAddr &addr){
 		PROFILE_ME;
 		LOG_MEDUSA_DEBUG("Spawning fetch client to ", Poseidon::getIpPortFromSockAddr(addr))"
 
@@ -236,7 +239,7 @@ private:
 		}
 		m_updatedTime = 
 	}
-
+*/
 public:
 	boost::uint64_t getUpdatedTime() const {
 		return m_updatedTime;
@@ -245,7 +248,7 @@ public:
 	void push(std::string host, unsigned port, bool useSsl, Poseidon::Http::RequestHeaders requestHeaders, std::string xff){
 		PROFILE_ME;
 
-		const AUTO(maxPipeliningSize, getConfig()->get<std::size_t>("fetch_max_pipelining_size", 16));
+/*		const AUTO(maxPipeliningSize, getConfig()->get<std::size_t>("fetch_max_pipelining_size", 16));
 		if(m_queue.size() >= maxPipeliningSize){
 			LOG_MEDUSA_WARNING("Max pipelining size exceeded: fetchUuid = ", m_fetchUuid, ", maxPipeliningSize = ", maxPipeliningSize);
 			DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_FETCH_MAX_PIPELINING_SIZE);
@@ -269,11 +272,11 @@ public:
 		m_updatedTime = now;
 
 		pumpStatus(now);
-	}
+*/	}
 	bool send(Poseidon::StreamBuffer data){
 		PROFILE_ME;
 
-		if(m_queue.empty()){
+/*		if(m_queue.empty()){
 			LOG_MEDUSA_WARNING("Queue is empty. Who shall I send data to? fetchUuid = ", m_fetchUuid);
 			DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_FETCH_NOT_CONNECTED);
 		}
@@ -291,7 +294,7 @@ public:
 			DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_FETCH_MAX_PENDING_SIZE);
 		}
 		pending.splice(data);
-		return true;
+*/		return true;
 	}
 	void close(Poseidon::Cbpp::StatusCode cbppErrCode, int errCode, std::string description) NOEXCEPT {
 		PROFILE_ME;
@@ -315,8 +318,6 @@ public:
 				client->shutdownWrite();
 			}
 		}
-
-		m_timer.reset();
 
 		m_state = S_IDLE;
 		m_queue.clear();
