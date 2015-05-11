@@ -51,6 +51,7 @@ ProxySession::~ProxySession(){
 
 void ProxySession::onClose(int errCode) NOEXCEPT {
 	PROFILE_ME;
+	LOG_MEDUSA_DEBUG("Proxy session closed: errCode = ", errCode);
 
 	const AUTO(fetch, m_fetch.lock());
 	if(fetch){
