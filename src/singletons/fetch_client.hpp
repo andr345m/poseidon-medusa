@@ -29,7 +29,7 @@ private:
 	std::map<Poseidon::Uuid, boost::weak_ptr<ProxySession> > m_sessions;
 
 private:
-	FetchClient(const Poseidon::IpPort &addr, boost::uint64_t keepAliveTimeout, bool useSsl, std::string password);
+	FetchClient(const Poseidon::IpPort &addr, bool useSsl, boost::uint64_t keepAliveTimeout, std::string password);
 
 public:
 	~FetchClient();

@@ -69,7 +69,7 @@ boost::shared_ptr<Poseidon::Http::UpgradedLowLevelSessionBase>
 	ProxySession::onLowLevelRequestHeaders(Poseidon::Http::RequestHeaders &requestHeaders, boost::uint64_t /* contentLength */)
 {
 	PROFILE_ME;
-	LOG_MEDUSA_DEBUG("Proxy HTTP chunked request from ", getRemoteInfo());
+	LOG_MEDUSA_DEBUG("Proxy HTTP request from ", getRemoteInfo());
 
 	Msg::CS_FetchRequestHeaders msg;
 	msg.host = STD_MOVE(requestHeaders.uri);

@@ -28,15 +28,15 @@ boost::shared_ptr<FetchClient> FetchClient::require(){
 
 		const Poseidon::IpPort connAddr(SharedNts(addr), port);
 		LOG_MEDUSA_INFO("Creating fetch client to ", connAddr, (ssl ? " using SSL" : ""));
-		ret.reset(new FetchClient(connAddr, hbtm, ssl, STD_MOVE(pass)));
+		ret.reset(new FetchClient(connAddr, ssl, hbtm, STD_MOVE(pass)));
 		ret->goResident();
 		g_client = ret;
 	}
 	return ret;
 }
 
-FetchClient::FetchClient(const Poseidon::IpPort &addr, boost::uint64_t keepAliveTimeout, bool useSsl, std::string password)
-	: Poseidon::Cbpp::LowLevelClient(addr, keepAliveTimeout, useSsl)
+FetchClient::FetchClient(const Poseidon::IpPort &addr, bool useSsl, boost::uint64_t keepAliveTimeout, std::string password)
+	: Poseidon::Cbpp::LowLevelClient(addr, useSsl, keepAliveTimeout)
 	, m_password(STD_MOVE(password))
 {
 }
@@ -56,7 +56,6 @@ void FetchClient::onLowLevelPlainMessage(const Poseidon::Uuid &fetchUuid, boost:
 	const AUTO(session, getSession(fetchUuid));
 	if(!session){
 		LOG_MEDUSA_DEBUG("Session has gone away: fetchUuid = ", fetchUuid);
-		send(fetchUuid, Msg::CS_FetchClose(EPIPE));
 		return;
 	}
 

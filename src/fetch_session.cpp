@@ -248,6 +248,7 @@ public:
 	void push(std::string host, unsigned port, bool useSsl, Poseidon::Http::RequestHeaders requestHeaders, std::string xff){
 		PROFILE_ME;
 
+		LOG_POSEIDON_FATAL("push: host = ", host, ", port = ", port, ", useSsl = ", useSsl);
 /*		const AUTO(maxPipeliningSize, getConfig()->get<std::size_t>("fetch_max_pipelining_size", 16));
 		if(m_queue.size() >= maxPipeliningSize){
 			LOG_MEDUSA_WARNING("Max pipelining size exceeded: fetchUuid = ", m_fetchUuid, ", maxPipeliningSize = ", maxPipeliningSize);
@@ -276,6 +277,7 @@ public:
 	bool send(Poseidon::StreamBuffer data){
 		PROFILE_ME;
 
+		LOG_POSEIDON_FATAL("send: size = ", data.size());
 /*		if(m_queue.empty()){
 			LOG_MEDUSA_WARNING("Queue is empty. Who shall I send data to? fetchUuid = ", m_fetchUuid);
 			DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_FETCH_NOT_CONNECTED);
@@ -380,6 +382,7 @@ void FetchSession::onPlainMessage(const Poseidon::Uuid &fetchUuid, boost::uint16
 		{ //
 //=============================================================================
 		ON_MESSAGE(Msg::CS_FetchRequestHeaders, req){
+LOG_MEDUSA_FATAL("headers: ", req);
 			AUTO(it, m_clients.find(fetchUuid));
 			if(it == m_clients.end()){
 				it = m_clients.insert(it, std::make_pair(fetchUuid,
@@ -398,6 +401,7 @@ void FetchSession::onPlainMessage(const Poseidon::Uuid &fetchUuid, boost::uint16
 			it->second->push(STD_MOVE(req.host), req.port, req.useSsl, STD_MOVE(requestHeaders), STD_MOVE(req.xff));
 		}
 		ON_RAW_MESSAGE(Msg::CS_FetchSend){
+LOG_MEDUSA_FATAL("send: ", plain.size());
 			const AUTO(it, m_clients.find(fetchUuid));
 			if(it == m_clients.end()){
 				LOG_MEDUSA_DEBUG("Client not found: fetchUuid = ", fetchUuid);
@@ -411,6 +415,7 @@ void FetchSession::onPlainMessage(const Poseidon::Uuid &fetchUuid, boost::uint16
 			}
 		}
 		ON_MESSAGE(Msg::CS_FetchClose, req){
+LOG_MEDUSA_FATAL("close: ", req);
 			const AUTO(it, m_clients.find(fetchUuid));
 			if(it == m_clients.end()){
 				LOG_MEDUSA_DEBUG("Client not found: fetchUuid = ", fetchUuid);
