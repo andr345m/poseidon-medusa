@@ -44,6 +44,11 @@ private:
 		}
 
 	protected:
+		void onClose(int errCode) NOEXCEPT OVERRIDE {
+			PROFILE_ME;
+
+		}
+
 		void onLowLevelResponseHeaders(Poseidon::Http::ResponseHeaders responseHeaders, boost::uint64_t contentLength) OVERRIDE {
 			PROFILE_ME;
 
@@ -53,6 +58,26 @@ private:
 
 		}
 		void onLowLevelChunkedTrailer(boost::uint64_t realContentLength, Poseidon::OptionalMap headers) OVERRIDE {
+			PROFILE_ME;
+
+		}
+	};
+
+	class TunnelClient : public Poseidon::TcpClientBase {
+	private:
+		const boost::weak_ptr<ClientControl> m_control;
+
+	public:
+		TunnelClient(const Poseidon::SockAddr &sockAddr, bool useSsl, boost::weak_ptr<ClientControl> control)
+			: Poseidon::TcpClientBase(sockAddr, useSsl)
+			, m_control(STD_MOVE(control))
+		{
+		}
+
+	protected:
+		void onRead
+
+		void onClose(int errCode) NOEXCEPT OVERRIDE {
 			PROFILE_ME;
 
 		}
