@@ -25,10 +25,12 @@ public:
 protected:
 	void onClose(int errCode) NOEXCEPT OVERRIDE;
 
-	boost::shared_ptr<Poseidon::Http::UpgradedLowLevelSessionBase>
-		onLowLevelRequestHeaders(Poseidon::Http::RequestHeaders &requestHeaders, boost::uint64_t contentLength) OVERRIDE;
+	boost::shared_ptr<Poseidon::Http::UpgradedLowLevelSessionBase> onLowLevelRequestHeaders(
+		Poseidon::Http::RequestHeaders &requestHeaders,
+		const std::vector<std::string> &transferEncoding, boost::uint64_t contentLength) OVERRIDE;
 
-	void onLowLevelRequest(Poseidon::Http::RequestHeaders requestHeaders, Poseidon::StreamBuffer entity) OVERRIDE;
+	void onLowLevelRequest(Poseidon::Http::RequestHeaders requestHeaders,
+		std::vector<std::string> transferEncoding, Poseidon::StreamBuffer entity) OVERRIDE;
 	void onLowLevelError(Poseidon::Http::StatusCode statusCode, Poseidon::OptionalMap headers) OVERRIDE;
 
 public:

@@ -66,8 +66,9 @@ void ProxySession::onClose(int errCode) NOEXCEPT {
 	Poseidon::Http::LowLevelSession::onClose(errCode);
 }
 
-boost::shared_ptr<Poseidon::Http::UpgradedLowLevelSessionBase>
-	ProxySession::onLowLevelRequestHeaders(Poseidon::Http::RequestHeaders &requestHeaders, boost::uint64_t /* contentLength */)
+boost::shared_ptr<Poseidon::Http::UpgradedLowLevelSessionBase> ProxySession::onLowLevelRequestHeaders(
+	Poseidon::Http::RequestHeaders &requestHeaders,
+	const std::vector<std::string> & /* transferEncoding */, boost::uint64_t /* contentLength */)
 {
 	PROFILE_ME;
 	LOG_MEDUSA_DEBUG("Proxy HTTP request from ", getRemoteInfo());
@@ -130,7 +131,9 @@ boost::shared_ptr<Poseidon::Http::UpgradedLowLevelSessionBase>
 	return VAL_INIT;
 }
 
-void ProxySession::onLowLevelRequest(Poseidon::Http::RequestHeaders /* requestHeaders */, Poseidon::StreamBuffer entity){
+void ProxySession::onLowLevelRequest(Poseidon::Http::RequestHeaders /* requestHeaders */,
+	std::vector<std::string> /* transferEncoding */, Poseidon::StreamBuffer entity)
+{
 	PROFILE_ME;
 
 	const AUTO(fetch, m_fetch.lock());

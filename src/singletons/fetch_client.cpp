@@ -81,12 +81,13 @@ void FetchClient::onLowLevelPlainMessage(const Poseidon::Uuid &fetchUuid, boost:
 			session->sendRaw(STD_MOVE(plain));
 		}
 		ON_MESSAGE(Msg::SC_FetchError, msg){
-			LOG_MEDUSA_DEBUG("Fetch error: fetchUuid = ", fetchUuid,
-				", cbppErrCode = ", msg.cbppErrCode, ", sysErrCode = ", msg.sysErrCode, ", description = ", msg.description);
 			if(msg.cbppErrCode == Msg::ST_OK){
+				LOG_MEDUSA_DEBUG("Fetch client normal closure: fetchUuid = ", fetchUuid);
 				session->shutdownRead();
 				session->shutdownWrite();
 			} else {
+				LOG_MEDUSA_DEBUG("Fetch error: fetchUuid = ", fetchUuid,
+					", cbppErrCode = ", msg.cbppErrCode, ", sysErrCode = ", msg.sysErrCode, ", description = ", msg.description);
 				session->forceShutdown();
 			}
 		}

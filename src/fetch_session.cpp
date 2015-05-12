@@ -3,6 +3,7 @@
 #include <poseidon/singletons/timer_daemon.hpp>
 #include <poseidon/http/low_level_client.hpp>
 #include <poseidon/tcp_client_base.hpp>
+#include <poseidon/atomic.hpp>
 #include <poseidon/hash.hpp>
 #include <poseidon/async_job.hpp>
 #include "encryption.hpp"
@@ -26,20 +27,21 @@ private:
 		unsigned port;
 		bool useSsl;
 
-		Poseidon::Http::RequestHeaders requestHeaders;
-		std::string xff;
-
 		Poseidon::StreamBuffer pending;
+		bool keepAlive;
 	};
 
 	class HttpClient : public Poseidon::Http::LowLevelClient {
 	private:
 		const boost::weak_ptr<ClientControl> m_control;
 
+		bool m_responseCompleted;
+
 	public:
 		HttpClient(const Poseidon::SockAddr &sockAddr, bool useSsl, boost::weak_ptr<ClientControl> control)
 			: Poseidon::Http::LowLevelClient(sockAddr, useSsl)
 			, m_control(STD_MOVE(control))
+			, m_responseCompleted(true)
 		{
 		}
 
@@ -47,19 +49,54 @@ private:
 		void onClose(int errCode) NOEXCEPT OVERRIDE {
 			PROFILE_ME;
 
+			const AUTO(control, m_control.lock());
+			if(control){
+				if((errCode == 0) && !m_responseCompleted){
+					LOG_MEDUSA_DEBUG("Partial response from another server?");
+					errCode = ECONNRESET;
+				}
+				control->onFetchClose(errCode);
+			}
+
+			Poseidon::Http::LowLevelClient::onClose(errCode);
 		}
 
-		void onLowLevelResponseHeaders(Poseidon::Http::ResponseHeaders responseHeaders, boost::uint64_t contentLength) OVERRIDE {
+		void onLowLevelResponseHeaders(Poseidon::Http::ResponseHeaders responseHeaders,
+			std::vector<std::string> transferEncoding, boost::uint64_t contentLength) OVERRIDE
+		{
 			PROFILE_ME;
 
+			const AUTO(control, m_control.lock());
+			if(!control){
+				LOG_MEDUSA_DEBUG("Lost connection to fetch client");
+				forceShutdown();
+				return;
+			}
+
+//			client->onHttpResponseHeader(STD_MOVE(responseHeaders), 
 		}
 		void onLowLevelEntity(boost::uint64_t contentOffset, Poseidon::StreamBuffer entity) OVERRIDE {
 			PROFILE_ME;
 
+			const AUTO(control, m_control.lock());
+			if(!control){
+				LOG_MEDUSA_DEBUG("Lost connection to fetch client");
+				forceShutdown();
+				return;
+			}
+
+//			client->onHttpResponseHeader(
 		}
 		void onLowLevelChunkedTrailer(boost::uint64_t realContentLength, Poseidon::OptionalMap headers) OVERRIDE {
 			PROFILE_ME;
 
+			const AUTO(control, m_control.lock());
+			if(!control){
+				forceShutdown();
+				return;
+			}
+
+//			client->onHttpResponseHeader(
 		}
 	};
 
@@ -78,11 +115,26 @@ private:
 		void onClose(int errCode) NOEXCEPT OVERRIDE {
 			PROFILE_ME;
 
+			const AUTO(control, m_control.lock());
+			if(control){
+				LOG_MEDUSA_DEBUG("Lost connection to fetch client");
+				control->onFetchClose(errCode);
+			}
+
+			Poseidon::TcpClientBase::onClose(errCode);
 		}
 
 		void onReadAvail(const void *data, std::size_t size) OVERRIDE {
 			PROFILE_ME;
 
+			const AUTO(control, m_control.lock());
+			if(!control){
+				LOG_MEDUSA_DEBUG("Lost connection to fetch client");
+				forceShutdown();
+				return;
+			}
+
+			
 		}
 	};
 
@@ -152,16 +204,18 @@ private:
 	const boost::weak_ptr<FetchSession> m_session;
 	const Poseidon::Uuid m_fetchUuid;
 
+	volatile boost::uint64_t m_updatedTime;
+
 	mutable Poseidon::Mutex m_mutex;
 	State m_state;
 	std::deque<RequestElement> m_queue;
-	boost::uint64_t m_updatedTime;
 	boost::weak_ptr<Poseidon::TcpClientBase> m_client;
 
 public:
 	ClientControl(boost::weak_ptr<FetchSession> session, const Poseidon::Uuid &fetchUuid)
 		: m_session(STD_MOVE(session)), m_fetchUuid(fetchUuid)
-		, m_state(S_IDLE), m_updatedTime(0)
+		, m_updatedTime(0)
+		, m_state(S_IDLE)
 	{
 		LOG_MEDUSA_DEBUG("Constructing client control: fetchUuid = ", m_fetchUuid);
 	}
@@ -172,6 +226,31 @@ public:
 	}
 
 private:
+	void onFetchClose(int errCode) NOEXCEPT {
+		PROFILE_ME;
+		LOG_MEDUSA_DEBUG("Fetch client closed: errCode = ", errCode);
+
+		const AUTO(session, m_session.lock());
+		if(!session){
+			return;
+		}
+
+		try {
+			if(errCode != 0){
+				session->send(m_fetchUuid, Msg::SC_FetchError(Msg::ST_INTERNAL_ERROR, errCode, VAL_INIT));
+			} else if(!m_queue.front().keepAlive){
+				session->send(m_fetchUuid, Msg::SC_FetchError(Msg::ST_OK, 0, VAL_INIT));
+			} else {
+				
+			}
+
+			Poseidon::atomicStore(m_updatedTime, Poseidon::getFastMonoClock(), Poseidon::ATOMIC_RELAXED);
+		} catch(std::exception &e){
+			LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
+			session->forceShutdown();
+		}
+	}
+
 /*	void createFetchClient(const Poseidon::SockAddr &addr){
 		PROFILE_ME;
 		LOG_MEDUSA_DEBUG("Spawning fetch client to ", Poseidon::getIpPortFromSockAddr(addr))"
@@ -242,25 +321,15 @@ private:
 */
 public:
 	boost::uint64_t getUpdatedTime() const {
-		return m_updatedTime;
+		return Poseidon::atomicLoad(m_updatedTime, Poseidon::ATOMIC_RELAXED);
 	}
 
 	void push(std::string host, unsigned port, bool useSsl, Poseidon::Http::RequestHeaders requestHeaders, std::string xff){
 		PROFILE_ME;
-
-		LOG_POSEIDON_FATAL("push: host = ", host, ", port = ", port, ", useSsl = ", useSsl);
-/*		const AUTO(maxPipeliningSize, getConfig()->get<std::size_t>("fetch_max_pipelining_size", 16));
-		if(m_queue.size() >= maxPipeliningSize){
-			LOG_MEDUSA_WARNING("Max pipelining size exceeded: fetchUuid = ", m_fetchUuid, ", maxPipeliningSize = ", maxPipeliningSize);
-			DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_FETCH_MAX_PIPELINING_SIZE);
-		}
-
-		const AUTO(now, Poseidon::getFastMonoClock());
-
-		if(!m_timer){
-			m_timer = Poseidon::TimerDaemon::registerTimer(1000, 1000,
-				boost::bind(&timerProc, boost::weak_ptr<ClientControl>(shared_from_this()), _1));
-		}
+		LOG_POSEIDON_DEBUG("Fetch connect: fetchUuid = ", m_fetchUuid,
+			", host = ", host, ", port = ", port, ", useSsl = ", useSsl, ", URI = ", requestHeaders.uri, ", XFF = ", xff);
+/*
+		const AUTO(maxPipeliningSize, getConfig()->get<std::size_t>("fetch_max_pipelining_size", 16));
 
 		RequestElement elem;
 		elem.host = STD_MOVE(host);
@@ -268,17 +337,25 @@ public:
 		elem.useSsl = useSsl;
 		elem.requestHeaders = STD_MOVE(requestHeaders);
 		elem.xff = STD_MOVE(xff);
-		m_queue.push_back(STD_MOVE(elem));
 
-		m_updatedTime = now;
-
-		pumpStatus(now);
-*/	}
+		const Poseidon::Mutex::UniqueLock lock(m_mutex);
+		if(m_queue.size() >= maxPipeliningSize){
+			LOG_MEDUSA_WARNING("Max pipelining size exceeded: fetchUuid = ", m_fetchUuid, ", maxPipeliningSize = ", maxPipeliningSize);
+			DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_FETCH_MAX_PIPELINING_SIZE);
+		}
+		Poseidon::atomicStore(m_updatedTime, Poseidon::getFastMonoClock(), Poseidon::ATOMIC_RELAXED);
+*/
+	}
 	bool send(Poseidon::StreamBuffer data){
 		PROFILE_ME;
+		LOG_POSEIDON_FATAL("Fetch send: fetchUuid = ", m_fetchUuid,
+			", size = ", data.size());
+/*
+		const AUTO(maxPendingSize, getConfig()->get<std::size_t>("fetch_max_pending_size", 65536));
 
-		LOG_POSEIDON_FATAL("send: size = ", data.size());
-/*		if(m_queue.empty()){
+		const Poseidon::Mutex::UniqueLock lock(m_mutex);
+
+		if(m_queue.empty()){
 			LOG_MEDUSA_WARNING("Queue is empty. Who shall I send data to? fetchUuid = ", m_fetchUuid);
 			DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_FETCH_NOT_CONNECTED);
 		}
@@ -289,17 +366,25 @@ public:
 				return client->send(STD_MOVE(data));
 			}
 		}
-		AUTO_REF(pending, m_queue.back().pending);
-		const AUTO(maxPendingSize, getConfig()->get<std::size_t>("fetch_max_pending_size", 65536));
-		if(pending.size() + data.size() > maxPendingSize){
+
+		boost::uint64_t pendingSize = 0;
+		for(AUTO(it, m_queue.begin()); it != m_queue.end(); ++it){
+			pendingSize += it->pending.size();
+		}
+		if(pendingSize + data.size() > maxPendingSize){
 			LOG_MEDUSA_WARNING("Max pending size exceeded: fetchUuid = ", m_fetchUuid, ", maxPendingSize = ", maxPendingSize);
 			DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_FETCH_MAX_PENDING_SIZE);
 		}
 		pending.splice(data);
-*/		return true;
+*/
+		return true;
 	}
 	void close(Poseidon::Cbpp::StatusCode cbppErrCode, int errCode, std::string description) NOEXCEPT {
 		PROFILE_ME;
+		LOG_POSEIDON_FATAL("Fetch close: fetchUuid = ", m_fetchUuid,
+			", cbppErrCode = ", cbppErrCode, ", errCode = ", errCode, ", description = ", description);
+/*
+		const Poseidon::Mutex::UniqueLock lock(m_mutex);
 
 		const AUTO(session, m_session.lock());
 		if(session){
@@ -325,6 +410,9 @@ public:
 		m_queue.clear();
 		m_updatedTime = 0;
 		m_client.reset();
+
+		Poseidon::atomicStore(m_updatedTime, Poseidon::getFastMonoClock(), Poseidon::ATOMIC_RELAXED);
+*/
 	}
 };
 
