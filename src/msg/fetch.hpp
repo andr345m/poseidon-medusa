@@ -26,14 +26,29 @@ namespace Msg {
 	)
 #include <poseidon/cbpp/message_generator.hpp>
 
-#define MESSAGE_NAME	CS_FetchSend
+#define MESSAGE_NAME	CS_FetchHttpSend
 #define MESSAGE_ID		101
 #define MESSAGE_FIELDS	\
 	// 这个结构并不使用，我们只用协议号。
 #include <poseidon/cbpp/message_generator.hpp>
 
-#define MESSAGE_NAME	CS_FetchClose
+#define MESSAGE_NAME	CS_FetchHttpSendEof
 #define MESSAGE_ID		102
+#define MESSAGE_FIELDS	\
+	FIELD_ARRAY			(headers,	\
+		FIELD_STRING		(name)	\
+		FIELD_STRING		(value)	\
+	)
+#include <poseidon/cbpp/message_generator.hpp>
+
+#define MESSAGE_NAME	CS_FetchTunnelSend
+#define MESSAGE_ID		103
+#define MESSAGE_FIELDS	\
+	// 这个结构并不使用，我们只用协议号。
+#include <poseidon/cbpp/message_generator.hpp>
+
+#define MESSAGE_NAME	CS_FetchClose
+#define MESSAGE_ID		104
 #define MESSAGE_FIELDS	\
 	FIELD_VINT			(errCode)
 #include <poseidon/cbpp/message_generator.hpp>
@@ -49,14 +64,29 @@ namespace Msg {
 	)
 #include <poseidon/cbpp/message_generator.hpp>
 
-#define MESSAGE_NAME	SC_FetchReceive
+#define MESSAGE_NAME	SC_FetchHttpReceive
 #define MESSAGE_ID		198
 #define MESSAGE_FIELDS	\
 	// 这个结构并不使用，我们只用协议号。
 #include <poseidon/cbpp/message_generator.hpp>
 
-#define MESSAGE_NAME	SC_FetchError
+#define MESSAGE_NAME	SC_FetchHttpReceiveEof
 #define MESSAGE_ID		197
+#define MESSAGE_FIELDS	\
+	FIELD_ARRAY			(headers,	\
+		FIELD_STRING		(name)	\
+		FIELD_STRING		(value)	\
+	)
+#include <poseidon/cbpp/message_generator.hpp>
+
+#define MESSAGE_NAME	SC_FetchTunnelReceive
+#define MESSAGE_ID		196
+#define MESSAGE_FIELDS	\
+	// 这个结构并不使用，我们只用协议号。
+#include <poseidon/cbpp/message_generator.hpp>
+
+#define MESSAGE_NAME	SC_FetchError
+#define MESSAGE_ID		195
 #define MESSAGE_FIELDS	\
 	FIELD_VINT			(cbppErrCode)	\
 	FIELD_VINT			(sysErrCode)	\

@@ -9,7 +9,6 @@
 
 namespace Medusa {
 
-class EncryptionContext;
 class ProxySession;
 
 class FetchClient : public Poseidon::Cbpp::LowLevelClient {
@@ -21,9 +20,7 @@ private:
 	const std::string m_password;
 
 	boost::uint16_t m_messageId;
-	boost::uint64_t m_payloadLen;
 	Poseidon::StreamBuffer m_payload;
-	boost::scoped_ptr<EncryptionContext> m_decContext;
 
 	mutable Poseidon::Mutex m_sessionMutex;
 	std::map<Poseidon::Uuid, boost::weak_ptr<ProxySession> > m_sessions;
@@ -40,6 +37,7 @@ private:
 protected:
 	void onLowLevelResponse(boost::uint16_t messageId, boost::uint64_t payloadLen) OVERRIDE;
 	void onLowLevelPayload(boost::uint64_t payloadOffset, Poseidon::StreamBuffer payload) OVERRIDE;
+	void onLowLevelPayloadEof(boost::uint64_t realPayloadLen) OVERRIDE;
 
 	void onLowLevelError(boost::uint16_t messageId, Poseidon::Cbpp::StatusCode statusCode, std::string reason) OVERRIDE;
 

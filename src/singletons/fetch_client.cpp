@@ -26,9 +26,9 @@ boost::shared_ptr<FetchClient> FetchClient::require(){
 		AUTO(ssl,  getConfig()->get<bool>("fetch_client_uses_ssl", false));
 		AUTO(pass, getConfig()->get<std::string>("fetch_client_password", ""));
 
-		const Poseidon::IpPort connAddr(SharedNts(addr), port);
-		LOG_MEDUSA_INFO("Creating fetch client to ", connAddr, (ssl ? " using SSL" : ""));
-		ret.reset(new FetchClient(connAddr, ssl, hbtm, STD_MOVE(pass)));
+		const Poseidon::IpPort addrPort(SharedNts(addr), port);
+		LOG_MEDUSA_INFO("Creating fetch client to ", addrPort, (ssl ? " using SSL" : ""));
+		ret.reset(new FetchClient(addrPort, ssl, hbtm, STD_MOVE(pass)));
 		ret->goResident();
 		g_client = ret;
 	}
@@ -74,10 +74,40 @@ void FetchClient::onLowLevelPlainMessage(const Poseidon::Uuid &fetchUuid, boost:
 		{ //
 //=============================================================================
 		ON_MESSAGE(Msg::SC_FetchResponseHeaders, msg){
-			Poseidon::Http::ResponseHeaders responseHeaders;
-			session->send(STD_MOVE(responseHeaders));
+			Poseidon::Http::ResponseHeaders resh;
+			resh.statusCode = msg.statusCode;
+			resh.reason = STD_MOVE(msg.reason);
+			for(AUTO(it, msg.headers.begin()); it != msg.headers.end(); ++it){
+				resh.headers.set(SharedNts(it->name), STD_MOVE(it->value));
+			}
+			const AUTO(transferEncodingStr, resh.headers.get("Transfer-Encoding"));
+			if(transferEncodingStr.empty() || (::strcasecmp(transferEncodingStr.c_str(), "identity") == 0)){
+				resh.headers.set("Transfer-Encoding", "chunked");
+			}
+			session->send(resh);
 		}
-		ON_RAW_MESSAGE(Msg::SC_FetchReceive){
+		ON_RAW_MESSAGE(Msg::SC_FetchHttpReceive){
+			Poseidon::StreamBuffer chunk;
+			char temp[64];
+			unsigned len = (unsigned)std::sprintf(temp, "%llx\r\n", (unsigned long long)plain.size());
+			chunk.put(temp, len);
+			chunk.splice(plain);
+			chunk.put("\r\n");
+			session->sendRaw(STD_MOVE(chunk));
+		}
+		ON_MESSAGE(Msg::SC_FetchHttpReceiveEof, msg){
+			Poseidon::StreamBuffer data;
+			data.put("0\r\n");
+			for(AUTO(it, msg.headers.begin()); it != msg.headers.end(); ++it){
+				data.put(it->name);
+				data.put(": ");
+				data.put(it->value);
+				data.put("\r\n");
+			}
+			data.put("\r\n");
+			session->sendRaw(STD_MOVE(data));
+		}
+		ON_RAW_MESSAGE(Msg::SC_FetchTunnelReceive){
 			session->sendRaw(STD_MOVE(plain));
 		}
 		ON_MESSAGE(Msg::SC_FetchError, msg){
@@ -110,33 +140,33 @@ void FetchClient::onLowLevelResponse(boost::uint16_t messageId, boost::uint64_t 
 		return;
 	}
 	m_messageId = messageId;
-	m_payloadLen = payloadLen;
 	m_payload.clear();
-	m_decContext.reset();
 }
-void FetchClient::onLowLevelPayload(boost::uint64_t payloadOffset, Poseidon::StreamBuffer payload){
+void FetchClient::onLowLevelPayload(boost::uint64_t /* payloadOffset */, Poseidon::StreamBuffer payload){
 	PROFILE_ME;
-	LOG_MEDUSA_DEBUG("Received payload from fetch server: offset = ", payloadOffset, ", size = ", payload.size());
 
 	m_payload.splice(payload);
+}
+void FetchClient::onLowLevelPayloadEof(boost::uint64_t realPayloadLen){
+	PROFILE_ME;
+	LOG_MEDUSA_DEBUG("Received payload from fetch server: realPayloadLen = ", realPayloadLen);
 
 	const AUTO(headerSize, getEncryptedHeaderSize());
-	if(!m_decContext){
-		assert(m_payloadLen >= headerSize);
-		if(m_payload.size() < headerSize){
-			return;
-		}
-		if(!tryDecryptHeader(m_decContext, m_password, m_payload)){
-			LOG_MEDUSA_ERROR("Checksums mismatch. Maybe you provided a wrong password?");
-			DEBUG_THROW(Exception, SSLIT("Checksums mismatch"));
-		}
+	if(m_payload.size() < headerSize){
+		LOG_MEDUSA_ERROR("Frame from fetch server is too small, expecting ", headerSize);
+		forceShutdown();
+		return;
 	}
-	if(m_payload.size() < m_payloadLen){
+
+	EncryptionContextPtr decContext;
+	if(!tryDecryptHeader(decContext, m_password, m_payload)){
+		LOG_MEDUSA_ERROR("Checksums mismatch. Maybe you provided a wrong password?");
+		forceShutdown();
 		return;
 	}
 	m_payload.discard(headerSize);
-	AUTO(plain, decryptPayload(m_decContext, STD_MOVE(m_payload)));
-	onLowLevelPlainMessage(m_decContext->uuid, m_messageId, STD_MOVE(plain));
+	AUTO(plain, decryptPayload(decContext, STD_MOVE(m_payload)));
+	onLowLevelPlainMessage(decContext->uuid, m_messageId, STD_MOVE(plain));
 }
 
 void FetchClient::onLowLevelError(boost::uint16_t messageId, Poseidon::Cbpp::StatusCode statusCode, std::string reason){
@@ -159,7 +189,7 @@ boost::shared_ptr<ProxySession> FetchClient::getSession(const Poseidon::Uuid &fe
 		m_sessions.erase(it);
 		return VAL_INIT;
 	}
-	return STD_MOVE(session);
+	return session;
 }
 void FetchClient::link(const boost::shared_ptr<ProxySession> &session){
 	PROFILE_ME;
