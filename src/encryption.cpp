@@ -65,16 +65,14 @@ namespace {
 		for(std::size_t i = 0; i < size; ++i){
 			unsigned byte = data[i];
 
-			ctx->i = (ctx->i + 1) & 0xFF;
+			// ctx->i = (ctx->i + 1) & 0xFF;
 			const unsigned k1 = ctx->s[ctx->i];
 			ctx->j = (ctx->j + k1) & 0xFF;
 			const unsigned k2 = ctx->s[ctx->j];
 			ctx->s[ctx->i] = k2;
 			ctx->s[ctx->j] = k1;
-
+			ctx->i = (ctx->i + (byte | 0x0F)) & 0xFF; // RC4 改。
 			byte ^= k1 + k2;
-			ctx->i ^= byte; // RC4 改。
-
 			data[i] = byte;
 		}
 	}
@@ -83,17 +81,14 @@ namespace {
 
 		for(std::size_t i = 0; i < size; ++i){
 			unsigned byte = data[i];
-
-			ctx->i = (ctx->i + 1) & 0xFF;
+			// ctx->i = (ctx->i + 1) & 0xFF;
 			const unsigned k1 = ctx->s[ctx->i];
 			ctx->j = (ctx->j + k1) & 0xFF;
 			const unsigned k2 = ctx->s[ctx->j];
 			ctx->s[ctx->i] = k2;
 			ctx->s[ctx->j] = k1;
-
-			ctx->i ^= byte; // RC4 改。
 			byte ^= k1 + k2;
-
+			ctx->i = (ctx->i + (byte | 0x0F)) & 0xFF; // RC4 改。
 			data[i] = byte;
 		}
 	}
