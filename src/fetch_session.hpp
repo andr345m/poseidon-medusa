@@ -11,6 +11,9 @@ namespace Medusa {
 
 class FetchSession : public Poseidon::Cbpp::Session {
 private:
+	class HttpClient;
+	class TunnelClient;
+
 	class ClientControl;
 
 private:
