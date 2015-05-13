@@ -167,17 +167,6 @@ public:
 */
 		Poseidon::atomicStore(m_updatedTime, Poseidon::getFastMonoClock(), Poseidon::ATOMIC_RELAXED);
 	}
-	void forceShutdown() NOEXCEPT {
-		PROFILE_ME;
-		LOG_POSEIDON_DEBUG("Fetch abort: fetchUuid = ", m_fetchUuid);
-
-		const AUTO(session, m_session.lock());
-		if(!session){
-			return;
-		}
-
-		session->forceShutdown();
-	}
 
 	void notifyFetchComplete(){
 		PROFILE_ME;
@@ -214,14 +203,14 @@ protected:
 				if(errCode != 0){
 					control->forwardData(Msg::SC_FetchError(Msg::ST_INTERNAL_ERROR, errCode, VAL_INIT));
 				} else if(!m_fullyReceived){
-					control->forwardData(Msg::SC_FetchError(Msg::ERR_TRUNCATED_RESPONSE, ECONNRESET, VAL_INIT));
+					control->forwardData(Msg::SC_FetchError(Msg::ERR_FETCH_TRUNCATED_RESPONSE, ECONNRESET, VAL_INIT));
 				} else {
 					control->forwardData(Msg::SC_FetchError(Msg::ST_OK, 0, VAL_INIT));
 					control->notifyFetchComplete();
 				}
 			} catch(std::exception &e){
 				LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
-				control->forceShutdown();
+				control->close(Msg::ST_INTERNAL_ERROR, ECONNRESET, e.what());
 			}
 		}
 
@@ -328,7 +317,7 @@ protected:
 				}
 			} catch(std::exception &e){
 				LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
-				control->forceShutdown();
+				control->close(Msg::ST_INTERNAL_ERROR, ECONNRESET, e.what());
 			}
 		}
 
@@ -367,7 +356,7 @@ FetchSession::FetchSession(Poseidon::UniqueFile socket, std::string password)
 }
 FetchSession::~FetchSession(){
 	for(AUTO(it, m_clients.begin()); it != m_clients.end(); ++it){
-		it->second->forceShutdown();
+		it->second->close(Msg::ERR_FETCH_CONNECTION_LOST, ECONNRESET, VAL_INIT);
 	}
 }
 
@@ -379,7 +368,7 @@ void FetchSession::onGcTimer(boost::uint64_t now, boost::uint64_t period){
 	while(it != m_clients.end()){
 		if(it->second->getUpdatedTime() + period < now){
 			LOG_MEDUSA_DEBUG("Reclaiming timed out client: fetchUuid = ", it->first);
-			it->second->forceShutdown();
+			it->second->close(Msg::ST_OK, 0, VAL_INIT);
 			m_clients.erase(it++);
 		} else {
 			++it;
