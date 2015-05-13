@@ -11,10 +11,10 @@ namespace Medusa {
 
 class FetchSession : public Poseidon::Cbpp::Session {
 private:
+	class ClientControl;
+
 	class HttpClient;
 	class TunnelClient;
-
-	class ClientControl;
 
 private:
 	static void gcTimerProc(const boost::weak_ptr<FetchSession> &weakSession, boost::uint64_t now, boost::uint64_t period);
