@@ -1,5 +1,6 @@
 #include "../precompiled.hpp"
 #include "fetch_client.hpp"
+#include <poseidon/string.hpp>
 #include "../proxy_session.hpp"
 #include "../encryption.hpp"
 #include "../msg/fetch.hpp"
@@ -8,6 +9,9 @@
 namespace Medusa {
 
 namespace {
+	const std::string IDENTITY_STRING	= "identity";
+	const std::string CHUNKED_STRING	= "chunked";
+
 	Poseidon::Mutex g_clientMutex;
 	boost::weak_ptr<FetchClient> g_client;
 }
@@ -75,15 +79,25 @@ void FetchClient::onLowLevelPlainMessage(const Poseidon::Uuid &fetchUuid, boost:
 //=============================================================================
 		ON_MESSAGE(Msg::SC_FetchResponseHeaders, msg){
 			Poseidon::Http::ResponseHeaders resh;
+
 			resh.statusCode = msg.statusCode;
 			resh.reason = STD_MOVE(msg.reason);
+
 			for(AUTO(it, msg.headers.begin()); it != msg.headers.end(); ++it){
 				resh.headers.set(SharedNts(it->name), STD_MOVE(it->value));
 			}
-			const AUTO(transferEncodingStr, resh.headers.get("Transfer-Encoding"));
-			if(transferEncodingStr.empty() || (::strcasecmp(transferEncodingStr.c_str(), "identity") == 0)){
-				resh.headers.set("Transfer-Encoding", "chunked");
+			AUTO(transferEncoding, Poseidon::explode<std::string>(',', resh.headers.get("Transfer-Encoding")));
+			for(AUTO(it, transferEncoding.begin()); it != transferEncoding.end(); ++it){
+				*it = Poseidon::toLowerCase(Poseidon::trim(STD_MOVE(*it)));
 			}
+			std::sort(transferEncoding.begin(), transferEncoding.end());
+			AUTO(range, std::equal_range(transferEncoding.begin(), transferEncoding.end(), IDENTITY_STRING));
+			transferEncoding.erase(range.first, range.second);
+			if(transferEncoding.empty()){
+				transferEncoding.push_back(CHUNKED_STRING);
+			}
+			resh.headers.set("Transfer-Encoding", Poseidon::implode(',', transferEncoding));
+
 			session->send(resh);
 		}
 		ON_RAW_MESSAGE(Msg::SC_FetchHttpReceive){

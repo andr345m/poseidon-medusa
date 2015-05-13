@@ -16,8 +16,6 @@ private:
 	const Poseidon::Uuid m_uuid;
 	const boost::weak_ptr<FetchClient> m_fetch;
 
-	bool m_tunnelEstablished;
-
 public:
 	explicit ProxySession(Poseidon::UniqueFile socket);
 	~ProxySession();

@@ -21,7 +21,7 @@ namespace {
 		Poseidon::md5Sum(noncedKey[1], key.data(), key.size());
 	}
 
-	// http://en.wikipedia.org/wiki/RC4#Spritz
+	// http://en.wikipedia.org/wiki/RC4 有改动。
 
 	void createContext(boost::scoped_ptr<EncryptionContext> &ret, const Poseidon::Uuid &uuid, const unsigned char (&noncedKey)[32]){
 		PROFILE_ME;

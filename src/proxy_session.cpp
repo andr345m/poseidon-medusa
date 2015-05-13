@@ -39,7 +39,6 @@ protected:
 ProxySession::ProxySession(Poseidon::UniqueFile socket)
 	: Poseidon::Http::LowLevelSession(STD_MOVE(socket))
 	, m_uuid(Poseidon::Uuid::random()), m_fetch(FetchClient::require())
-	, m_tunnelEstablished(false)
 {
 }
 ProxySession::~ProxySession(){
