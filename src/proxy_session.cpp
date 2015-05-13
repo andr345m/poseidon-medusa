@@ -3,7 +3,7 @@
 #include <poseidon/http/upgraded_low_level_session_base.hpp>
 #include <poseidon/http/exception.hpp>
 #include "singletons/fetch_client.hpp"
-#include "msg/fetch.hpp"
+#include "msg/cs_fetch.hpp"
 
 namespace Medusa {
 

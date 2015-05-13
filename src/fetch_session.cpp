@@ -8,7 +8,8 @@
 #include <poseidon/async_job.hpp>
 #include "encryption.hpp"
 #include "singletons/dns_daemon.hpp"
-#include "msg/fetch.hpp"
+#include "msg/cs_fetch.hpp"
+#include "msg/sc_fetch.hpp"
 #include "msg/error_codes.hpp"
 
 namespace Medusa {
@@ -364,15 +365,14 @@ void FetchSession::onGcTimer(boost::uint64_t now, boost::uint64_t period){
 	PROFILE_ME;
 	LOG_MEDUSA_TRACE("Fetch client GC timer: now = ", now, ", period = ", period);
 
-	AUTO(it, m_clients.begin());
-	while(it != m_clients.end()){
-		if(it->second->getUpdatedTime() + period < now){
-			LOG_MEDUSA_DEBUG("Reclaiming timed out client: fetchUuid = ", it->first);
-			it->second->close(Msg::ST_OK, 0, VAL_INIT);
-			m_clients.erase(it++);
-		} else {
-			++it;
+	for(AUTO(next, m_clients.begin()), it = next; (next != m_clients.end()) && (++next, true); it = next){
+		if(now < it->second->getUpdatedTime() + period){
+			continue;
 		}
+
+		LOG_MEDUSA_DEBUG("Reclaiming timed out client: fetchUuid = ", it->first);
+		it->second->close(Msg::ST_OK, 0, VAL_INIT);
+		m_clients.erase(it);
 	}
 }
 

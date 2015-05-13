@@ -2,7 +2,7 @@
 #include "fetch_client.hpp"
 #include "../proxy_session.hpp"
 #include "../encryption.hpp"
-#include "../msg/fetch.hpp"
+#include "../msg/sc_fetch.hpp"
 #include "../msg/error_codes.hpp"
 
 namespace Medusa {
