@@ -1,6 +1,7 @@
 这个东西是干什么的呢，我只能说“你懂的”了……
 
-需要先安装 Poseidon（https://github.com/lhmouse/poseidon）。
+需要先安装 Poseidon：
+  https://github.com/lhmouse/poseidon
 
 确保以下依赖为最新：
   automake
