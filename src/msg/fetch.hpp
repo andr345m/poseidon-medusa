@@ -23,6 +23,9 @@ namespace Msg {
 	FIELD_ARRAY			(headers,	\
 		FIELD_STRING		(name)	\
 		FIELD_STRING		(value)	\
+	)	\
+	FIELD_ARRAY			(transferEncoding,	\
+		FIELD_STRING		(value)	\
 	)
 #include <poseidon/cbpp/message_generator.hpp>
 
@@ -60,6 +63,9 @@ namespace Msg {
 	FIELD_STRING		(reason)	\
 	FIELD_ARRAY			(headers,	\
 		FIELD_STRING		(name)	\
+		FIELD_STRING		(value)	\
+	)	\
+	FIELD_ARRAY			(transferEncoding,	\
 		FIELD_STRING		(value)	\
 	)
 #include <poseidon/cbpp/message_generator.hpp>

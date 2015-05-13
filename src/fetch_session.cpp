@@ -5,7 +5,6 @@
 #include <poseidon/tcp_client_base.hpp>
 #include <poseidon/atomic.hpp>
 #include <poseidon/hash.hpp>
-#include <poseidon/string.hpp>
 #include <poseidon/async_job.hpp>
 #include "encryption.hpp"
 #include "singletons/dns_daemon.hpp"
@@ -87,11 +86,7 @@ private:
 			resh.headers.erase("Prxoy-Authenticate");
 			resh.headers.erase("Proxy-Connection");
 			resh.headers.erase("Upgrade");
-			if(transferEncoding.empty()){
-				resh.headers.set("Transfer-Encoding", "chunked");
-			} else {
-				resh.headers.set("Transfer-Encoding", Poseidon::implode(',', transferEncoding));
-			}
+			resh.headers.erase("Transfer-Encoding");
 			if(m_keepAlive){
 				resh.headers.set("Connection", "Keep-Alive");
 			} else {
@@ -101,6 +96,11 @@ private:
 				msg.headers.push_back(VAL_INIT);
 				msg.headers.back().name = it->first.get();
 				msg.headers.back().value = STD_MOVE(it->second);
+			}
+
+			for(AUTO(it, transferEncoding.begin()); it != transferEncoding.end(); ++it){
+				msg.transferEncoding.push_back(VAL_INIT);
+				msg.transferEncoding.back().value = STD_MOVE(*it);
 			}
 
 			if(!session->send(m_fetchUuid, msg)){
@@ -544,15 +544,30 @@ void FetchSession::onPlainMessage(const Poseidon::Uuid &fetchUuid, boost::uint16
 			}
 
 			Poseidon::Http::RequestHeaders reqh;
+
 			reqh.verb = req.verb;
 			reqh.uri = STD_MOVE(req.uri);
 			reqh.version = 10001;
+
 			for(AUTO(it, req.getParams.begin()); it != req.getParams.end(); ++it){
 				reqh.getParams.set(SharedNts(it->name), STD_MOVE(it->value));
 			}
+
 			for(AUTO(it, req.headers.begin()); it != req.headers.end(); ++it){
 				reqh.headers.set(SharedNts(it->name), STD_MOVE(it->value));
 			}
+			std::string transferEncoding;
+			if(req.transferEncoding.empty()){
+				transferEncoding = "chunked";
+			} else {
+				for(AUTO(it, req.transferEncoding.begin()); it != req.transferEncoding.end(); ++it){
+					transferEncoding += it->value;
+					transferEncoding += ',';
+				}
+				transferEncoding.erase(transferEncoding.end() - 1);
+			}
+			reqh.headers.set("Transfer-Encoding", transferEncoding);
+
 			it->second->push(STD_MOVE(req.host), req.port, req.useSsl, reqh, STD_MOVE(req.xff));
 		}
 		ON_RAW_MESSAGE(Msg::CS_FetchHttpSend){
