@@ -74,18 +74,23 @@ boost::shared_ptr<Poseidon::Http::UpgradedLowLevelSessionBase> ProxySession::onL
 
 	Msg::CS_FetchRequestHeaders msg;
 	msg.host = STD_MOVE(reqh.uri);
-	if(::strncasecmp(msg.host.c_str(), "https://", 8) == 0){
-		msg.host.erase(0, 8);
-		msg.port = 443;
-		msg.useSsl = true;
-	} else {
-		if(::strncasecmp(msg.host.c_str(), "http://", 7) == 0){
-			msg.host.erase(0, 7);
+	msg.port = 80;
+	msg.useSsl = false;
+	AUTO(pos, msg.host.find_first_not_of("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"));
+	if((pos != std::string::npos) && (pos + 3 <= msg.host.size()) && (msg.host.compare(pos, 3, "://", 3) == 0)){
+		msg.host.at(pos) = 0;
+		LOG_MEDUSA_DEBUG("Request protocol = ", msg.host.c_str());
+		if(::strcasecmp(msg.host.c_str(), "http") == 0){
+			// noop
+		} else if(::strcasecmp(msg.host.c_str(), "https") == 0){
+			msg.port = 443;
+			msg.useSsl = true;
+		} else {
+			LOG_MEDUSA_DEBUG("Unknown protocol: ", msg.host.c_str());
+			DEBUG_THROW(Poseidon::Http::Exception, Poseidon::Http::ST_BAD_REQUEST);
 		}
-		msg.port = 80;
-		msg.useSsl = false;
 	}
-	AUTO(pos, msg.host.find('/'));
+	pos = msg.host.find('/');
 	if(pos != std::string::npos){
 		msg.uri = msg.host.substr(pos);
 		msg.host.erase(pos);
