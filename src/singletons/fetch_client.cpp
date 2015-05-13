@@ -75,25 +75,12 @@ void FetchClient::onLowLevelPlainMessage(const Poseidon::Uuid &fetchUuid, boost:
 //=============================================================================
 		ON_MESSAGE(Msg::SC_FetchResponseHeaders, msg){
 			Poseidon::Http::ResponseHeaders resh;
-
+			resh.version = 10001;
 			resh.statusCode = msg.statusCode;
 			resh.reason = STD_MOVE(msg.reason);
-
 			for(AUTO(it, msg.headers.begin()); it != msg.headers.end(); ++it){
 				resh.headers.set(SharedNts(it->name), STD_MOVE(it->value));
 			}
-			std::string transferEncoding;
-			if(msg.transferEncoding.empty()){
-				transferEncoding = "chunked";
-			} else {
-				for(AUTO(it, msg.transferEncoding.begin()); it != msg.transferEncoding.end(); ++it){
-					transferEncoding += it->value;
-					transferEncoding += ',';
-				}
-				transferEncoding.erase(transferEncoding.end() - 1);
-			}
-			resh.headers.set("Transfer-Encoding", transferEncoding);
-
 			session->send(resh);
 		}
 		ON_RAW_MESSAGE(Msg::SC_FetchHttpReceive){

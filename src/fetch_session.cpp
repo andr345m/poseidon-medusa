@@ -5,6 +5,7 @@
 #include <poseidon/tcp_client_base.hpp>
 #include <poseidon/atomic.hpp>
 #include <poseidon/hash.hpp>
+#include <poseidon/string.hpp>
 #include <poseidon/async_job.hpp>
 #include "encryption.hpp"
 #include "singletons/dns_daemon.hpp"
@@ -21,7 +22,7 @@ private:
 		unsigned port;
 		bool useSsl;
 
-		Poseidon::Http::RequestHeaders req;
+		Poseidon::Http::RequestHeaders reqh;
 		Poseidon::StreamBuffer pending;
 
 		bool closeAfterRequest;
@@ -75,27 +76,87 @@ public:
 		forwardData(MsgT::ID, Poseidon::StreamBuffer(msg));
 	}
 
-	void push(std::string host, unsigned port, bool useSsl, Poseidon::Http::RequestHeaders reqh, std::string xff){
+	void push(std::string host, unsigned port, bool useSsl, Poseidon::Http::RequestHeaders reqh,
+		std::vector<std::string> transferEncoding, std::string xff)
+	{
 		PROFILE_ME;
 		LOG_POSEIDON_DEBUG("Fetch connect: fetchUuid = ", m_fetchUuid,
 			", host = ", host, ", port = ", port, ", useSsl = ", useSsl, ", URI = ", reqh.uri, ", XFF = ", xff);
-/*
+
 		const AUTO(maxPipeliningSize, getConfig()->get<std::size_t>("fetch_max_pipelining_size", 16));
+
+		reqh.headers.erase("Transfer-Encoding");
+		reqh.headers.erase("Content-Length");
+		reqh.headers.erase("Prxoy-Authenticate");
+		reqh.headers.erase("Upgrade");
+
+		std::vector<std::string> connectionVec;
+		{
+			const AUTO(it, reqh.headers.find("Proxy-Connection"));
+			if(it != reqh.headers.end()){
+				connectionVec = Poseidon::explode<std::string>(',', it->second);
+				reqh.headers.erase(it);
+			}
+		}
+		reqh.headers.set("Connection", "Close");
+
+		bool keepAlive;
+		if(reqh.version < 10001){
+			keepAlive = false;
+			for(AUTO(it, connectionVec.begin()); it != connectionVec.end(); ++it){
+				*it = Poseidon::trim(STD_MOVE(*it));
+				if(::strcasecmp(it->c_str(), "Keep-Alive") == 0){
+					keepAlive = true;
+				}
+			}
+		} else {
+			keepAlive = true;
+			for(AUTO(it, connectionVec.begin()); it != connectionVec.end(); ++it){
+				*it = Poseidon::trim(STD_MOVE(*it));
+				if(::strcasecmp(it->c_str(), "Close") == 0){
+					keepAlive = false;
+				}
+			}
+		}
+
+		std::string transferEncodingStr;
+		if(transferEncoding.empty()){
+			transferEncodingStr = "chunked";
+		} else {
+			for(AUTO(it, transferEncoding.begin()); it != transferEncoding.end(); ++it){
+				transferEncodingStr += *it;
+				transferEncodingStr += ',';
+			}
+			transferEncodingStr.erase(transferEncodingStr.end() - 1);
+		}
+		reqh.headers.set("Transfer-Encoding", STD_MOVE(transferEncodingStr));
+		reqh.headers.set("X-Forwarded-For", STD_MOVE(xff));
 
 		RequestElement elem;
 		elem.host = STD_MOVE(host);
 		elem.port = port;
 		elem.useSsl = useSsl;
 		elem.reqh = STD_MOVE(reqh);
-		elem.xff = STD_MOVE(xff);
+		elem.closeAfterRequest = !keepAlive;
 
-		const Poseidon::Mutex::UniqueLock lock(m_mutex);
-		if(m_queue.size() >= maxPipeliningSize){
-			LOG_MEDUSA_WARNING("Max pipelining size exceeded: fetchUuid = ", m_fetchUuid, ", maxPipeliningSize = ", maxPipeliningSize);
-			DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_FETCH_MAX_PIPELINING_SIZE);
+		{
+			const Poseidon::Mutex::UniqueLock lock(m_mutex);
+			if(m_queue.size() >= maxPipeliningSize){
+				LOG_MEDUSA_WARNING("Max pipelining size exceeded: fetchUuid = ", m_fetchUuid);
+				DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_FETCH_MAX_PIPELINING_SIZE);
+			}
+LOG_MEDUSA_FATAL("> host = ", elem.host);
+LOG_MEDUSA_FATAL("> port = ", elem.port);
+LOG_MEDUSA_FATAL("> ssl  = ", elem.useSsl);
+LOG_MEDUSA_FATAL("> ver  = ", elem.reqh.version);
+LOG_MEDUSA_FATAL("> verb = ", elem.reqh.verb);
+for(auto &h : elem.reqh.headers){
+	LOG_MEDUSA_FATAL("> hdr  = ", h.first, ": ", h.second);
+}
+LOG_MEDUSA_FATAL("> keep = ", !elem.closeAfterRequest);
+
+			m_queue.push_back(STD_MOVE(elem));
 		}
-		Poseidon::atomicStore(m_updatedTime, Poseidon::getFastMonoClock(), Poseidon::ATOMIC_RELAXED);
-*/
 		Poseidon::atomicStore(m_updatedTime, Poseidon::getFastMonoClock(), Poseidon::ATOMIC_RELAXED);
 	}
 	bool send(Poseidon::StreamBuffer data){
@@ -182,14 +243,15 @@ public:
 class FetchSession::HttpClient : public Poseidon::Http::LowLevelClient {
 private:
 	const boost::weak_ptr<ClientControl> m_control;
+	const bool m_closeAfterRequest;
 
 	bool m_fullyReceived;
 
 public:
 	HttpClient(const Poseidon::SockAddr &sockAddr, bool useSsl,
-		boost::weak_ptr<ClientControl> control)
+		boost::weak_ptr<ClientControl> control, bool closeAfterRequest)
 		: Poseidon::Http::LowLevelClient(sockAddr, useSsl)
-		, m_control(STD_MOVE(control))
+		, m_control(STD_MOVE(control)), m_closeAfterRequest(closeAfterRequest)
 		, m_fullyReceived(false)
 	{
 	}
@@ -230,27 +292,30 @@ protected:
 			return;
 		}
 
+		resh.headers.erase("Transfer-Encoding");
+		resh.headers.erase("Content-Length");
+		resh.headers.erase("Prxoy-Authenticate");
+		resh.headers.erase("Upgrade");
+
+		if(m_closeAfterRequest){
+			resh.headers.set("Proxy-Connection", "Close");
+		} else {
+			resh.headers.set("Proxy-Connection", "Keep-Alive");
+		}
+		resh.headers.erase("Connection");
+
 		Msg::SC_FetchResponseHeaders msg;
 		msg.statusCode = resh.statusCode;
 		msg.reason = STD_MOVE(resh.reason);
-
-		resh.headers.erase("Content-Length");
-		resh.headers.erase("Prxoy-Authenticate");
-		resh.headers.erase("Proxy-Connection");
-		resh.headers.erase("Upgrade");
-		resh.headers.erase("Transfer-Encoding");
-		resh.headers.set("Connection", "Close");
 		for(AUTO(it, resh.headers.begin()); it != resh.headers.end(); ++it){
 			msg.headers.push_back(VAL_INIT);
 			msg.headers.back().name = it->first.get();
 			msg.headers.back().value = STD_MOVE(it->second);
 		}
-
 		for(AUTO(it, transferEncoding.begin()); it != transferEncoding.end(); ++it){
 			msg.transferEncoding.push_back(VAL_INIT);
 			msg.transferEncoding.back().value = STD_MOVE(*it);
 		}
-
 		control->forwardData(msg);
 
 		m_fullyReceived = false;
@@ -408,31 +473,24 @@ void FetchSession::onPlainMessage(const Poseidon::Uuid &fetchUuid, boost::uint16
 			}
 
 			Poseidon::Http::RequestHeaders reqh;
-
 			reqh.verb = req.verb;
 			reqh.uri = STD_MOVE(req.uri);
 			reqh.version = 10001;
-
 			for(AUTO(it, req.getParams.begin()); it != req.getParams.end(); ++it){
 				reqh.getParams.set(SharedNts(it->name), STD_MOVE(it->value));
 			}
-
 			for(AUTO(it, req.headers.begin()); it != req.headers.end(); ++it){
 				reqh.headers.set(SharedNts(it->name), STD_MOVE(it->value));
 			}
-			std::string transferEncoding;
-			if(req.transferEncoding.empty()){
-				transferEncoding = "chunked";
-			} else {
-				for(AUTO(it, req.transferEncoding.begin()); it != req.transferEncoding.end(); ++it){
-					transferEncoding += it->value;
-					transferEncoding += ',';
-				}
-				transferEncoding.erase(transferEncoding.end() - 1);
-			}
-			reqh.headers.set("Transfer-Encoding", transferEncoding);
 
-			it->second->push(STD_MOVE(req.host), req.port, req.useSsl, reqh, STD_MOVE(req.xff));
+			std::vector<std::string> transferEncoding;
+			transferEncoding.reserve(req.transferEncoding.size());
+			for(AUTO(it, req.transferEncoding.begin()); it != req.transferEncoding.end(); ++it){
+				transferEncoding.push_back(STD_MOVE(it->value));
+			}
+
+			it->second->push(STD_MOVE(req.host), req.port, req.useSsl, STD_MOVE(reqh),
+				STD_MOVE(transferEncoding), STD_MOVE(req.xff));
 		}
 		ON_RAW_MESSAGE(Msg::CS_FetchHttpSend){
 			const AUTO(it, m_clients.find(fetchUuid));
