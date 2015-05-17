@@ -6,7 +6,7 @@
 #include "../msg/error_codes.hpp"
 
 namespace Medusa {
-
+/*
 namespace {
 	Poseidon::Mutex g_clientMutex;
 	boost::weak_ptr<FetchClient> g_client;
@@ -73,38 +73,7 @@ void FetchClient::onLowLevelPlainMessage(const Poseidon::Uuid &fetchUuid, boost:
 	case Msg_::ID: {	\
 		{ //
 //=============================================================================
-		ON_MESSAGE(Msg::SC_FetchResponseHeaders, msg){
-			Poseidon::Http::ResponseHeaders resh;
-			resh.version = 10001;
-			resh.statusCode = msg.statusCode;
-			resh.reason = STD_MOVE(msg.reason);
-			for(AUTO(it, msg.headers.begin()); it != msg.headers.end(); ++it){
-				resh.headers.set(SharedNts(it->name), STD_MOVE(it->value));
-			}
-			session->send(resh);
-		}
-		ON_RAW_MESSAGE(Msg::SC_FetchHttpReceive){
-			Poseidon::StreamBuffer chunk;
-			char temp[64];
-			unsigned len = (unsigned)std::sprintf(temp, "%llx\r\n", (unsigned long long)plain.size());
-			chunk.put(temp, len);
-			chunk.splice(plain);
-			chunk.put("\r\n");
-			session->sendRaw(STD_MOVE(chunk));
-		}
-		ON_MESSAGE(Msg::SC_FetchHttpReceiveEof, msg){
-			Poseidon::StreamBuffer data;
-			data.put("0\r\n");
-			for(AUTO(it, msg.headers.begin()); it != msg.headers.end(); ++it){
-				data.put(it->name);
-				data.put(": ");
-				data.put(it->value);
-				data.put("\r\n");
-			}
-			data.put("\r\n");
-			session->sendRaw(STD_MOVE(data));
-		}
-		ON_RAW_MESSAGE(Msg::SC_FetchTunnelReceive){
+		ON_RAW_MESSAGE(Msg::SC_FetchReceive){
 			session->sendRaw(STD_MOVE(plain));
 		}
 		ON_MESSAGE(Msg::SC_FetchError, msg){
@@ -139,7 +108,7 @@ void FetchClient::onLowLevelResponse(boost::uint16_t messageId, boost::uint64_t 
 	m_messageId = messageId;
 	m_payload.clear();
 }
-void FetchClient::onLowLevelPayload(boost::uint64_t /* payloadOffset */, Poseidon::StreamBuffer payload){
+void FetchClient::onLowLevelPayload(boost::uint64_t  payloadOffset , Poseidon::StreamBuffer payload){
 	PROFILE_ME;
 
 	m_payload.splice(payload);
@@ -210,5 +179,5 @@ bool FetchClient::send(const Poseidon::Uuid &fetchUuid, boost::uint16_t messageI
 	data.splice(payload);
 	return Poseidon::Cbpp::LowLevelClient::send(messageId, STD_MOVE(data));
 }
-
+*/
 }

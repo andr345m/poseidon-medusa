@@ -2,7 +2,6 @@
 #include "dns_daemon.hpp"
 #include <poseidon/job_base.hpp>
 #include <poseidon/ip_port.hpp>
-#include <poseidon/raii.hpp>
 #include <poseidon/mutex.hpp>
 #include <poseidon/atomic.hpp>
 #include <poseidon/thread.hpp>
@@ -14,15 +13,6 @@
 namespace Medusa {
 
 namespace {
-	struct AddrInfoDeleter {
-		CONSTEXPR ::addrinfo *operator()() const NOEXCEPT {
-			return NULLPTR;
-		}
-		void operator()(::addrinfo *res) const NOEXCEPT {
-			::freeaddrinfo(res);
-		}
-	};
-
 	class CallbackJob : public Poseidon::JobBase {
 	private:
 		const DnsDaemon::Callback m_callback;
@@ -35,7 +25,7 @@ namespace {
 
 	public:
 		CallbackJob(DnsDaemon::Callback callback, std::string host, unsigned port,
-			int gaiCode, Poseidon::SockAddr addr, int errCode, std::string errMsg)
+			int gaiCode, const Poseidon::SockAddr &addr, int errCode, std::string errMsg)
 			: m_callback(STD_MOVE_IDN(callback)), m_host(STD_MOVE(host)), m_port(port)
 			, m_gaiCode(gaiCode), m_addr(addr), m_errCode(errCode), m_errMsg(errMsg)
 		{
@@ -93,28 +83,27 @@ namespace {
 
 			try {
 				try {
-					int gaiCode;
 					Poseidon::SockAddr sockAddr;
-					int errCode;
 
 					char temp[1024];
+					std::sprintf(temp, "%u", elem.port);
+					::addrinfo *res = NULLPTR;
+					const int gaiCode = ::getaddrinfo(elem.host.c_str(), temp, NULLPTR, &res);
+					const int errCode = errno;
 					const char *errMsg;
-
-					Poseidon::UniqueHandle<AddrInfoDeleter> addrInfo;
-					{
-						char port[32];
-						std::sprintf(port, "%u", elem.port);
-						::addrinfo *res = NULLPTR;
-						gaiCode = ::getaddrinfo(elem.host.c_str(), port, NULLPTR, &res);
-						errCode = errno;
-						addrInfo.reset(res);
-					}
 					if(gaiCode == 0){
+						try {
+							sockAddr = Poseidon::SockAddr(res->ai_addr, res->ai_addrlen);
+						} catch(...){
+							::freeaddrinfo(res);
+							throw;
+						}
+						::freeaddrinfo(res);
 						errMsg = "";
-					} else if(gaiCode == EAI_SYSTEM){
-						errMsg = ::strerror_r(errCode, temp, sizeof(temp));
-					} else {
+					} else if(gaiCode != EAI_SYSTEM){
 						errMsg = ::gai_strerror(gaiCode);
+					} else {
+						errMsg = ::strerror_r(errCode, temp, sizeof(temp));
 					}
 					LOG_MEDUSA_DEBUG("DNS lookup result: host:port = ", elem.host, ':', elem.port,
 						", gaiCode = ", gaiCode, ", errCode = ", errCode, ", errMsg = ", errMsg);

@@ -1,13 +1,13 @@
 #include "precompiled.hpp"
 #include "proxy_session.hpp"
-#include <poseidon/http/upgraded_low_level_session_base.hpp>
+// #include <poseidon/http/upgraded_low_level_session_base.hpp>
 #include <poseidon/http/exception.hpp>
 #include <poseidon/string.hpp>
 #include "singletons/fetch_client.hpp"
 #include "msg/cs_fetch.hpp"
 
 namespace Medusa {
-
+/*
 class ProxySession::TunnelLowLevelSession : public Poseidon::Http::UpgradedLowLevelSessionBase {
 private:
 	const boost::weak_ptr<ProxySession> m_parent;
@@ -68,7 +68,7 @@ void ProxySession::onClose(int errCode) NOEXCEPT {
 
 boost::shared_ptr<Poseidon::Http::UpgradedLowLevelSessionBase> ProxySession::onLowLevelRequestHeaders(
 	Poseidon::Http::RequestHeaders &reqh,
-	const std::vector<std::string> &transferEncoding, boost::uint64_t /* contentLength */)
+	const std::vector<std::string> &transferEncoding, boost::uint64_t contentLength)
 {
 	PROFILE_ME;
 	LOG_MEDUSA_DEBUG("Proxy HTTP request from ", getRemoteInfo());
@@ -147,8 +147,8 @@ boost::shared_ptr<Poseidon::Http::UpgradedLowLevelSessionBase> ProxySession::onL
 	return VAL_INIT;
 }
 
-void ProxySession::onLowLevelRequest(Poseidon::Http::RequestHeaders /* reqh */,
-	std::vector<std::string> /* transferEncoding */, Poseidon::StreamBuffer entity)
+void ProxySession::onLowLevelRequest(Poseidon::Http::RequestHeaders  reqh ,
+	std::vector<std::string>  transferEncoding , Poseidon::StreamBuffer entity)
 {
 	PROFILE_ME;
 
@@ -166,7 +166,7 @@ void ProxySession::onLowLevelRequest(Poseidon::Http::RequestHeaders /* reqh */,
 	}
 	setTimeout(getConfig()->get<boost::uint64_t>("proxy_http_keep_alive_timeout", 15000));
 }
-void ProxySession::onLowLevelError(Poseidon::Http::StatusCode /* statusCode */, Poseidon::OptionalMap /* headers */){
+void ProxySession::onLowLevelError(Poseidon::Http::StatusCode  statusCode , Poseidon::OptionalMap  headers ){
 	PROFILE_ME;
 
 	forceShutdown();
@@ -177,5 +177,5 @@ bool ProxySession::sendRaw(Poseidon::StreamBuffer bytes){
 
 	return Poseidon::TcpSessionBase::send(STD_MOVE(bytes));
 }
-
+*/
 }

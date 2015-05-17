@@ -3,40 +3,51 @@
 
 #include <map>
 #include <boost/cstdint.hpp>
-#include <poseidon/cbpp/session.hpp>
+#include <poseidon/tcp_session_base.hpp>
+#include <poseidon/cbpp/reader.hpp>
+#include <poseidon/cbpp/writer.hpp>
+#include <poseidon/cbpp/status_codes.hpp>
 #include <poseidon/uuid.hpp>
-#include <poseidon/stream_buffer.hpp>
 
 namespace Medusa {
 
-class FetchSession : public Poseidon::Cbpp::Session {
+class FetchSession : public Poseidon::TcpSessionBase, private Poseidon::Cbpp::Reader, private Poseidon::Cbpp::Writer {
 private:
+	class Client;
 	class ClientControl;
 
-	class HttpClient;
-	class TunnelClient;
-
 private:
-	static void gcTimerProc(const boost::weak_ptr<FetchSession> &weakSession, boost::uint64_t now, boost::uint64_t period);
+	static void timerProc(const boost::weak_ptr<FetchSession> &weakSession, boost::uint64_t now, boost::uint64_t period);
 
 private:
 	const std::string m_password;
 
-	boost::shared_ptr<Poseidon::TimerItem> m_gcTimer;
+	boost::shared_ptr<Poseidon::TimerItem> m_timer;
 
-	std::map<Poseidon::Uuid, boost::shared_ptr<ClientControl> > m_clients;
+	std::map<Poseidon::Uuid, ClientControl> m_clients;
 
 public:
 	FetchSession(Poseidon::UniqueFile socket, std::string password);
 	~FetchSession();
 
 private:
-	void onGcTimer(boost::uint64_t now, boost::uint64_t period);
+	void onTimer(boost::uint64_t now, boost::uint64_t period);
 
 	void onPlainMessage(const Poseidon::Uuid &fetchUuid, boost::uint16_t messageId, Poseidon::StreamBuffer plain);
 
 protected:
-	void onRequest(boost::uint16_t messageId, const Poseidon::StreamBuffer &payload) OVERRIDE;
+	// TcpSessionBase
+	void onReadAvail(const void *data, std::size_t size) OVERRIDE;
+
+	// Reader
+	void onDataMessageHeader(boost::uint16_t messageId, boost::uint64_t payloadSize) OVERRIDE;
+	void onDataMessagePayload(boost::uint64_t payloadOffset, Poseidon::StreamBuffer payload) OVERRIDE;
+	bool onDataMessageEnd(boost::uint64_t payloadSize) OVERRIDE;
+
+	bool onControlMessage(Poseidon::Cbpp::ControlCode controlCode, boost::int64_t vintParam, std::string stringParam) OVERRIDE;
+
+	// Writer
+	long onEncodedDataAvail(Poseidon::StreamBuffer encoded) OVERRIDE;
 
 public:
 	bool send(const Poseidon::Uuid &fetchUuid, boost::uint16_t messageId, Poseidon::StreamBuffer plain);

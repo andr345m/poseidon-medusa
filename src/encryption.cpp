@@ -6,58 +6,81 @@
 
 namespace Medusa {
 
+// 用于保存加密器状态。
+struct EncryptionContext {
+	Poseidon::Uuid uuid;
+	unsigned i, j;
+	boost::array<unsigned char, 256> s;
+};
+
 namespace {
+	typedef boost::array<unsigned char, 16> Nonce;
+
 	struct EncryptedHeader {
-		unsigned char uuid[16];
-		unsigned char nonce[16];
-		unsigned char md5[16];
+		Nonce nonce;
+		Poseidon::Uuid uuid;
+		Poseidon::Md5 authMd5;
 	};
 
-	void makeNoncedKey(unsigned char (&ret)[32], const unsigned char (&nonce)[16], const std::string &key){
-		PROFILE_ME;
+#ifdef POSEIDON_CXX11
+	static_assert(std::is_standard_layout<EncryptedHeader>::value, "EncryptedHeader is not a standard-layout structe?");
+	static_assert(sizeof(EncryptedHeader) == 48, "Incompatible layout detected");
+#endif
 
-		AUTO(noncedKey, reinterpret_cast<unsigned char (&)[2][16]>(ret));
-		std::memcpy(noncedKey[0], nonce, 16);
-		Poseidon::md5Sum(noncedKey[1], key.data(), key.size());
-	}
+	struct NoncedKey {
+		Nonce nonce;
+		Poseidon::Md5 keyMd5;
+
+		explicit NoncedKey(const Nonce &nonce_, const std::string &key_)
+			: nonce(nonce_), keyMd5(Poseidon::md5Hash(key_))
+		{
+		}
+	};
+
+#ifdef POSEIDON_CXX11
+	static_assert(sizeof(NoncedKey) == 32, "Incompatible layout detected");
+#endif
 
 	// http://en.wikipedia.org/wiki/RC4 有改动。
 
-	void createContext(boost::scoped_ptr<EncryptionContext> &ret, const Poseidon::Uuid &uuid, const unsigned char (&noncedKey)[32]){
+	boost::shared_ptr<EncryptionContext> createContext(const Poseidon::Uuid &uuid, const NoncedKey &noncedKey){
 		PROFILE_ME;
 
-		boost::scoped_ptr<EncryptionContext> ctx(new EncryptionContext);
+		AUTO(ret, boost::make_shared<EncryptionContext>());
 
-		ctx->uuid = uuid;
-		ctx->i = 0;
-		ctx->j = 0;
+		ret->uuid = uuid;
+		ret->i = 0;
+		ret->j = 0;
 
 		for(unsigned i = 0; i < 256; ++i){
-			ctx->s[i] = i;
+			ret->s[i] = i;
 		}
 		unsigned i = 0, j = 0;
 		while(i < 256){
 			unsigned tmp;
 
 #define GEN_S(k_)	\
-			tmp = ctx->s[i];	\
+			tmp = ret->s[i];	\
 			j = (j + tmp + (k_)) & 0xFF;	\
-			ctx->s[i] = ctx->s[j];	\
-			ctx->s[j] = tmp;	\
+			ret->s[i] = ret->s[j];	\
+			ret->s[j] = tmp;	\
 			++i;
 
 			for(unsigned r = 0; r < 16; ++r){
+				GEN_S(noncedKey.nonce[r]);
+			}
+			for(unsigned r = 0; r < 16; ++r){
 				GEN_S(uuid[r]);
 			}
-			for(unsigned r = 0; r < 32; ++r){
-				GEN_S(noncedKey[r]);
+			for(unsigned r = 0; r < 16; ++r){
+				GEN_S(noncedKey.keyMd5[r]);
 			}
 			for(unsigned r = 0; r < 16; ++r){
 				GEN_S(uuid[r]);
 			}
 		}
 
-		ret.swap(ctx);
+		return ret;
 	}
 	void encryptBytes(EncryptionContext *ctx, unsigned char *data, std::size_t size){
 		PROFILE_ME;
@@ -98,23 +121,25 @@ std::size_t getEncryptedHeaderSize(){
 	return sizeof(EncryptedHeader);
 }
 
-Poseidon::StreamBuffer encryptHeader(EncryptionContextPtr &context, const Poseidon::Uuid &uuid, const std::string &key){
+std::pair<boost::shared_ptr<EncryptionContext>, Poseidon::StreamBuffer> encryptHeader(const Poseidon::Uuid &uuid, const std::string &key){
 	PROFILE_ME;
 
-	EncryptedHeader header;
-	std::memcpy(header.uuid, uuid.data(), uuid.size());
-	for(unsigned i = 0; i < 16; ++i){
-		header.nonce[i] = Poseidon::rand32();
+	Nonce nonce;
+	for(AUTO(it, nonce.begin()); it != nonce.end(); ++it){
+		*it = Poseidon::rand32();
 	}
-	unsigned char noncedKey[32];
-	makeNoncedKey(noncedKey, header.nonce, key);
-	Poseidon::md5Sum(header.md5, noncedKey, sizeof(noncedKey));
+	const NoncedKey noncedKey(nonce, key);
+	AUTO(context, createContext(uuid, noncedKey));
 
-	Poseidon::StreamBuffer ret(&header, sizeof(header));
-	createContext(context, uuid, noncedKey);
-	return ret;
+	EncryptedHeader header;
+	header.nonce = nonce;
+	header.uuid = uuid;
+	header.authMd5 = Poseidon::md5Hash(&noncedKey, sizeof(noncedKey));
+	AUTO(encrypted, Poseidon::StreamBuffer(&header, sizeof(header)));
+
+	return std::make_pair(STD_MOVE(context), STD_MOVE(encrypted));
 }
-Poseidon::StreamBuffer encryptPayload(const EncryptionContextPtr &context, Poseidon::StreamBuffer plain){
+Poseidon::StreamBuffer encryptPayload(const boost::shared_ptr<EncryptionContext> &context, Poseidon::StreamBuffer plain){
 	PROFILE_ME;
 
 	struct Helper {
@@ -129,7 +154,7 @@ Poseidon::StreamBuffer encryptPayload(const EncryptionContextPtr &context, Posei
 	return ret;
 }
 
-bool tryDecryptHeader(EncryptionContextPtr &context, const std::string &key, const Poseidon::StreamBuffer &encrypted){
+boost::shared_ptr<EncryptionContext> tryDecryptHeader(const Poseidon::StreamBuffer &encrypted, const std::string &key){
 	PROFILE_ME;
 
 	const AUTO(headerSize, getEncryptedHeaderSize());
@@ -140,19 +165,16 @@ bool tryDecryptHeader(EncryptionContextPtr &context, const std::string &key, con
 
 	EncryptedHeader header;
 	encrypted.peek(&header, sizeof(header));
-	unsigned char noncedKey[32];
-	makeNoncedKey(noncedKey, header.nonce, key);
-	unsigned char md5[16];
-	Poseidon::md5Sum(md5, noncedKey, sizeof(noncedKey));
-	if(std::memcmp(md5, header.md5, 16) != 0){
-		using Poseidon::HexDumper;
-		LOG_MEDUSA_DEBUG("Unexpected MD5: expecting ", HexDumper(md5, 16), ", got ", HexDumper(header.md5, 16));
-		return false;
+	const NoncedKey noncedKey(header.nonce, key);
+	const AUTO(expectedMd5, Poseidon::md5Hash(&noncedKey, sizeof(noncedKey)));
+	if(expectedMd5 != header.authMd5){
+		LOG_MEDUSA_DEBUG("Unexpected MD5: expecting ", Poseidon::HexDumper(expectedMd5.data(), expectedMd5.size()),
+			", got ", Poseidon::HexDumper(header.authMd5.data(), header.authMd5.size()));
+		return VAL_INIT;
 	}
-	createContext(context, Poseidon::Uuid(header.uuid), noncedKey);
-	return true;
+	return createContext(header.uuid, noncedKey);
 }
-Poseidon::StreamBuffer decryptPayload(const EncryptionContextPtr &context, Poseidon::StreamBuffer encrypted){
+Poseidon::StreamBuffer decryptPayload(const boost::shared_ptr<EncryptionContext> &context, Poseidon::StreamBuffer encrypted){
 	PROFILE_ME;
 
 	struct Helper {

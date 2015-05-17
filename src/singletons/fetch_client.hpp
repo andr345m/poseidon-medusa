@@ -3,7 +3,7 @@
 
 #include <map>
 #include <boost/scoped_ptr.hpp>
-#include <poseidon/cbpp/low_level_client.hpp>
+#include <poseidon/cbpp/client.hpp>
 #include <poseidon/uuid.hpp>
 #include <poseidon/mutex.hpp>
 
@@ -11,11 +11,11 @@ namespace Medusa {
 
 class ProxySession;
 
-class FetchClient : public Poseidon::Cbpp::LowLevelClient {
+class FetchClient : public Poseidon::Cbpp::Client {
 public:
 	static boost::shared_ptr<FetchClient> get();
 	static boost::shared_ptr<FetchClient> require();
-
+/*
 private:
 	const std::string m_password;
 
@@ -52,6 +52,7 @@ public:
 	bool send(const Poseidon::Uuid &fetchUuid, const MsgT &msg){
 		return send(fetchUuid, MsgT::ID, Poseidon::StreamBuffer(msg));
 	}
+*/
 };
 
 }
