@@ -6,13 +6,6 @@
 
 namespace Medusa {
 
-// 用于保存加密器状态。
-struct EncryptionContext {
-	Poseidon::Uuid uuid;
-	unsigned i, j;
-	boost::array<unsigned char, 256> s;
-};
-
 namespace {
 	typedef boost::array<unsigned char, 16> Nonce;
 
@@ -160,7 +153,7 @@ boost::shared_ptr<EncryptionContext> tryDecryptHeader(const Poseidon::StreamBuff
 	const AUTO(headerSize, getEncryptedHeaderSize());
 	if(encrypted.size() < headerSize){
 		LOG_MEDUSA_ERROR("No enough data provided, expecting at least ", headerSize, " bytes.");
-		DEBUG_THROW(Exception, SSLIT("No enough data provided"));
+		DEBUG_THROW(Exception, sslit("No enough data provided"));
 	}
 
 	EncryptedHeader header;

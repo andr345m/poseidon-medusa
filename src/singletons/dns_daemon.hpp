@@ -20,7 +20,7 @@ struct DnsDaemon {
 
 	// except 不是线程安全的。
 	static void asyncLookup(std::string host, unsigned port, Callback callback,
-		bool isLowLevel = false, ExceptionCallback except = ExceptionCallback());
+		ExceptionCallback except = ExceptionCallback(), bool isLowLevel = false);
 
 private:
 	DnsDaemon();

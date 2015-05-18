@@ -33,7 +33,7 @@ protected:
 		}
 
 		fetch->send(parent->m_uuid, Msg::CS_FetchTunnelSend::ID, Poseidon::StreamBuffer(data, size));
-		setTimeout(getConfig()->get<boost::uint64_t>("proxy_tunnel_keep_alive_timeout", 300000));
+		setTimeout(getConfig<boost::uint64_t>("proxy_tunnel_keep_alive_timeout", 300000));
 	}
 };
 
@@ -164,7 +164,7 @@ void ProxySession::onLowLevelRequest(Poseidon::Http::RequestHeaders  reqh ,
 		forceShutdown();
 		return;
 	}
-	setTimeout(getConfig()->get<boost::uint64_t>("proxy_http_keep_alive_timeout", 15000));
+	setTimeout(getConfig<boost::uint64_t>("proxy_http_keep_alive_timeout", 15000));
 }
 void ProxySession::onLowLevelError(Poseidon::Http::StatusCode  statusCode , Poseidon::OptionalMap  headers ){
 	PROFILE_ME;

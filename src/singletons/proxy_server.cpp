@@ -22,8 +22,8 @@ return VAL_INIT;
 }
 
 MODULE_RAII(handles){
-	AUTO(bind, getConfig()->get<std::string>("proxy_server_bind", "0.0.0.0"));
-	AUTO(port, getConfig()->get<unsigned>("proxy_server_port", 5322));
+	AUTO(bind, getConfig<std::string>("proxy_server_bind", "0.0.0.0"));
+	AUTO(port, getConfig<unsigned>("proxy_server_port", 5322));
 
 	const Poseidon::IpPort bindAddr(SharedNts(bind), port);
 	LOG_MEDUSA_INFO("Creating proxy HTTP server on ", bindAddr);

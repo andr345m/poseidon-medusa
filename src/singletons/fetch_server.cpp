@@ -27,11 +27,11 @@ return {};
 }
 
 MODULE_RAII(handles){
-	AUTO(bind, getConfig()->get<std::string>("fetch_server_bind", "127.0.0.1"));
-	AUTO(port, getConfig()->get<unsigned>("fetch_server_port", 5326));
-	AUTO(cert, getConfig()->get<std::string>("fetch_server_certificate"));
-	AUTO(pkey, getConfig()->get<std::string>("fetch_server_private_key"));
-	AUTO(pass, getConfig()->get<std::string>("fetch_server_password"));
+	AUTO(bind, getConfig<std::string>("fetch_server_bind", "127.0.0.1"));
+	AUTO(port, getConfig<unsigned>("fetch_server_port", 5326));
+	AUTO(cert, getConfig<std::string>("fetch_server_certificate"));
+	AUTO(pkey, getConfig<std::string>("fetch_server_private_key"));
+	AUTO(pass, getConfig<std::string>("fetch_server_password"));
 
 	const Poseidon::IpPort bindAddr(SharedNts(bind), port);
 	LOG_MEDUSA_INFO("Creating fetch CBPP server on ", bindAddr);

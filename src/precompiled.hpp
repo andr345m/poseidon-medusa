@@ -12,6 +12,7 @@
 #include <poseidon/random.hpp>
 #include <poseidon/flags.hpp>
 #include <poseidon/module_config.hpp>
+#include <poseidon/uuid.hpp>
 #include <poseidon/mutex.hpp>
 #include <poseidon/condition_variable.hpp>
 
@@ -22,9 +23,9 @@ namespace Medusa {
 typedef Poseidon::Exception     Exception;
 typedef Poseidon::SharedNts     SharedNts;
 
-DECLARE_MODULE_CONFIG(getConfig)
+DECLARE_MODULE_CONFIG(getConfig, getConfigV)
 
-using Poseidon::SSLIT;
+using Poseidon::sslit;
 
 }
 

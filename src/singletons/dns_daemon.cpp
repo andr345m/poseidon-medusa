@@ -48,8 +48,8 @@ namespace {
 			std::string host;
 			unsigned port;
 			DnsDaemon::Callback callback;
-			bool isLowLevel;
 			DnsDaemon::ExceptionCallback except;
+			bool isLowLevel;
 		};
 
 	private:
@@ -149,14 +149,14 @@ namespace {
 
 	public:
 		void push(std::string host, unsigned port, DnsDaemon::Callback callback,
-			bool isLowLevel, DnsDaemon::ExceptionCallback except)
+			DnsDaemon::ExceptionCallback except, bool isLowLevel)
 		{
 			Element elem;
 			elem.host = STD_MOVE(host);
 			elem.port = port;
 			elem.callback = STD_MOVE_IDN(callback);
-			elem.isLowLevel = isLowLevel;
 			elem.except = STD_MOVE_IDN(except);
+			elem.isLowLevel = isLowLevel;
 
 			const Poseidon::Mutex::UniqueLock lock(m_mutex);
 			m_queue.push_back(STD_MOVE(elem));
@@ -173,17 +173,17 @@ namespace {
 }
 
 void DnsDaemon::asyncLookup(std::string host, unsigned port, Callback callback,
-	bool isLowLevel, DnsDaemon::ExceptionCallback except)
+	DnsDaemon::ExceptionCallback except, bool isLowLevel)
 {
 	PROFILE_ME;
 
 	const AUTO(queue, g_queue.lock());
 	if(!queue){
 		LOG_MEDUSA_ERROR("DNS queue has not been created");
-		DEBUG_THROW(Exception, SSLIT("DNS queue has not been created"));
+		DEBUG_THROW(Exception, sslit("DNS queue has not been created"));
 	}
 
-	queue->push(STD_MOVE(host), port, STD_MOVE(callback), isLowLevel, STD_MOVE(except));
+	queue->push(STD_MOVE(host), port, STD_MOVE(callback), STD_MOVE(except), isLowLevel);
 }
 
 }

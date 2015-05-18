@@ -11,7 +11,11 @@
 namespace Medusa {
 
 // 用于保存加密器状态。
-struct EncryptionContext;
+struct EncryptionContext {
+	Poseidon::Uuid uuid;
+	unsigned i, j;
+	boost::array<unsigned char, 256> s;
+};
 
 extern std::size_t getEncryptedHeaderSize();
 

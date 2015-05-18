@@ -1,63 +1,43 @@
 #ifndef MEDUSA_FETCH_SESSION_HPP_
 #define MEDUSA_FETCH_SESSION_HPP_
 
-#include <map>
 #include <boost/cstdint.hpp>
-#include <poseidon/tcp_session_base.hpp>
-#include <poseidon/cbpp/reader.hpp>
-#include <poseidon/cbpp/writer.hpp>
-#include <poseidon/cbpp/status_codes.hpp>
-#include <poseidon/uuid.hpp>
+#include <poseidon/fwd.hpp>
+#include <poseidon/cbpp/session.hpp>
 
 namespace Medusa {
 
-class FetchSession : public Poseidon::TcpSessionBase, private Poseidon::Cbpp::Reader, private Poseidon::Cbpp::Writer {
+class FetchSession : public Poseidon::Cbpp::Session {
 private:
-	class Client;
-	class ClientControl;
+	class Channel;
 
 private:
-	static void timerProc(const boost::weak_ptr<FetchSession> &weakSession, boost::uint64_t now, boost::uint64_t period);
+	static void syncGcTimerProc(const boost::weak_ptr<FetchSession> &weak, boost::uint64_t now) NOEXCEPT;
 
 private:
 	const std::string m_password;
 
-	boost::shared_ptr<Poseidon::TimerItem> m_timer;
+	boost::shared_ptr<Poseidon::TimerItem> m_gcTimer;
 
-	std::map<Poseidon::Uuid, ClientControl> m_clients;
+	std::set<Channel> m_channels;
 
 public:
 	FetchSession(Poseidon::UniqueFile socket, std::string password);
 	~FetchSession();
 
 private:
-	void onTimer(boost::uint64_t now, boost::uint64_t period);
-
-	void onPlainMessage(const Poseidon::Uuid &fetchUuid, boost::uint16_t messageId, Poseidon::StreamBuffer plain);
+	void onSyncGcTimer(boost::uint64_t now);
 
 protected:
-	// TcpSessionBase
-	void onReadAvail(const void *data, std::size_t size) OVERRIDE;
-
-	// Reader
-	void onDataMessageHeader(boost::uint16_t messageId, boost::uint64_t payloadSize) OVERRIDE;
-	void onDataMessagePayload(boost::uint64_t payloadOffset, Poseidon::StreamBuffer payload) OVERRIDE;
-	bool onDataMessageEnd(boost::uint64_t payloadSize) OVERRIDE;
-
-	bool onControlMessage(Poseidon::Cbpp::ControlCode controlCode, boost::int64_t vintParam, std::string stringParam) OVERRIDE;
-
-	// Writer
-	long onEncodedDataAvail(Poseidon::StreamBuffer encoded) OVERRIDE;
+	void onSyncDataMessage(boost::uint16_t messageId, const Poseidon::StreamBuffer &payload) OVERRIDE;
 
 public:
 	bool send(const Poseidon::Uuid &fetchUuid, boost::uint16_t messageId, Poseidon::StreamBuffer plain);
 
-	template<class MsgT>
+	template<typename MsgT>
 	bool send(const Poseidon::Uuid &fetchUuid, const MsgT &msg){
-		return send(fetchUuid, MsgT::ID, Poseidon::StreamBuffer(msg));
+		return send(fetchUuid, Poseidon::StreamBuffer(msg));
 	}
-
-	bool sendError(boost::uint16_t messageId, Poseidon::Cbpp::StatusCode statusCode, std::string reason);
 };
 
 }
