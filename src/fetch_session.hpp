@@ -1,6 +1,7 @@
 #ifndef MEDUSA_FETCH_SESSION_HPP_
 #define MEDUSA_FETCH_SESSION_HPP_
 
+#include <map>
 #include <boost/cstdint.hpp>
 #include <poseidon/fwd.hpp>
 #include <poseidon/cbpp/session.hpp>
@@ -19,7 +20,7 @@ private:
 
 	boost::shared_ptr<Poseidon::TimerItem> m_gcTimer;
 
-	std::set<Channel> m_channels;
+	std::map<Poseidon::Uuid, Channel> m_channels;
 
 public:
 	FetchSession(Poseidon::UniqueFile socket, std::string password);
@@ -36,7 +37,7 @@ public:
 
 	template<typename MsgT>
 	bool send(const Poseidon::Uuid &fetchUuid, const MsgT &msg){
-		return send(fetchUuid, Poseidon::StreamBuffer(msg));
+		return send(fetchUuid, MsgT::ID, Poseidon::StreamBuffer(msg));
 	}
 };
 

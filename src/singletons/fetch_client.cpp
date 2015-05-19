@@ -236,3 +236,21 @@ bool FetchClient::sendControl(Poseidon::Cbpp::ControlCode controlCode, boost::in
 }
 
 }
+
+#include <poseidon/async_job.hpp>
+#include "../msg/cs_fetch.hpp"
+namespace Medusa {
+
+static void foo(){
+	auto client = FetchClient::require();
+	const auto uuid = Poseidon::Uuid::random();
+	client->send(uuid, Msg::CS_FetchConnect("www.baidu.com", 80, false));
+	client->send(uuid, Msg::CS_FetchSend::ID, Poseidon::StreamBuffer("GET / HTTP/1.1\r\nHost: www.baidu.com\r\nConnection: Close\r\n\r\n"));
+	client->send(uuid, Msg::CS_FetchConnect("github.com", 443, true));
+	client->send(uuid, Msg::CS_FetchSend::ID, Poseidon::StreamBuffer("GET / HTTP/1.1\r\nHost: github.com\r\nConnection: Close\r\n\r\n"));
+}
+MODULE_RAII(){
+	Poseidon::enqueueAsyncJob(foo, 1000);
+}
+
+}
