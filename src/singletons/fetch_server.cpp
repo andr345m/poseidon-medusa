@@ -20,8 +20,7 @@ namespace {
 
 	public:
 		boost::shared_ptr<Poseidon::TcpSessionBase> onClientConnect(Poseidon::UniqueFile client) const OVERRIDE {
-//			return boost::make_shared<FetchSession>(STD_MOVE(client), m_password);
-return {};
+			return boost::make_shared<FetchSession>(STD_MOVE(client), m_password);
 		}
 	};
 }

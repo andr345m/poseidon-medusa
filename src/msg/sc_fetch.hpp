@@ -24,7 +24,7 @@ namespace Msg {
 #define MESSAGE_FIELDS	\
 	FIELD_VINT			(cbppErrCode)	\
 	FIELD_VINT			(sysErrCode)	\
-	FIELD_STRING		(description)
+	FIELD_STRING		(errMsg)
 #include <poseidon/cbpp/message_generator.hpp>
 
 }
