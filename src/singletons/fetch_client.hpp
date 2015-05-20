@@ -55,7 +55,7 @@ protected:
 public:
 	boost::shared_ptr<ProxySession> getSession(const Poseidon::Uuid &fetchUuid) const;
 	void link(const boost::shared_ptr<ProxySession> &session);
-	void unlink(const Poseidon::Uuid &fetchUuid) NOEXCEPT;
+	void unlink(const Poseidon::Uuid &fetchUuid, int errCode) NOEXCEPT;
 
 	bool send(const Poseidon::Uuid &fetchUuid, boost::uint16_t messageId, Poseidon::StreamBuffer plain);
 	bool sendControl(Poseidon::Cbpp::ControlCode controlCode, boost::int64_t vintParam, std::string stringParam);

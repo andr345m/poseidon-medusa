@@ -35,11 +35,11 @@ public:
 	~ProxySession();
 
 private:
-	void safeForward(Poseidon::StreamBuffer data);
+	void checkedForward(Poseidon::StreamBuffer data);
 
 	template<typename MsgT>
-	void safeForward(const MsgT &msg){
-		safeForward(MsgT::ID, Poseidon::StreamBuffer(msg));
+	void checkedForward(const MsgT &msg){
+		checkedForward(MsgT::ID, Poseidon::StreamBuffer(msg));
 	}
 
 protected:

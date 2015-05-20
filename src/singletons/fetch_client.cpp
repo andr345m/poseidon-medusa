@@ -4,6 +4,7 @@
 #include <poseidon/cbpp/control_codes.hpp>
 #include "../proxy_session.hpp"
 #include "../encryption.hpp"
+#include "../msg/cs_fetch.hpp"
 #include "../msg/sc_fetch.hpp"
 #include "../msg/error_codes.hpp"
 
@@ -213,11 +214,22 @@ void FetchClient::link(const boost::shared_ptr<ProxySession> &session){
 		DEBUG_THROW(Exception, sslit("Duplicate fetch client"));
 	}
 }
-void FetchClient::unlink(const Poseidon::Uuid &fetchUuid) NOEXCEPT {
+void FetchClient::unlink(const Poseidon::Uuid &fetchUuid, int errCode) NOEXCEPT {
 	PROFILE_ME;
 
-	const Poseidon::Mutex::UniqueLock lock(m_mutex);
-	m_sessions.erase(fetchUuid);
+	std::size_t erased;
+	{
+		const Poseidon::Mutex::UniqueLock lock(m_mutex);
+		erased = m_sessions.erase(fetchUuid);
+	}
+	if(erased != 0){
+		try {
+			send(fetchUuid, Msg::CS_FetchClose(errCode));
+		} catch(std::exception &e){
+			LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
+			forceShutdown();
+		}
+	}
 }
 
 bool FetchClient::send(const Poseidon::Uuid &fetchUuid, boost::uint16_t messageId, Poseidon::StreamBuffer plain){
