@@ -284,6 +284,11 @@ public:
 	void connect(std::string host, unsigned port, bool useSsl){
 		PROFILE_ME;
 
+		const AUTO(maxPipeliningSize, getConfig<std::size_t>("fetch_max_pipelining_size", 16));
+		if(m_connectQueue.size() + 1 > maxPipeliningSize){
+			DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_FETCH_MAX_PIPELINING_SIZE);
+		}
+
 		m_connectQueue.push_back(ConnectElement(STD_MOVE(host), port, useSsl));
 
 		if(m_connectQueue.size() == 1){
@@ -291,27 +296,36 @@ public:
 		}
 		m_updatedTime = Poseidon::getFastMonoClock();
 	}
-	bool send(Poseidon::StreamBuffer data){
+	Poseidon::Cbpp::StatusCode send(Poseidon::StreamBuffer data){
 		PROFILE_ME;
 
-		bool ret;
+		Poseidon::Cbpp::StatusCode ret;
 		do {
 			if(m_connectQueue.empty()){
 				LOG_MEDUSA_ERROR("No connection in progress?");
-				ret = false;
+				ret = Msg::ERR_FETCH_NOT_CONNECTED;
 				break;
 			}
 			if((m_connectQueue.size() == 1) && m_connectQueue.front().connected){
 				const AUTO(client, m_client.lock());
-				if(!client){
-					ret = false;
+				if(!client || !client->send(STD_MOVE(data))){
+					ret = Msg::ERR_FETCH_CONNECTION_LOST;
 					break;
 				}
-				ret = client->send(STD_MOVE(data));
+				ret = Msg::ST_OK;
 				break;
 			}
+
+			const AUTO(maxPendingBufferSize, getConfig<std::size_t>("fetch_max_pending_buffer_size", 65536));
+			std::size_t pendingSize = 0;
+			for(AUTO(it, m_connectQueue.begin()); it != m_connectQueue.end(); ++it){
+				pendingSize += it->pending.size();
+			}
+			if(pendingSize + data.size() > maxPendingBufferSize){
+				DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_FETCH_MAX_PENDING_BUFFER_SIZE);
+			}
 			m_connectQueue.back().pending.splice(data);
-			ret = true;
+			ret = Msg::ST_OK;
 		} while(false);
 
 		m_updatedTime = Poseidon::getFastMonoClock();
@@ -402,7 +416,7 @@ void FetchSession::onSyncDataMessage(boost::uint16_t messageId, const Poseidon::
 	const AUTO(context, tryDecryptHeader(payload, m_password));
 	if(!context){
 		LOG_MEDUSA_WARNING("Unexpected checksum. Maybe you provided a wrong password?");
-		DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_INVALID_AUTH);
+		DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ST_FORBIDDEN);
 	}
 	Poseidon::StreamBuffer temp(payload);
 	temp.discard(headerSize);
@@ -426,7 +440,10 @@ void FetchSession::onSyncDataMessage(boost::uint16_t messageId, const Poseidon::
 		{ //
 //=============================================================================
 	ON_MESSAGE(Msg::CS_FetchConnect, req){
-		const AUTO(it, m_channels.insert(std::make_pair(fetchUuid, Channel(virtualSharedFromThis<FetchSession>(), fetchUuid))).first);
+		AUTO(it, m_channels.find(fetchUuid));
+		if(it == m_channels.end()){
+			it = m_channels.insert(std::make_pair(fetchUuid, Channel(virtualSharedFromThis<FetchSession>(), fetchUuid))).first;
+		}
 		it->second.connect(STD_MOVE(req.host), req.port, req.useSsl);
 	}
 	ON_RAW_MESSAGE(Msg::CS_FetchSend, req){
@@ -435,15 +452,17 @@ void FetchSession::onSyncDataMessage(boost::uint16_t messageId, const Poseidon::
 			send(fetchUuid, Msg::SC_FetchClose(Msg::ERR_FETCH_NOT_CONNECTED, ENOTCONN, VAL_INIT));
 			break;
 		}
-		if(!it->second.send(STD_MOVE(req))){
-			send(fetchUuid, Msg::SC_FetchClose(Msg::ERR_FETCH_CONNECTION_LOST, EPIPE, VAL_INIT));
-			it->second.close(EPIPE);
+		const AUTO(statusCode, it->second.send(STD_MOVE(req)));
+		if(statusCode != Msg::ST_OK){
+			send(fetchUuid, Msg::SC_FetchClose(statusCode, EPIPE, VAL_INIT));
+			m_channels.erase(it);
 			break;
 		}
 	}
 	ON_MESSAGE(Msg::CS_FetchClose, req){
 		const AUTO(it, m_channels.find(fetchUuid));
 		if(it == m_channels.end()){
+			send(fetchUuid, Msg::SC_FetchClose(Msg::ERR_FETCH_NOT_CONNECTED, ENOTCONN, VAL_INIT));
 			break;
 		}
 		it->second.close(req.errCode);

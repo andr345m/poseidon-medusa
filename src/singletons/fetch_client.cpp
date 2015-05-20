@@ -144,17 +144,22 @@ bool FetchClient::onDataMessageEnd(boost::uint64_t payloadSize){
 		::Poseidon::StreamBuffer & (req_) = plain;	\
 		{ //
 //=============================================================================
+	ON_RAW_MESSAGE(Msg::SC_FetchConnect, req){
+		LOG_MEDUSA_DEBUG("Fetch connect: fetchUuid = ", fetchUuid);
+		session->onFetchConnect();
+	}
 	ON_RAW_MESSAGE(Msg::SC_FetchReceive, req){
-		LOG_MEDUSA_DEBUG("Fetch receive: size = ", req.size());
-		session->receive(STD_MOVE(req));
+		LOG_MEDUSA_DEBUG("Fetch receive: fetchUuid = ", fetchUuid, ", size = ", req.size());
+		session->onFetchReceive(STD_MOVE(req));
 	}
 	ON_MESSAGE(Msg::SC_FetchEnd, req){
-		LOG_MEDUSA_DEBUG("Fetch end: errCode = ", req.errCode);
-		session->end(req.errCode);
+		LOG_MEDUSA_DEBUG("Fetch end: fetchUuid = ", fetchUuid, ", errCode = ", req.errCode);
+		session->onFetchEnd(req.errCode);
 	}
 	ON_MESSAGE(Msg::SC_FetchClose, req){
-		LOG_MEDUSA_DEBUG("Fetch close: cbppErrCode = ", req.cbppErrCode, ", sysErrCode = ", req.sysErrCode, ", errMsg = ", req.errMsg);
-		session->close(req.cbppErrCode, req.sysErrCode, STD_MOVE(req.errMsg));
+		LOG_MEDUSA_DEBUG("Fetch close: fetchUuid = ", fetchUuid,
+			", cbppErrCode = ", req.cbppErrCode, ", sysErrCode = ", req.sysErrCode, ", errMsg = ", req.errMsg);
+		session->onFetchClose(req.cbppErrCode, req.sysErrCode, STD_MOVE(req.errMsg));
 	}
 //=============================================================================
 		}}

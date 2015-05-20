@@ -368,12 +368,18 @@ long ProxySession::onEncodedDataAvail(Poseidon::StreamBuffer encoded){
 	return 0;
 }
 
-bool ProxySession::receive(Poseidon::StreamBuffer data){
+void ProxySession::onFetchConnect(){
 	PROFILE_ME;
+	LOG_MEDUSA_DEBUG("Fetch connect");
 
-	return 0;
+	
 }
-void ProxySession::end(int errCode){
+void ProxySession::onFetchReceive(Poseidon::StreamBuffer data){
+	PROFILE_ME;
+	LOG_MEDUSA_DEBUG("Fetch receive: dataSize = ", data.size());
+
+}
+void ProxySession::onFetchEnd(int errCode){
 	PROFILE_ME;
 	LOG_MEDUSA_DEBUG("Fetch end: errCode = ", errCode);
 
@@ -383,7 +389,7 @@ void ProxySession::end(int errCode){
 	}
 
 }
-void ProxySession::close(int cbppErrCode, int sysErrCode, std::string errMsg) NOEXCEPT {
+void ProxySession::onFetchClose(int cbppErrCode, int sysErrCode, std::string errMsg) NOEXCEPT {
 	PROFILE_ME;
 	LOG_MEDUSA_DEBUG("Fetch close: cbppErrCode = ", cbppErrCode, ", sysErrCode = ", sysErrCode, ", errMsg = ", errMsg);
 

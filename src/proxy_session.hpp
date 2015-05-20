@@ -61,9 +61,10 @@ public:
 		return m_fetchUuid;
 	}
 
-	bool receive(Poseidon::StreamBuffer data);
-	void end(int errCode);
-	void close(int cbppErrCode, int sysErrCode, std::string errMsg) NOEXCEPT;
+	void onFetchConnect();
+	void onFetchReceive(Poseidon::StreamBuffer data);
+	void onFetchEnd(int errCode);
+	void onFetchClose(int cbppErrCode, int sysErrCode, std::string errMsg) NOEXCEPT;
 };
 
 }
