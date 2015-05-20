@@ -89,6 +89,7 @@ private:
 	protected:
 		void perform(const boost::shared_ptr<FetchSession> &session, std::map<Poseidon::Uuid, Channel>::iterator it) const OVERRIDE {
 			PROFILE_ME;
+			LOG_MEDUSA_DEBUG("Fetch close: fetchUuid = ", it->first, ", errCode = ", m_errCode);
 
 			if(m_errCode != 0){
 				session->send(it->first, Msg::SC_FetchClose(Msg::ST_INTERNAL_ERROR, m_errCode, VAL_INIT));
@@ -118,6 +119,7 @@ private:
 	protected:
 		void perform(const boost::shared_ptr<FetchSession> &session, std::map<Poseidon::Uuid, Channel>::iterator it) const OVERRIDE {
 			PROFILE_ME;
+			LOG_MEDUSA_DEBUG("Fetch read avail: fetchUuid = ", it->first, ", size = ", m_data.size());
 
 			session->send(it->first, Msg::SC_FetchReceive::ID, STD_MOVE(m_data));
 			it->second.m_updatedTime = Poseidon::getFastMonoClock();
