@@ -288,6 +288,7 @@ public:
 
 		const AUTO(maxPipeliningSize, getConfig<std::size_t>("fetch_max_pipelining_size", 16));
 		if(m_connectQueue.size() + 1 > maxPipeliningSize){
+			LOG_MEDUSA_WARNING("Max pipelining size exceeded: maxPipeliningSize = ", maxPipeliningSize);
 			DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_FETCH_MAX_PIPELINING_SIZE);
 		}
 
@@ -324,6 +325,7 @@ public:
 				pendingSize += it->pending.size();
 			}
 			if(pendingSize + data.size() > maxPendingBufferSize){
+				LOG_MEDUSA_WARNING("Max pending buffer size exceeded: maxPendingBufferSize = ", maxPendingBufferSize);
 				DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_FETCH_MAX_PENDING_BUFFER_SIZE);
 			}
 			m_connectQueue.back().pending.splice(data);
