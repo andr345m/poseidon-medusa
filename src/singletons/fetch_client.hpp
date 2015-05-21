@@ -38,6 +38,15 @@ private:
 public:
 	~FetchClient();
 
+private:
+	bool send(const Poseidon::Uuid &fetchUuid, boost::uint16_t messageId, Poseidon::StreamBuffer plain);
+	bool sendControl(Poseidon::Cbpp::ControlCode controlCode, boost::int64_t vintParam, std::string stringParam);
+
+	template<typename MsgT>
+	bool send(const Poseidon::Uuid &fetchUuid, const MsgT &msg){
+		return send(fetchUuid, MsgT::ID, Poseidon::StreamBuffer(msg));
+	}
+
 protected:
 	// TcpSessionBase
 	void onReadAvail(const void *data, std::size_t size) OVERRIDE;
@@ -53,17 +62,9 @@ protected:
 	long onEncodedDataAvail(Poseidon::StreamBuffer encoded) OVERRIDE;
 
 public:
-	boost::shared_ptr<ProxySession> getSession(const Poseidon::Uuid &fetchUuid) const;
-	void link(const boost::shared_ptr<ProxySession> &session);
-	void unlink(const Poseidon::Uuid &fetchUuid, int errCode) NOEXCEPT;
-
-	bool send(const Poseidon::Uuid &fetchUuid, boost::uint16_t messageId, Poseidon::StreamBuffer plain);
-	bool sendControl(Poseidon::Cbpp::ControlCode controlCode, boost::int64_t vintParam, std::string stringParam);
-
-	template<class MsgT>
-	bool send(const Poseidon::Uuid &fetchUuid, const MsgT &msg){
-		return send(fetchUuid, MsgT::ID, Poseidon::StreamBuffer(msg));
-	}
+	bool connect(const boost::shared_ptr<ProxySession> &session, std::string host, unsigned port, bool useSsl);
+	bool send(const boost::shared_ptr<ProxySession> &session, Poseidon::StreamBuffer data);
+	void close(const Poseidon::Uuid &fetchUuid, int errCode) NOEXCEPT;
 };
 
 }

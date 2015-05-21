@@ -284,10 +284,10 @@ ProxySession::ProxySession(Poseidon::UniqueFile socket)
 ProxySession::~ProxySession(){
 	const AUTO(fetchClient, m_fetchClient.lock());
 	if(fetchClient){
-		fetchClient->unlink(m_fetchUuid, ECONNRESET);
+		fetchClient->close(m_fetchUuid, ECONNRESET);
 	}
 }
-
+/*
 void ProxySession::checkedForward(Poseidon::StreamBuffer data){
 	PROFILE_ME;
 
@@ -306,14 +306,14 @@ void ProxySession::checkedForward(Poseidon::StreamBuffer data){
 		throw;
 	}
 }
-
+*/
 void ProxySession::onClose(int errCode) NOEXCEPT {
 	PROFILE_ME;
 	LOG_MEDUSA_DEBUG("Proxy session closed: errCode = ", errCode);
 
 	const AUTO(fetchClient, m_fetchClient.lock());
 	if(fetchClient){
-		fetchClient->unlink(m_fetchUuid, errCode);
+		fetchClient->close(m_fetchUuid, errCode);
 	}
 
 	Poseidon::TcpSessionBase::onClose(errCode);

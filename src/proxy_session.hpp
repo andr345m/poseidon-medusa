@@ -34,14 +34,6 @@ public:
 	explicit ProxySession(Poseidon::UniqueFile socket);
 	~ProxySession();
 
-private:
-	void checkedForward(Poseidon::StreamBuffer data);
-
-	template<typename MsgT>
-	void checkedForward(const MsgT &msg){
-		checkedForward(MsgT::ID, Poseidon::StreamBuffer(msg));
-	}
-
 protected:
 	// TcpSessionBase
 	void onClose(int errCode) NOEXCEPT OVERRIDE;
@@ -57,7 +49,7 @@ protected:
 	long onEncodedDataAvail(Poseidon::StreamBuffer encoded) OVERRIDE;
 
 public:
-	const Poseidon::Uuid &getUuid() const {
+	const Poseidon::Uuid &getFetchUuid() const {
 		return m_fetchUuid;
 	}
 
