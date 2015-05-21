@@ -3,33 +3,24 @@
 
 #include <map>
 #include <poseidon/fwd.hpp>
-#include <poseidon/tcp_client_base.hpp>
-#include <poseidon/cbpp/reader.hpp>
-#include <poseidon/cbpp/writer.hpp>
-#include <poseidon/mutex.hpp>
+#include <poseidon/cbpp/client.hpp>
 #include <poseidon/uuid.hpp>
 
 namespace Medusa {
 
 class ProxySession;
 
-class FetchClient : public Poseidon::TcpClientBase, private Poseidon::Cbpp::Reader, private Poseidon::Cbpp::Writer {
-private:
-	class Impl;
-
+class FetchClient : public Poseidon::Cbpp::Client {
 public:
 	static boost::shared_ptr<FetchClient> get();
 	static boost::shared_ptr<FetchClient> require();
 
 private:
-	const boost::uint64_t m_keepAliveInterval;
 	const std::string m_password;
 
 	unsigned m_messageId;
 	Poseidon::StreamBuffer m_payload;
 
-	mutable Poseidon::Mutex m_mutex;
-	boost::shared_ptr<Poseidon::TimerItem> m_keepAliveTimer;
 	std::map<Poseidon::Uuid, boost::weak_ptr<ProxySession> > m_sessions;
 
 private:
@@ -48,18 +39,11 @@ private:
 	}
 
 protected:
-	// TcpSessionBase
-	void onReadAvail(const void *data, std::size_t size) OVERRIDE;
+	void onSyncDataMessageHeader(boost::uint16_t messageId, boost::uint64_t payloadSize) OVERRIDE;
+	void onSyncDataMessagePayload(boost::uint64_t payloadOffset, const Poseidon::StreamBuffer &payload) OVERRIDE;
+	void onSyncDataMessageEnd(boost::uint64_t payloadSize) OVERRIDE;
 
-	// Reader
-	void onDataMessageHeader(boost::uint16_t messageId, boost::uint64_t payloadSize) OVERRIDE;
-	void onDataMessagePayload(boost::uint64_t payloadOffset, Poseidon::StreamBuffer payload) OVERRIDE;
-	bool onDataMessageEnd(boost::uint64_t payloadSize) OVERRIDE;
-
-	bool onControlMessage(Poseidon::Cbpp::ControlCode controlCode, boost::int64_t vintParam, std::string stringParam) OVERRIDE;
-
-	// Writer
-	long onEncodedDataAvail(Poseidon::StreamBuffer encoded) OVERRIDE;
+	void onSyncErrorMessage(boost::uint16_t messageId, Poseidon::Cbpp::StatusCode statusCode, const std::string &reason) OVERRIDE;
 
 public:
 	bool connect(const boost::shared_ptr<ProxySession> &session, std::string host, unsigned port, bool useSsl);
