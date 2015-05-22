@@ -134,6 +134,7 @@ void FetchClient::onSyncDataMessageEnd(boost::uint64_t payloadSize){
 //=============================================================================
 	ON_RAW_MESSAGE(Msg::SC_FetchConnected, req){
 		LOG_MEDUSA_DEBUG("Fetch connected: fetchUuid = ", fetchUuid);
+		(void)req;
 		session->onFetchConnect();
 	}
 	ON_RAW_MESSAGE(Msg::SC_FetchReceived, req){
