@@ -92,7 +92,7 @@ private:
 			LOG_MEDUSA_DEBUG("Fetch client close: fetchUuid = ", it->first, ", errCode = ", m_errCode);
 
 			if(m_errCode != 0){
-				session->send(it->first, Msg::SC_FetchClosed(Msg::ST_INTERNAL_ERROR, m_errCode, VAL_INIT));
+				session->send(it->first, Msg::SC_FetchClosed(Msg::ERR_FETCH_CONNECTION_LOST, m_errCode, VAL_INIT));
 				session->m_channels.erase(it);
 				return;
 			}

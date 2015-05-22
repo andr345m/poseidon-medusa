@@ -468,12 +468,9 @@ void ProxySession::onFetchClose(int cbppErrCode, int sysErrCode, std::string err
 	Poseidon::Http::StatusCode statusCode;
 	switch(cbppErrCode){
 	case Msg::ERR_FETCH_NOT_CONNECTED:
-		statusCode = Poseidon::Http::ST_BAD_GATEWAY;
-		break;
-
 	case Msg::ERR_FETCH_CONNECTION_LOST:
 	case Msg::ERR_FETCH_DNS_FAILURE:
-		statusCode = Poseidon::Http::ST_GATEWAY_TIMEOUT;
+		statusCode = Poseidon::Http::ST_BAD_GATEWAY;
 		break;
 
 	case Msg::ERR_FETCH_MAX_PIPELINING_SIZE:
@@ -482,7 +479,7 @@ void ProxySession::onFetchClose(int cbppErrCode, int sysErrCode, std::string err
 		break;
 
 	default:
-		LOG_MEDUSA_ERROR("Unknown CBPP error code: cbppErrCode = ", cbppErrCode);
+		LOG_MEDUSA_DEBUG("Unknown CBPP error code: cbppErrCode = ", cbppErrCode);
 		statusCode = Poseidon::Http::ST_INTERNAL_SERVER_ERROR;
 		break;
 	}
