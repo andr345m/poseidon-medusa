@@ -100,14 +100,17 @@ namespace {
 						}
 						::freeaddrinfo(res);
 						errMsg = "";
+						LOG_MEDUSA_DEBUG("DNS lookup success: host:port = ", elem.host, ':', elem.port,
+							", resolvedAs = ", Poseidon::getIpPortFromSockAddr(sockAddr));
 					} else if(gaiCode != EAI_SYSTEM){
 						errMsg = ::gai_strerror(gaiCode);
+						LOG_MEDUSA_DEBUG("DNS lookup failure: host:port = ", elem.host, ':', elem.port,
+							", gaiCode = ", gaiCode, ", errMsg = ", errMsg);
 					} else {
 						errMsg = ::strerror_r(errCode, temp, sizeof(temp));
+						LOG_MEDUSA_DEBUG("DNS lookup failure due to system error: host:port = ", elem.host, ':', elem.port,
+							", errCode = ", errCode, ", errMsg = ", errMsg);
 					}
-					LOG_MEDUSA_DEBUG("DNS lookup result: host:port = ", elem.host, ':', elem.port,
-						", gaiCode = ", gaiCode, ", resolvedIpPort = ", Poseidon::getIpPortFromSockAddr(sockAddr),
-						", errCode = ", errCode, ", errMsg = ", errMsg);
 					if(elem.isLowLevel){
 						elem.callback(elem.host, elem.port, gaiCode, sockAddr, errCode, errMsg);
 					} else {
