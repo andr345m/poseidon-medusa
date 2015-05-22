@@ -132,20 +132,20 @@ void FetchClient::onSyncDataMessageEnd(boost::uint64_t payloadSize){
 		::Poseidon::StreamBuffer & (req_) = plain;	\
 		{ //
 //=============================================================================
-	ON_RAW_MESSAGE(Msg::SC_FetchConnect, req){
-		LOG_MEDUSA_DEBUG("Fetch connect: fetchUuid = ", fetchUuid);
+	ON_RAW_MESSAGE(Msg::SC_FetchConnected, req){
+		LOG_MEDUSA_DEBUG("Fetch connected: fetchUuid = ", fetchUuid);
 		session->onFetchConnect();
 	}
-	ON_RAW_MESSAGE(Msg::SC_FetchReceive, req){
-		LOG_MEDUSA_DEBUG("Fetch receive: fetchUuid = ", fetchUuid, ", size = ", req.size());
+	ON_RAW_MESSAGE(Msg::SC_FetchReceived, req){
+		LOG_MEDUSA_DEBUG("Fetch received: fetchUuid = ", fetchUuid, ", size = ", req.size());
 		session->onFetchReceive(STD_MOVE(req));
 	}
-	ON_MESSAGE(Msg::SC_FetchEnd, req){
-		LOG_MEDUSA_DEBUG("Fetch end: fetchUuid = ", fetchUuid, ", errCode = ", req.errCode);
-		session->onFetchEnd(req.errCode);
+	ON_MESSAGE(Msg::SC_FetchEnded, req){
+		LOG_MEDUSA_DEBUG("Fetch ended: fetchUuid = ", fetchUuid);
+		session->onFetchEnd();
 	}
-	ON_MESSAGE(Msg::SC_FetchClose, req){
-		LOG_MEDUSA_DEBUG("Fetch close: fetchUuid = ", fetchUuid,
+	ON_MESSAGE(Msg::SC_FetchClosed, req){
+		LOG_MEDUSA_DEBUG("Fetch closed: fetchUuid = ", fetchUuid,
 			", cbppErrCode = ", req.cbppErrCode, ", sysErrCode = ", req.sysErrCode, ", errMsg = ", req.errMsg);
 		session->onFetchClose(req.cbppErrCode, req.sysErrCode, STD_MOVE(req.errMsg));
 	}
@@ -178,10 +178,9 @@ bool FetchClient::connect(const boost::shared_ptr<ProxySession> &session, std::s
 	m_sessions[fetchUuid] = session;
 	return send(fetchUuid, Msg::CS_FetchConnect(STD_MOVE(host), port, useSsl));
 }
-bool FetchClient::send(const boost::shared_ptr<ProxySession> &session, Poseidon::StreamBuffer data){
+bool FetchClient::send(const Poseidon::Uuid &fetchUuid, Poseidon::StreamBuffer data){
 	PROFILE_ME;
 
-	const AUTO(fetchUuid, session->getFetchUuid());
 	if(m_sessions.find(fetchUuid) == m_sessions.end()){
 		LOG_MEDUSA_WARNING("Fetch client not connected? fetchUuid = ", fetchUuid);
 		return false;
@@ -193,7 +192,6 @@ void FetchClient::close(const Poseidon::Uuid &fetchUuid, int errCode) NOEXCEPT {
 
 	const AUTO(it, m_sessions.find(fetchUuid));
 	if(it == m_sessions.end()){
-		LOG_MEDUSA_DEBUG("Fetch client is already erased: fetchUuid = ", fetchUuid);
 		return;
 	}
 	m_sessions.erase(it);

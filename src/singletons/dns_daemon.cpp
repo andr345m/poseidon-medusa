@@ -106,7 +106,8 @@ namespace {
 						errMsg = ::strerror_r(errCode, temp, sizeof(temp));
 					}
 					LOG_MEDUSA_DEBUG("DNS lookup result: host:port = ", elem.host, ':', elem.port,
-						", gaiCode = ", gaiCode, ", errCode = ", errCode, ", errMsg = ", errMsg);
+						", gaiCode = ", gaiCode, ", resolvedIpPort = ", Poseidon::getIpPortFromSockAddr(sockAddr),
+						", errCode = ", errCode, ", errMsg = ", errMsg);
 					if(elem.isLowLevel){
 						elem.callback(elem.host, elem.port, gaiCode, sockAddr, errCode, errMsg);
 					} else {
