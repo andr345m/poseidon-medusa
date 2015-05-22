@@ -485,7 +485,15 @@ void ProxySession::onFetchClose(int cbppErrCode, int sysErrCode, std::string err
 	}
 	Poseidon::OptionalMap headers;
 	headers.set("Content-Type", "text/plain; charset=utf-8");
-	shutdown(statusCode, STD_MOVE(headers), errMsg.c_str());
+
+	std::string reason;
+	reason += "errno: ";
+	reason += Poseidon::getErrorDesc(sysErrCode).get();
+	reason += "\r\nmessage: ";
+	reason += errMsg;
+	reason += "\r\n";
+
+	shutdown(statusCode, STD_MOVE(headers), reason.c_str());
 }
 
 }
