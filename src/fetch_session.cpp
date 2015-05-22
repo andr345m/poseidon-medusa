@@ -232,12 +232,12 @@ private:
 				}
 
 				session->send(fetchUuid, Msg::SC_FetchConnected());
+				it->second.m_updatedTime = Poseidon::getFastMonoClock();
 			} else {
 				LOG_MEDUSA_DEBUG("DNS failure...");
 				session->send(fetchUuid, Msg::SC_FetchClosed(Msg::ERR_FETCH_DNS_FAILURE, gaiCode, errMsg));
 				session->m_channels.erase(it);
 			}
-			it->second.m_updatedTime = Poseidon::getFastMonoClock();
 		} catch(std::exception &e){
 			LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
 			session->forceShutdown();
