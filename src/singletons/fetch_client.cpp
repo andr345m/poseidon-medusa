@@ -172,12 +172,12 @@ void FetchClient::onSyncErrorMessage(boost::uint16_t messageId, Poseidon::Cbpp::
 	Poseidon::Cbpp::Client::onSyncErrorMessage(messageId, statusCode, reason);
 }
 
-bool FetchClient::connect(const boost::shared_ptr<ProxySession> &session, std::string host, unsigned port, bool useSsl){
+bool FetchClient::connect(const boost::shared_ptr<ProxySession> &session, std::string host, unsigned port, bool useSsl, bool keepAlive){
 	PROFILE_ME;
 
 	const AUTO(fetchUuid, session->getFetchUuid());
 	m_sessions[fetchUuid] = session;
-	return send(fetchUuid, Msg::CS_FetchConnect(STD_MOVE(host), port, useSsl));
+	return send(fetchUuid, Msg::CS_FetchConnect(STD_MOVE(host), port, useSsl, keepAlive));
 }
 bool FetchClient::send(const Poseidon::Uuid &fetchUuid, Poseidon::StreamBuffer data){
 	PROFILE_ME;

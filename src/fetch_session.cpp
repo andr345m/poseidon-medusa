@@ -19,12 +19,13 @@ private:
 		std::string host;
 		unsigned port;
 		bool useSsl;
+		bool keepAlive;
 
 		bool connected;
 		Poseidon::StreamBuffer pending;
 
-		ConnectElement(std::string host_, unsigned port_, bool useSsl_)
-			: host(STD_MOVE(host_)), port(port_), useSsl(useSsl_)
+		ConnectElement(std::string host_, unsigned port_, bool useSsl_, bool keepAlive_)
+			: host(STD_MOVE(host_)), port(port_), useSsl(useSsl_), keepAlive(keepAlive_)
 			, connected(false)
 		{
 		}
@@ -98,9 +99,14 @@ private:
 			}
 			session->send(it->first, Msg::SC_FetchEnded());
 
-			it->second.m_connectQueue.pop_front();
-			if(!it->second.m_connectQueue.empty()){
-				it->second.nextRequest();
+			if(it->second.m_connectQueue.front().keepAlive){
+				it->second.m_connectQueue.pop_front();
+				if(!it->second.m_connectQueue.empty()){
+					it->second.nextRequest();
+				}
+			} else {
+				session->shutdownRead();
+				session->shutdownWrite();
 			}
 		}
 	};
@@ -293,7 +299,7 @@ public:
 		return m_updatedTime;
 	}
 
-	void connect(std::string host, unsigned port, bool useSsl){
+	void connect(std::string host, unsigned port, bool useSsl, bool keepAlive){
 		PROFILE_ME;
 
 		const AUTO(maxPipeliningSize, getConfig<std::size_t>("fetch_max_pipelining_size", 16));
@@ -302,7 +308,7 @@ public:
 			DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_FETCH_MAX_PIPELINING_SIZE);
 		}
 
-		m_connectQueue.push_back(ConnectElement(STD_MOVE(host), port, useSsl));
+		m_connectQueue.push_back(ConnectElement(STD_MOVE(host), port, useSsl, keepAlive));
 
 		if(m_connectQueue.size() == 1){
 			nextRequest();
@@ -453,7 +459,7 @@ void FetchSession::onSyncDataMessage(boost::uint16_t messageId, const Poseidon::
 		if(it == m_channels.end()){
 			it = m_channels.insert(std::make_pair(fetchUuid, Channel(virtualSharedFromThis<FetchSession>(), fetchUuid))).first;
 		}
-		it->second.connect(STD_MOVE(req.host), req.port, req.useSsl);
+		it->second.connect(STD_MOVE(req.host), req.port, req.useSsl, req.keepAlive);
 	}
 	ON_RAW_MESSAGE(Msg::CS_FetchSend, req){
 		const AUTO(it, m_channels.find(fetchUuid));

@@ -46,7 +46,7 @@ protected:
 	void onSyncErrorMessage(boost::uint16_t messageId, Poseidon::Cbpp::StatusCode statusCode, const std::string &reason) OVERRIDE;
 
 public:
-	bool connect(const boost::shared_ptr<ProxySession> &session, std::string host, unsigned port, bool useSsl);
+	bool connect(const boost::shared_ptr<ProxySession> &session, std::string host, unsigned port, bool useSsl, bool keepAlive);
 	bool send(const Poseidon::Uuid &fetchUuid, Poseidon::StreamBuffer data);
 	void close(const Poseidon::Uuid &fetchUuid, int errCode) NOEXCEPT;
 };

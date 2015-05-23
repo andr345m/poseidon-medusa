@@ -273,6 +273,10 @@ void ProxySession::onRequestHeaders(Poseidon::Http::RequestHeaders requestHeader
 		return;
 	}
 
+	AUTO_REF(headers, requestHeaders.headers);
+
+	// TODO 代理服务器登录。
+
 	std::string host;
 	unsigned port = 80;
 	bool useSsl = false;
@@ -313,34 +317,29 @@ void ProxySession::onRequestHeaders(Poseidon::Http::RequestHeaders requestHeader
 		host.erase(pos);
 	}
 
+	bool keepAlive = true;
+	if(requestHeaders.verb != Poseidon::Http::V_CONNECT){
+		const AUTO_REF(connection, headers.get("Proxy-Connection"));
+		if(requestHeaders.version < 10001){
+			keepAlive = (::strcasecmp(connection.c_str(), "Keep-Alive") == 0);
+		} else {
+			keepAlive = (::strcasecmp(connection.c_str(), "Close") != 0);
+		}
+	}
+
 	const AUTO(fetchClient, m_fetchClient.lock());
 	if(!fetchClient){
 		LOG_MEDUSA_DEBUG("Lost connection to fetch server");
 		DEBUG_THROW(Poseidon::Http::Exception,
 			Poseidon::Http::ST_BAD_GATEWAY, sslit("Lost connection to fetch server"));
 	}
-	if(!fetchClient->connect(virtualSharedFromThis<ProxySession>(), STD_MOVE(host), port, useSsl)){
+	if(!fetchClient->connect(virtualSharedFromThis<ProxySession>(), STD_MOVE(host), port, useSsl, keepAlive)){
 		LOG_MEDUSA_DEBUG("Could not send data to fetch server");
 		DEBUG_THROW(Poseidon::Http::Exception,
 			Poseidon::Http::ST_BAD_GATEWAY, sslit("Could not send data to fetch server"));
 	}
 
-	// TODO 代理服务器登录。
-
 	if(requestHeaders.verb != Poseidon::Http::V_CONNECT){
-		AUTO_REF(headers, requestHeaders.headers);
-/*
-	const AUTO_REF(connection, headers.get("Proxy-Connection"));
-	bool keepAlive;
-	if(requestHeaders.version < 10001){
-		keepAlive = (::strcasecmp(connection.c_str(), "Keep-Alive") == 0);
-	} else {
-		keepAlive = (::strcasecmp(connection.c_str(), "Close") != 0);
-	}
-	if(!keepAlive){
-		m_state = S_HTTP_FINAL;
-	}
-*/
 		headers.erase("Prxoy-Authenticate");
 		headers.erase("Proxy-Connection");
 		headers.erase("Upgrade");
