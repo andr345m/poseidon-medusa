@@ -183,7 +183,7 @@ void ProxySession::onSyncReadAvail(Poseidon::StreamBuffer data){
 				m_headerSize += data.size();
 			}
 
-			Poseidon::Http::ServerReader::putEncodedData(STD_MOVE(data));
+			Poseidon::Http::ServerReader::putEncodedData(STD_MOVE(data), true);
 
 			if(m_state >= S_TUNNEL_CONNECTING){
 				Poseidon::StreamBuffer queue;
