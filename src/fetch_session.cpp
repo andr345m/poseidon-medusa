@@ -104,7 +104,7 @@ private:
 			if(keepAlive){
 				it->second.m_connectQueue.pop_front();
 				if(!it->second.m_connectQueue.empty()){
-					it->second.nextRequest();
+					it->second.createClient();
 				}
 			} else {
 				session->shutdownRead();
@@ -276,20 +276,37 @@ public:
 	{
 	}
 	~Channel(){
-		close(ECONNRESET);
+		killClient(true);
 	}
 
 private:
-	void nextRequest(){
+	void createClient(){
 		PROFILE_ME;
 
 		assert(!m_connectQueue.empty());
 
 		const AUTO_REF(elem, m_connectQueue.front());
-		LOG_MEDUSA_DEBUG("Next fetch request: host:port = ", elem.host, ':', elem.port, ", useSsl = ", elem.useSsl);
+		LOG_MEDUSA_DEBUG("Next fetch request: host:port = ", elem.host, ':', elem.port,
+			", useSsl = ", elem.useSsl, ", keepAlive = ", elem.keepAlive);
 		DnsDaemon::asyncLookup(elem.host, elem.port,
 			boost::bind(&dnsCallback, m_session, m_fetchUuid,  _1, _2, _3, _4, _5, _6),
 			boost::bind(&dnsException, m_session), false);
+	}
+	void killClient(bool force){
+		PROFILE_ME;
+
+		const AUTO(client, m_client.lock());
+		if(client){
+			if(force){
+				client->forceShutdown();
+			} else {
+				client->shutdownRead();
+				client->shutdownWrite();
+			}
+		}
+
+		m_connectQueue.clear();
+		m_client.reset();
 	}
 
 public:
@@ -315,8 +332,9 @@ public:
 		m_connectQueue.push_back(ConnectElement(STD_MOVE(host), port, useSsl, keepAlive));
 
 		if(m_connectQueue.size() == 1){
-			nextRequest();
+			createClient();
 		}
+
 		m_updatedTime = Poseidon::getFastMonoClock();
 	}
 	bool send(Poseidon::StreamBuffer data){
@@ -347,6 +365,7 @@ public:
 			}
 			m_connectQueue.back().pending.splice(data);
 		}
+
 		m_updatedTime = Poseidon::getFastMonoClock();
 		return true;
 	}
@@ -354,18 +373,8 @@ public:
 		PROFILE_ME;
 		LOG_MEDUSA_INFO("Fetch close: fetchUuid = ", m_fetchUuid, ", errCode = ", errCode);
 
-		const AUTO(client, m_client.lock());
-		if(client){
-			if(errCode == 0){
-				client->shutdownRead();
-				client->shutdownWrite();
-			} else {
-				client->forceShutdown();
-			}
-		}
+		killClient(errCode != 0);
 
-		m_connectQueue.clear();
-		m_client.reset();
 		m_updatedTime = Poseidon::getFastMonoClock();
 	}
 };
