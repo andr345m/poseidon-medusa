@@ -27,5 +27,5 @@ lib_libposeidon_medusa_la_SOURCES = \
 
 pkgsysconfdir = $(sysconfdir)/@PACKAGE@
 pkgsysconf_DATA = \
-	etc/poseidon/main-medusa-template.conf	\
-	etc/poseidon/medusa-template.conf
+	etc/poseidon-medusa/main-template.conf	\
+	etc/poseidon-medusa/medusa-template.conf
