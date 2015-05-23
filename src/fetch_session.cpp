@@ -303,6 +303,8 @@ public:
 
 	void connect(std::string host, unsigned port, bool useSsl, bool keepAlive){
 		PROFILE_ME;
+		LOG_MEDUSA_INFO("Fetch connect: fetchUuid = ", m_fetchUuid,
+			", host:port = ", host, ':', port, ", useSsl = ", useSsl, ", keepAlive = ", keepAlive);
 
 		const AUTO(maxPipeliningSize, getConfig<std::size_t>("fetch_max_pipelining_size", 16));
 		if(m_connectQueue.size() + 1 > maxPipeliningSize){
@@ -350,6 +352,7 @@ public:
 	}
 	void close(int errCode) NOEXCEPT {
 		PROFILE_ME;
+		LOG_MEDUSA_INFO("Fetch close: fetchUuid = ", m_fetchUuid, ", errCode = ", errCode);
 
 		const AUTO(client, m_client.lock());
 		if(client){
