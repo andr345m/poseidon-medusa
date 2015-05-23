@@ -38,14 +38,14 @@ public:
 	~ProxySession();
 
 private:
-	void onSyncReadAvail(const std::string &data);
+	void onSyncReadAvail(Poseidon::StreamBuffer data);
 	void shutdown(Poseidon::Http::StatusCode statusCode, Poseidon::OptionalMap headers, const char *what) NOEXCEPT;
 
 protected:
 	// TcpSessionBase
 	void onClose(int errCode) NOEXCEPT OVERRIDE;
 
-	void onReadAvail(const void *data, std::size_t size) OVERRIDE;
+	void onReadAvail(Poseidon::StreamBuffer data) OVERRIDE;
 
 	bool send(Poseidon::StreamBuffer data) OVERRIDE;
 
@@ -63,10 +63,10 @@ public:
 		return m_fetchUuid;
 	}
 
-	void onFetchConnect();
-	void onFetchReceive(Poseidon::StreamBuffer data);
-	void onFetchEnd();
-	void onFetchClose(int cbppErrCode, int sysErrCode, std::string errMsg);
+	void onFetchConnected();
+	void onFetchReceived(Poseidon::StreamBuffer data);
+	void onFetchEnded();
+	void onFetchClosed(int cbppErrCode, int sysErrCode, std::string errMsg);
 };
 
 }

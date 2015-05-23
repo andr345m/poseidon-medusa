@@ -135,20 +135,20 @@ void FetchClient::onSyncDataMessageEnd(boost::uint64_t payloadSize){
 	ON_RAW_MESSAGE(Msg::SC_FetchConnected, req){
 		LOG_MEDUSA_DEBUG("Fetch connected: fetchUuid = ", fetchUuid);
 		(void)req;
-		session->onFetchConnect();
+		session->onFetchConnected();
 	}
 	ON_RAW_MESSAGE(Msg::SC_FetchReceived, req){
 		LOG_MEDUSA_DEBUG("Fetch received: fetchUuid = ", fetchUuid, ", size = ", req.size());
-		session->onFetchReceive(STD_MOVE(req));
+		session->onFetchReceived(STD_MOVE(req));
 	}
 	ON_MESSAGE(Msg::SC_FetchEnded, req){
 		LOG_MEDUSA_DEBUG("Fetch ended: fetchUuid = ", fetchUuid);
-		session->onFetchEnd();
+		session->onFetchEnded();
 	}
 	ON_MESSAGE(Msg::SC_FetchClosed, req){
 		LOG_MEDUSA_DEBUG("Fetch closed: fetchUuid = ", fetchUuid,
 			", cbppErrCode = ", req.cbppErrCode, ", sysErrCode = ", req.sysErrCode, ", errMsg = ", req.errMsg);
-		session->onFetchClose(req.cbppErrCode, req.sysErrCode, STD_MOVE(req.errMsg));
+		session->onFetchClosed(req.cbppErrCode, req.sysErrCode, STD_MOVE(req.errMsg));
 	}
 //=============================================================================
 		}}

@@ -169,7 +169,7 @@ private:
 			Poseidon::TcpClientBase::onClose(errCode);
 		}
 
-		void onReadAvail(const void *data, std::size_t size) OVERRIDE {
+		void onReadAvail(Poseidon::StreamBuffer data) OVERRIDE {
 			PROFILE_ME;
 
 			const AUTO(session, m_session.lock());
@@ -181,7 +181,7 @@ private:
 
 			try {
 				Poseidon::enqueueJob(boost::make_shared<ClientReadAvailJob>(
-					session, m_fetchUuid, Poseidon::StreamBuffer(data, size)));
+					session, m_fetchUuid, STD_MOVE(data)));
 			} catch(std::exception &e){
 				LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
 				forceShutdown();

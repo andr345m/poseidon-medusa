@@ -43,10 +43,11 @@ protected:
 class ProxySession::ReadAvailJob : public Poseidon::JobBase {
 private:
 	const boost::weak_ptr<ProxySession> m_session;
-	const std::string m_data;
+
+	mutable Poseidon::StreamBuffer m_data;
 
 public:
-	ReadAvailJob(const boost::shared_ptr<ProxySession> &session, std::string data)
+	ReadAvailJob(const boost::shared_ptr<ProxySession> &session, Poseidon::StreamBuffer data)
 		: m_session(session), m_data(STD_MOVE(data))
 	{
 	}
@@ -64,7 +65,10 @@ protected:
 		}
 
 		try {
-			session->onSyncReadAvail(m_data);
+			session->onSyncReadAvail(STD_MOVE(m_data));
+		} catch(TryAgainLater &){
+			LOG_MEDUSA_FATAL("You are not allowed to throw TryAgainLater here.");
+			std::abort();
 		} catch(Poseidon::Http::Exception &e){
 			LOG_MEDUSA_INFO("Http::Exception thrown: statusCode = ", e.statusCode(), ", what = ", e.what());
 			session->shutdown(e.statusCode(), e.headers(), e.what());
@@ -90,6 +94,8 @@ protected:
 		std::string transferEncoding, boost::uint64_t contentLength) OVERRIDE
 	{
 		PROFILE_ME;
+
+		responseHeaders.version = 10001;
 
 		AUTO_REF(headers, responseHeaders.headers);
 
@@ -154,7 +160,7 @@ ProxySession::~ProxySession(){
 	}
 }
 
-void ProxySession::onSyncReadAvail(const std::string &data){
+void ProxySession::onSyncReadAvail(Poseidon::StreamBuffer data){
 	PROFILE_ME;
 	LOG_MEDUSA_DEBUG("Received data from proxy client: size = ", data.size());
 
@@ -166,7 +172,7 @@ void ProxySession::onSyncReadAvail(const std::string &data){
 		}
 
 		if(m_state >= S_TUNNEL_CONNECTING){
-			if(!fetchClient->send(m_fetchUuid, Poseidon::StreamBuffer(data))){
+			if(!fetchClient->send(m_fetchUuid, STD_MOVE(data))){
 				DEBUG_THROW(Poseidon::Http::Exception,
 					Poseidon::Http::ST_GATEWAY_TIMEOUT, sslit("Could not send data to fetch server"));
 			}
@@ -178,7 +184,7 @@ void ProxySession::onSyncReadAvail(const std::string &data){
 			}
 			m_headerSize += data.size();
 
-			Poseidon::Http::ServerReader::putEncodedData(Poseidon::StreamBuffer(data));
+			Poseidon::Http::ServerReader::putEncodedData(STD_MOVE(data));
 
 			if(m_state >= S_TUNNEL_CONNECTING){
 				Poseidon::StreamBuffer queue;
@@ -246,11 +252,11 @@ void ProxySession::onClose(int errCode) NOEXCEPT {
 	Poseidon::TcpSessionBase::onClose(errCode);
 }
 
-void ProxySession::onReadAvail(const void *data, std::size_t size){
+void ProxySession::onReadAvail(Poseidon::StreamBuffer data){
 	PROFILE_ME;
 
 	Poseidon::enqueueJob(boost::make_shared<ReadAvailJob>(
-		virtualSharedFromThis<ProxySession>(), std::string(static_cast<const char *>(data), size)));
+		virtualSharedFromThis<ProxySession>(), STD_MOVE(data)));
 }
 
 bool ProxySession::send(Poseidon::StreamBuffer data){
@@ -394,7 +400,7 @@ long ProxySession::onEncodedDataAvail(Poseidon::StreamBuffer encoded){
 	return TcpSessionBase::send(STD_MOVE(encoded));
 }
 
-void ProxySession::onFetchConnect(){
+void ProxySession::onFetchConnected(){
 	PROFILE_ME;
 	LOG_MEDUSA_DEBUG("Received connect success from fetch server, fetchUuid = ", m_fetchUuid);
 
@@ -409,7 +415,7 @@ void ProxySession::onFetchConnect(){
 		m_state = S_TUNNEL_ESTABLISHED;
 	}
 }
-void ProxySession::onFetchReceive(Poseidon::StreamBuffer data){
+void ProxySession::onFetchReceived(Poseidon::StreamBuffer data){
 	PROFILE_ME;
 	LOG_MEDUSA_DEBUG("Received data from fetch server, fetchUuid = ", m_fetchUuid, ", size = ", data.size());
 
@@ -432,7 +438,7 @@ void ProxySession::onFetchReceive(Poseidon::StreamBuffer data){
 		shutdown(Poseidon::Http::ST_BAD_GATEWAY, VAL_INIT, e.what());
 	}
 }
-void ProxySession::onFetchEnd(){
+void ProxySession::onFetchEnded(){
 	PROFILE_ME;
 	LOG_MEDUSA_DEBUG("Received EOF response from fetch server: fetch end, fetchUuid = ", m_fetchUuid);
 
@@ -454,7 +460,7 @@ void ProxySession::onFetchEnd(){
 		shutdownWrite();
 	}
 }
-void ProxySession::onFetchClose(int cbppErrCode, int sysErrCode, std::string errMsg){
+void ProxySession::onFetchClosed(int cbppErrCode, int sysErrCode, std::string errMsg){
 	PROFILE_ME;
 	LOG_MEDUSA_DEBUG("Received close response from fetch server: fetch close, fetchUuid = ", m_fetchUuid,
 		", cbppErrCode = ", cbppErrCode, ", sysErrCode = ", sysErrCode, ", errMsg = ", errMsg);
