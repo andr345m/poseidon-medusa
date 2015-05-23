@@ -455,6 +455,14 @@ void ProxySession::onFetchReceived(Poseidon::StreamBuffer data){
 				}
 			}
 		}
+
+		boost::uint64_t keepAliveTimeout;
+		if(m_state < S_TUNNEL_CONNECTING){
+			keepAliveTimeout = getConfig<boost::uint64_t>("proxy_http_keep_alive_timeout", 15000);
+		} else {
+			keepAliveTimeout = getConfig<boost::uint64_t>("proxy_tunnel_keep_alive_timeout", 300000);
+		}
+		setTimeout(keepAliveTimeout);
 	} catch(std::exception &e){
 		LOG_MEDUSA_INFO("std::exception thrown: what = ", e.what());
 		shutdown(Poseidon::Http::ST_BAD_GATEWAY, VAL_INIT, e.what());
