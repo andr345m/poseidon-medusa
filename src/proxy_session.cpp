@@ -267,6 +267,12 @@ void ProxySession::onRequestHeaders(Poseidon::Http::RequestHeaders requestHeader
 	LOG_MEDUSA_DEBUG("Proxy request header: fetchUuid = ", m_fetchUuid,
 		", URI = ", requestHeaders.uri);
 
+	if(requestHeaders.uri[0] == '/'){
+		shutdown(Poseidon::Http::ST_OK, VAL_INIT,
+			sslit("What do you wanna get from a proxy server by a relative URI? :>"));
+		return;
+	}
+
 	std::string host;
 	unsigned port = 80;
 	bool useSsl = false;
