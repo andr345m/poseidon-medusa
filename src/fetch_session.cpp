@@ -309,26 +309,23 @@ public:
 		}
 		m_updatedTime = Poseidon::getFastMonoClock();
 	}
-	Poseidon::Cbpp::StatusCode send(Poseidon::StreamBuffer data){
+	bool send(Poseidon::StreamBuffer data){
 		PROFILE_ME;
 
-		Poseidon::Cbpp::StatusCode ret;
-		do {
-			if(m_connectQueue.empty()){
-				LOG_MEDUSA_ERROR("No connection in progress?");
-				ret = Msg::ERR_FETCH_NOT_CONNECTED;
-				break;
-			}
-			if((m_connectQueue.size() == 1) && m_connectQueue.front().connected){
-				const AUTO(client, m_client.lock());
-				if(!client || !client->send(STD_MOVE(data))){
-					ret = Msg::ERR_FETCH_CONNECTION_LOST;
-					break;
-				}
-				ret = Msg::ST_OK;
-				break;
-			}
+		if(m_connectQueue.empty()){
+			LOG_MEDUSA_ERROR("No connection in progress?");
+			return false;
+		}
 
+		if((m_connectQueue.size() == 1) && m_connectQueue.front().connected){
+			const AUTO(client, m_client.lock());
+			if(!client){
+				return false;
+			}
+			if(!client->send(STD_MOVE(data))){
+				return false;
+			}
+		} else {
 			const AUTO(maxPendingBufferSize, getConfig<std::size_t>("fetch_max_pending_buffer_size", 65536));
 			std::size_t pendingSize = 0;
 			for(AUTO(it, m_connectQueue.begin()); it != m_connectQueue.end(); ++it){
@@ -339,11 +336,9 @@ public:
 				DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_FETCH_MAX_PENDING_BUFFER_SIZE);
 			}
 			m_connectQueue.back().pending.splice(data);
-			ret = Msg::ST_OK;
-		} while(false);
-
+		}
 		m_updatedTime = Poseidon::getFastMonoClock();
-		return ret;
+		return true;
 	}
 	void close(int errCode) NOEXCEPT {
 		PROFILE_ME;
@@ -466,9 +461,8 @@ void FetchSession::onSyncDataMessage(boost::uint16_t messageId, const Poseidon::
 			send(fetchUuid, Msg::SC_FetchClosed(Msg::ERR_FETCH_NOT_CONNECTED, ENOTCONN, VAL_INIT));
 			break;
 		}
-		const AUTO(statusCode, it->second.send(STD_MOVE(req)));
-		if(statusCode != Msg::ST_OK){
-			send(fetchUuid, Msg::SC_FetchClosed(statusCode, EPIPE, VAL_INIT));
+		if(!it->second.send(STD_MOVE(req))){
+			send(fetchUuid, Msg::SC_FetchClosed(Msg::ERR_FETCH_CONNECTION_LOST, EPIPE, VAL_INIT));
 			m_channels.erase(it);
 			break;
 		}
