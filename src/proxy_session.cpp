@@ -529,7 +529,7 @@ void ProxySession::onFetchClosed(int cbppErrCode, int sysErrCode, std::string er
 	headers.set("Content-Type", "text/plain; charset=utf-8");
 
 	std::string reason;
-	reason += "errno: ";
+	reason += "errcode: ";
 	reason += Poseidon::getErrorDesc(sysErrCode).get();
 	reason += "\r\nmessage: ";
 	reason += errMsg;
