@@ -106,7 +106,11 @@ protected:
 		if(transferEncoding.empty()){
 			headers.set("Transfer-Encoding", "chunked");
 		}
-		headers.set("Proxy-Connection", "Keep-Alive");
+		if(m_session->m_keepAlive){
+			headers.set("Proxy-Connection", "Keep-Alive");
+		} else {
+			headers.set("Proxy-Connection", "Close");
+		}
 		m_session->Poseidon::Http::ServerWriter::putChunkedHeader(STD_MOVE(responseHeaders));
 	}
 	void onResponseEntity(boost::uint64_t /* entityOffset */, bool /* isChunked */, Poseidon::StreamBuffer entity) OVERRIDE {
@@ -427,9 +431,11 @@ long ProxySession::onEncodedDataAvail(Poseidon::StreamBuffer encoded){
 	return TcpSessionBase::send(STD_MOVE(encoded));
 }
 
-void ProxySession::onFetchConnected(){
+void ProxySession::onFetchConnected(bool keepAlive){
 	PROFILE_ME;
-	LOG_MEDUSA_DEBUG("Received connect success from fetch server, fetchUuid = ", m_fetchUuid);
+	LOG_MEDUSA_DEBUG("Received connect success from fetch server, fetchUuid = ", m_fetchUuid, ", keepAlive = ", keepAlive);
+
+	m_keepAlive = keepAlive;
 
 	if(m_state == S_TUNNEL_CONNECTING){
 		Poseidon::Http::ResponseHeaders responseHeaders;
@@ -493,6 +499,13 @@ void ProxySession::onFetchEnded(){
 		LOG_MEDUSA_DEBUG("Invalid response from remote server. Terminate the connection.");
 		shutdownRead();
 		shutdownWrite();
+		return;
+	}
+
+	if(!m_keepAlive){
+		shutdownRead();
+		shutdownWrite();
+		return;
 	}
 }
 void ProxySession::onFetchClosed(int cbppErrCode, int sysErrCode, std::string errMsg){

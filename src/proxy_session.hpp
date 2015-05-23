@@ -35,6 +35,8 @@ private:
 	State m_state;
 	boost::uint64_t m_headerSize;
 
+	bool m_keepAlive;
+
 public:
 	explicit ProxySession(Poseidon::UniqueFile socket);
 	~ProxySession();
@@ -65,7 +67,7 @@ public:
 		return m_fetchUuid;
 	}
 
-	void onFetchConnected();
+	void onFetchConnected(bool keepAlive);
 	void onFetchReceived(Poseidon::StreamBuffer data);
 	void onFetchEnded();
 	void onFetchClosed(int cbppErrCode, int sysErrCode, std::string errMsg);

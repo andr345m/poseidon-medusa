@@ -132,10 +132,9 @@ void FetchClient::onSyncDataMessageEnd(boost::uint64_t payloadSize){
 		::Poseidon::StreamBuffer & (req_) = plain;	\
 		{ //
 //=============================================================================
-	ON_RAW_MESSAGE(Msg::SC_FetchConnected, req){
-		LOG_MEDUSA_DEBUG("Fetch connected: fetchUuid = ", fetchUuid);
-		(void)req;
-		session->onFetchConnected();
+	ON_MESSAGE(Msg::SC_FetchConnected, req){
+		LOG_MEDUSA_DEBUG("Fetch connected: fetchUuid = ", fetchUuid, ", keepAlive = ", req.keepAlive);
+		session->onFetchConnected(req.keepAlive);
 	}
 	ON_RAW_MESSAGE(Msg::SC_FetchReceived, req){
 		LOG_MEDUSA_DEBUG("Fetch received: fetchUuid = ", fetchUuid, ", size = ", req.size());

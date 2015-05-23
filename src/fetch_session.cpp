@@ -97,9 +97,11 @@ private:
 				session->m_channels.erase(it);
 				return;
 			}
+
 			session->send(it->first, Msg::SC_FetchEnded());
 
-			if(it->second.m_connectQueue.front().keepAlive){
+			const bool keepAlive = it->second.m_connectQueue.front().keepAlive;
+			if(keepAlive){
 				it->second.m_connectQueue.pop_front();
 				if(!it->second.m_connectQueue.empty()){
 					it->second.nextRequest();
@@ -237,7 +239,7 @@ private:
 					elem.pending.clear();
 				}
 
-				session->send(fetchUuid, Msg::SC_FetchConnected());
+				session->send(fetchUuid, Msg::SC_FetchConnected(elem.keepAlive));
 				it->second.m_updatedTime = Poseidon::getFastMonoClock();
 			} else {
 				LOG_MEDUSA_DEBUG("DNS failure...");

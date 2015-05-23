@@ -10,7 +10,7 @@ namespace Msg {
 #define MESSAGE_NAME	SC_FetchConnected
 #define MESSAGE_ID		199
 #define MESSAGE_FIELDS	\
-	//
+	FIELD_VUINT			(keepAlive)
 #include <poseidon/cbpp/message_generator.hpp>
 
 #define MESSAGE_NAME	SC_FetchReceived
@@ -22,7 +22,7 @@ namespace Msg {
 #define MESSAGE_NAME	SC_FetchEnded
 #define MESSAGE_ID		197
 #define MESSAGE_FIELDS	\
-	FIELD_VUINT			(keepAlive)
+	//
 #include <poseidon/cbpp/message_generator.hpp>
 
 #define MESSAGE_NAME	SC_FetchClosed
