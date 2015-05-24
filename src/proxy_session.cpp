@@ -223,13 +223,10 @@ void ProxySession::shutdown(Poseidon::Http::StatusCode statusCode, Poseidon::Opt
 		responseHeaders.headers = STD_MOVE(headers);
 		if(what[0] == (char)0xFF){
 			Poseidon::Http::ServerWriter::putDefaultResponse(STD_MOVE(responseHeaders));
+		} else if(what[0] == 0){
+			Poseidon::Http::ServerWriter::putResponse(STD_MOVE(responseHeaders), Poseidon::StreamBuffer("No reason given"));
 		} else {
-			Poseidon::StreamBuffer contents;
-			char temp[64];
-			unsigned len = (unsigned)std::sprintf(temp, "Status code: %d\nReason: ", static_cast<int>(statusCode));
-			contents.put(temp, len);
-			contents.put(what);
-			Poseidon::Http::ServerWriter::putResponse(STD_MOVE(responseHeaders), STD_MOVE(contents));
+			Poseidon::Http::ServerWriter::putResponse(STD_MOVE(responseHeaders), Poseidon::StreamBuffer(what));
 		}
 		shutdownRead();
 		shutdownWrite();
@@ -526,6 +523,9 @@ void ProxySession::onFetchClosed(int cbppErrCode, int sysErrCode, std::string er
 		return;
 	}
 
+	char temp[64];
+	unsigned len = (unsigned)std::sprintf(temp, "Fetch error %d: ", cbppErrCode);
+	errMsg.insert(errMsg.begin(), temp, temp + len);
 	shutdown(Poseidon::Http::ST_BAD_GATEWAY, VAL_INIT, errMsg.c_str());
 }
 
