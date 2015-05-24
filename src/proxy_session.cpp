@@ -224,7 +224,12 @@ void ProxySession::shutdown(Poseidon::Http::StatusCode statusCode, Poseidon::Opt
 		if(what[0] == (char)0xFF){
 			Poseidon::Http::ServerWriter::putDefaultResponse(STD_MOVE(responseHeaders));
 		} else {
-			Poseidon::Http::ServerWriter::putResponse(STD_MOVE(responseHeaders), Poseidon::StreamBuffer(what));
+			Poseidon::StreamBuffer contents;
+			char temp[64];
+			unsigned len = (unsigned)std::sprintf(temp, "Status code: %d\nReason: ", static_cast<int>(statusCode));
+			contents.put(temp, len);
+			contents.put(what);
+			Poseidon::Http::ServerWriter::putResponse(STD_MOVE(responseHeaders), STD_MOVE(contents));
 		}
 		shutdownRead();
 		shutdownWrite();
