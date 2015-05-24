@@ -272,9 +272,9 @@ void ProxySession::onRequestHeaders(Poseidon::Http::RequestHeaders requestHeader
 		", URI = ", requestHeaders.uri);
 
 	if(requestHeaders.uri[0] == '/'){
-		shutdown(Poseidon::Http::ST_OK, VAL_INIT,
-			sslit("What do you wanna get from a proxy server by relative URI? :>"));
-		return;
+		LOG_MEDUSA_DEBUG("Proxy servers don't accept relative URIs: ", requestHeaders.uri);
+		DEBUG_THROW(Poseidon::Http::Exception,
+			Poseidon::Http::ST_BAD_REQUEST, sslit("What do you wanna get from a proxy server by relative URI? :>"));
 	}
 
 	AUTO_REF(headers, requestHeaders.headers);
