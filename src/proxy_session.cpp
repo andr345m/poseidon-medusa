@@ -214,6 +214,7 @@ void ProxySession::shutdown(Poseidon::Http::StatusCode statusCode, Poseidon::Opt
 	}
 
 	try {
+		headers.set("Connection", "Close");
 		headers.set("Proxy-Connection", "Close");
 
 		Poseidon::Http::ResponseHeaders responseHeaders;
