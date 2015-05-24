@@ -147,13 +147,13 @@ ProxySession::ProxySession(Poseidon::UniqueFile socket)
 	, m_client(new ClientAdaptor(this))
 	, m_state(S_HTTP_HEADERS), m_headerSize(0)
 {
-	LOG_MEDUSA_INFO("Accepted proxy request from ", getRemoteInfo());
+	LOG_MEDUSA_INFO("Accepted proxy request from ", getRemoteInfo(), ": fetchUuid = ", m_fetchUuid);
 }
 ProxySession::~ProxySession(){
 	try {
-		LOG_MEDUSA_INFO("Shut down proxy request from ", getRemoteInfo());
+		LOG_MEDUSA_INFO("Shut down proxy request from ", getRemoteInfo(), ": fetchUuid = ", m_fetchUuid);
 	} catch(...){
-		LOG_MEDUSA_WARNING("Unknown proxy request remote address?");
+		LOG_MEDUSA_WARNING("Unknown proxy request remote address? fetchUuid = ", m_fetchUuid);
 	}
 }
 
