@@ -1,5 +1,6 @@
 #include "../precompiled.hpp"
 #include "fetch_client.hpp"
+#include <poseidon/job_base.hpp>
 #include <poseidon/singletons/timer_daemon.hpp>
 #include <poseidon/cbpp/control_codes.hpp>
 #include "../proxy_session.hpp"
@@ -13,6 +14,32 @@ namespace Medusa {
 namespace {
 	boost::weak_ptr<FetchClient> g_client;
 }
+
+class FetchClient::CloseJob : public Poseidon::JobBase {
+private:
+	const boost::shared_ptr<FetchClient> m_client;
+	const int m_errCode;
+
+public:
+	CloseJob(const boost::shared_ptr<FetchClient> &client, int errCode)
+		: m_client(client), m_errCode(errCode)
+	{
+	}
+
+protected:
+	boost::weak_ptr<const void> getCategory() const FINAL {
+		return m_client;
+	}
+	void perform() const FINAL {
+		PROFILE_ME;
+
+		if(m_errCode == 0){
+			m_client->clear(Msg::ST_OK, 0, "Connection to fetch server closed gracefully");
+		} else {
+			m_client->clear(Msg::ERR_CONNECTION_LOST, m_errCode, "Lost connection to fetch server");
+		}
+	}
+};
 
 boost::shared_ptr<FetchClient> FetchClient::get(){
 	return g_client.lock();
@@ -41,13 +68,19 @@ FetchClient::FetchClient(const Poseidon::IpPort &addr, bool useSsl, boost::uint6
 {
 }
 FetchClient::~FetchClient(){
-	for(AUTO(it, m_sessions.begin()); it != m_sessions.end(); ++it){
-		const AUTO(session, it->second.lock());
-		if(!session){
-			continue;
-		}
-		session->forceShutdown();
+	clear(Msg::ERR_CONNECTION_LOST, ECONNRESET, "Lost connection to fetch server");
+}
+
+void FetchClient::onClose(int errCode) NOEXCEPT {
+	PROFILE_ME;
+
+	try {
+		Poseidon::enqueueJob(boost::make_shared<CloseJob>(virtualSharedFromThis<FetchClient>(), errCode));
+	} catch(std::exception &e){
+		LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
 	}
+
+	Poseidon::Cbpp::Client::onClose(errCode);
 }
 
 bool FetchClient::send(const Poseidon::Uuid &fetchUuid, boost::uint16_t messageId, Poseidon::StreamBuffer plain){
@@ -147,7 +180,15 @@ void FetchClient::onSyncDataMessageEnd(boost::uint64_t payloadSize){
 	ON_MESSAGE(Msg::SC_FetchClosed, req){
 		LOG_MEDUSA_DEBUG("Fetch closed: fetchUuid = ", fetchUuid,
 			", cbppErrCode = ", req.cbppErrCode, ", sysErrCode = ", req.sysErrCode, ", errMsg = ", req.errMsg);
-		session->onFetchClosed(req.cbppErrCode, req.sysErrCode, STD_MOVE(req.errMsg));
+		try {
+			session->onFetchClosed(req.cbppErrCode, req.sysErrCode, STD_MOVE(req.errMsg));
+			session->shutdownRead();
+			session->shutdownWrite();
+		} catch(std::exception &e){
+			LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
+			session->forceShutdown();
+		}
+		m_sessions.erase(it);
 	}
 //=============================================================================
 		}}
@@ -187,20 +228,57 @@ bool FetchClient::send(const Poseidon::Uuid &fetchUuid, Poseidon::StreamBuffer d
 	}
 	return send(fetchUuid, Msg::CS_FetchSend::ID, STD_MOVE(data));
 }
-void FetchClient::close(const Poseidon::Uuid &fetchUuid, int errCode) NOEXCEPT {
+void FetchClient::close(const Poseidon::Uuid &fetchUuid, int cbppErrCode, int sysErrCode, const char *errMsg) NOEXCEPT {
 	PROFILE_ME;
 
 	const AUTO(it, m_sessions.find(fetchUuid));
 	if(it == m_sessions.end()){
 		return;
 	}
-	m_sessions.erase(it);
+
+	const AUTO(session, it->second.lock());
+	if(session){
+		try {
+			session->onFetchClosed(cbppErrCode, sysErrCode, errMsg);
+			session->shutdownRead();
+			session->shutdownWrite();
+		} catch(std::exception &e){
+			LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
+			session->forceShutdown();
+		}
+	}
 	try {
-		send(fetchUuid, Msg::CS_FetchClose(errCode));
+		send(fetchUuid, Msg::CS_FetchClose(sysErrCode));
 	} catch(std::exception &e){
 		LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
 		forceShutdown();
 	}
+	m_sessions.erase(it);
+}
+void FetchClient::clear(int cbppErrCode, int sysErrCode, const char *errMsg) NOEXCEPT {
+	PROFILE_ME;
+
+	for(AUTO(it, m_sessions.begin()); it != m_sessions.end(); ++it){
+		const AUTO(session, it->second.lock());
+		if(session){
+			try {
+				session->onFetchClosed(cbppErrCode, sysErrCode, errMsg);
+				session->shutdownRead();
+				session->shutdownWrite();
+			} catch(std::exception &e){
+				LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
+				session->forceShutdown();
+			}
+		}
+
+		try {
+			send(it->first, Msg::CS_FetchClose(sysErrCode));
+		} catch(std::exception &e){
+			LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
+			forceShutdown();
+		}
+	}
+	m_sessions.clear();
 }
 
 }

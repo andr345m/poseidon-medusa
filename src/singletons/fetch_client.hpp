@@ -11,6 +11,9 @@ namespace Medusa {
 class ProxySession;
 
 class FetchClient : public Poseidon::Cbpp::Client {
+private:
+	class CloseJob;
+
 public:
 	static boost::shared_ptr<FetchClient> get();
 	static boost::shared_ptr<FetchClient> require();
@@ -39,6 +42,8 @@ private:
 	}
 
 protected:
+	void onClose(int errCode) NOEXCEPT OVERRIDE;
+
 	void onSyncDataMessageHeader(boost::uint16_t messageId, boost::uint64_t payloadSize) OVERRIDE;
 	void onSyncDataMessagePayload(boost::uint64_t payloadOffset, const Poseidon::StreamBuffer &payload) OVERRIDE;
 	void onSyncDataMessageEnd(boost::uint64_t payloadSize) OVERRIDE;
@@ -48,7 +53,8 @@ protected:
 public:
 	bool connect(const boost::shared_ptr<ProxySession> &session, std::string host, unsigned port, bool useSsl, bool keepAlive);
 	bool send(const Poseidon::Uuid &fetchUuid, Poseidon::StreamBuffer data);
-	void close(const Poseidon::Uuid &fetchUuid, int errCode) NOEXCEPT;
+	void close(const Poseidon::Uuid &fetchUuid, int cbppErrCode, int sysErrCode, const char *errMsg) NOEXCEPT;
+	void clear(int cbppErrCode, int sysErrCode, const char *errMsg) NOEXCEPT;
 };
 
 }

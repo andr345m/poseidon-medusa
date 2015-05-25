@@ -98,7 +98,7 @@ private:
 
 			if(m_errCode != 0){
 				session->send(it->first,
-					Msg::SC_FetchClosed(Msg::ERR_FETCH_CONNECTION_LOST, m_errCode, Poseidon::getErrorDescAsString(m_errCode)));
+					Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, m_errCode, Poseidon::getErrorDescAsString(m_errCode)));
 				session->m_channels.erase(it);
 				return;
 			}
@@ -249,7 +249,7 @@ private:
 				it->second.m_updatedTime = Poseidon::getFastMonoClock();
 			} else {
 				LOG_MEDUSA_DEBUG("DNS failure...");
-				session->send(fetchUuid, Msg::SC_FetchClosed(Msg::ERR_FETCH_DNS_FAILURE, gaiCode, errMsg));
+				session->send(fetchUuid, Msg::SC_FetchClosed(Msg::ERR_DNS_FAILURE, gaiCode, errMsg));
 				session->m_channels.erase(it);
 			}
 		} catch(std::exception &e){
@@ -332,7 +332,7 @@ public:
 		const AUTO(maxPipeliningSize, getConfig<std::size_t>("fetch_max_pipelining_size", 16));
 		if(m_connectQueue.size() + 1 > maxPipeliningSize){
 			LOG_MEDUSA_WARNING("Max pipelining size exceeded: maxPipeliningSize = ", maxPipeliningSize);
-			DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_FETCH_MAX_PIPELINING_SIZE);
+			DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_MAX_PIPELINING_SIZE);
 		}
 
 		m_connectQueue.push_back(ConnectElement(STD_MOVE(host), port, useSsl, keepAlive));
@@ -367,7 +367,7 @@ public:
 			}
 			if(pendingSize + data.size() > maxPendingBufferSize){
 				LOG_MEDUSA_WARNING("Max pending buffer size exceeded: maxPendingBufferSize = ", maxPendingBufferSize);
-				DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_FETCH_MAX_PENDING_BUFFER_SIZE);
+				DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_MAX_PENDING_BUFFER_SIZE);
 			}
 			m_connectQueue.back().pending.splice(data);
 		}
@@ -484,11 +484,11 @@ void FetchSession::onSyncDataMessage(boost::uint16_t messageId, const Poseidon::
 	ON_RAW_MESSAGE(Msg::CS_FetchSend, req){
 		const AUTO(it, m_channels.find(fetchUuid));
 		if(it == m_channels.end()){
-			send(fetchUuid, Msg::SC_FetchClosed(Msg::ERR_FETCH_NOT_CONNECTED, ENOTCONN, VAL_INIT));
+			send(fetchUuid, Msg::SC_FetchClosed(Msg::ERR_NOT_CONNECTED, ENOTCONN, VAL_INIT));
 			break;
 		}
 		if(!it->second.send(STD_MOVE(req))){
-			send(fetchUuid, Msg::SC_FetchClosed(Msg::ERR_FETCH_CONNECTION_LOST, EPIPE, VAL_INIT));
+			send(fetchUuid, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, EPIPE, VAL_INIT));
 			m_channels.erase(it);
 			break;
 		}
@@ -496,7 +496,7 @@ void FetchSession::onSyncDataMessage(boost::uint16_t messageId, const Poseidon::
 	ON_MESSAGE(Msg::CS_FetchClose, req){
 		const AUTO(it, m_channels.find(fetchUuid));
 		if(it == m_channels.end()){
-			send(fetchUuid, Msg::SC_FetchClosed(Msg::ERR_FETCH_NOT_CONNECTED, ENOTCONN, VAL_INIT));
+			send(fetchUuid, Msg::SC_FetchClosed(Msg::ERR_NOT_CONNECTED, ENOTCONN, VAL_INIT));
 			break;
 		}
 		it->second.close(req.errCode);

@@ -36,7 +36,7 @@ protected:
 		if(!fetchClient){
 			return;
 		}
-		fetchClient->close(m_fetchUuid, m_errCode);
+		fetchClient->close(m_fetchUuid, Msg::ST_OK, m_errCode, "Requested by proxy client");
 	}
 };
 
