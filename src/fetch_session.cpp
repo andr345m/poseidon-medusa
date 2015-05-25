@@ -97,8 +97,16 @@ private:
 			LOG_MEDUSA_DEBUG("Fetch client close: fetchUuid = ", it->first, ", errCode = ", m_errCode);
 
 			if(m_errCode != 0){
-				session->send(it->first,
-					Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, m_errCode, Poseidon::getErrorDescAsString(m_errCode)));
+				try {
+					std::string errMsg;
+					errMsg.resize(255);
+					unsigned len = (unsigned)std::sprintf(&errMsg[0], "Lost connection to remote server: errno was %d: ", m_errCode);
+					errMsg.resize(len);
+					errMsg += Poseidon::getErrorDesc(m_errCode).get();
+					session->send(it->first, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, m_errCode, STD_MOVE(errMsg)));
+				} catch(std::exception &e){
+					LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
+				}
 				session->m_channels.erase(it);
 				return;
 			}
