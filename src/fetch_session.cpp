@@ -11,6 +11,10 @@
 
 namespace Medusa {
 
+namespace {
+	const std::string STR_CONNECTION_IS_NOT_PERSISTENT("Connection is not persistent");
+}
+
 class FetchSession::Channel {
 private:
 	class Client;
@@ -108,8 +112,9 @@ private:
 					it->second.createClient();
 				}
 			} else {
-				session->shutdownRead();
-				session->shutdownWrite();
+				session->send(it->first,
+					Msg::SC_FetchClosed(Msg::ST_OK, 0, STR_CONNECTION_IS_NOT_PERSISTENT));
+				session->m_channels.erase(it);
 			}
 		}
 	};
