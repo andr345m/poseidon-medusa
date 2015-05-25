@@ -236,6 +236,13 @@ void ProxySession::shutdown(Poseidon::Http::StatusCode statusCode, Poseidon::Opt
 	}
 }
 
+void ProxySession::onSyncGetRequest(Poseidon::Http::RequestHeaders /* requestHeaders */){
+	PROFILE_ME;
+
+	DEBUG_THROW(Poseidon::Http::Exception,
+		Poseidon::Http::ST_BAD_REQUEST, sslit("What do you wanna get from a proxy server by relative URI? :>"));
+}
+
 void ProxySession::onClose(int errCode) NOEXCEPT {
 	PROFILE_ME;
 	LOG_MEDUSA_DEBUG("Proxy session closed: errCode = ", errCode);
@@ -275,9 +282,22 @@ void ProxySession::onRequestHeaders(Poseidon::Http::RequestHeaders requestHeader
 		", URI = ", requestHeaders.uri);
 
 	if(requestHeaders.uri[0] == '/'){
-		LOG_MEDUSA_DEBUG("Proxy servers don't accept relative URIs: ", requestHeaders.uri);
-		DEBUG_THROW(Poseidon::Http::Exception,
-			Poseidon::Http::ST_BAD_REQUEST, sslit("What do you wanna get from a proxy server by relative URI? :>"));
+		if(requestHeaders.verb != Poseidon::Http::V_GET){
+			DEBUG_THROW(Poseidon::Http::Exception, Poseidon::Http::ST_NOT_IMPLEMENTED);
+		}
+		if(contentLength == CONTENT_CHUNKED){
+			DEBUG_THROW(Poseidon::Http::Exception, Poseidon::Http::ST_LENGTH_REQUIRED);
+		}
+		if(contentLength > 0){
+			DEBUG_THROW(Poseidon::Http::Exception, Poseidon::Http::ST_REQUEST_ENTITY_TOO_LARGE);
+		}
+
+		onSyncGetRequest(STD_MOVE(requestHeaders));
+		shutdownRead();
+		shutdownWrite();
+
+		m_state = S_TUNNEL_CONNECTING;
+		return;
 	}
 
 	AUTO_REF(headers, requestHeaders.headers);

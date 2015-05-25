@@ -45,6 +45,8 @@ private:
 	void onSyncReadAvail(Poseidon::StreamBuffer data);
 	void shutdown(Poseidon::Http::StatusCode statusCode, Poseidon::OptionalMap headers, const char *what) NOEXCEPT;
 
+	void onSyncGetRequest(Poseidon::Http::RequestHeaders requestHeaders);
+
 protected:
 	// TcpSessionBase
 	void onClose(int errCode) NOEXCEPT OVERRIDE;
@@ -54,8 +56,7 @@ protected:
 	bool send(Poseidon::StreamBuffer data) OVERRIDE;
 
 	// ServerReader
-	void onRequestHeaders(Poseidon::Http::RequestHeaders requestHeaders,
-		std::string transferEncoding, boost::uint64_t contentLength) OVERRIDE;
+	void onRequestHeaders(Poseidon::Http::RequestHeaders requestHeaders, std::string transferEncoding, boost::uint64_t contentLength) OVERRIDE;
 	void onRequestEntity(boost::uint64_t entityOffset, bool isChunked, Poseidon::StreamBuffer entity) OVERRIDE;
 	bool onRequestEnd(boost::uint64_t contentLength, bool isChunked, Poseidon::OptionalMap headers) OVERRIDE;
 
