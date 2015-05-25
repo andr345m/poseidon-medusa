@@ -94,7 +94,7 @@ private:
 	protected:
 		void perform(const boost::shared_ptr<FetchSession> &session, std::map<Poseidon::Uuid, Channel>::iterator it) const OVERRIDE {
 			PROFILE_ME;
-			LOG_MEDUSA_DEBUG("Fetch client close: fetchUuid = ", it->first, ", errCode = ", m_errCode);
+			LOG_MEDUSA_DEBUG("Remote client close: fetchUuid = ", it->first, ", errCode = ", m_errCode);
 
 			if(m_errCode != 0){
 				try {
@@ -141,7 +141,7 @@ private:
 	protected:
 		void perform(const boost::shared_ptr<FetchSession> &session, std::map<Poseidon::Uuid, Channel>::iterator it) const OVERRIDE {
 			PROFILE_ME;
-			LOG_MEDUSA_DEBUG("Fetch client read avail: fetchUuid = ", it->first, ", size = ", m_data.size());
+			LOG_MEDUSA_DEBUG("Remote client read avail: fetchUuid = ", it->first, ", size = ", m_data.size());
 
 			session->send(it->first, Msg::SC_FetchReceived::ID, STD_MOVE(m_data));
 			it->second.m_updatedTime = Poseidon::getFastMonoClock();
@@ -159,13 +159,13 @@ private:
 			: Poseidon::TcpClientBase(addr, useSsl)
 			, m_session(session), m_fetchUuid(fetchUuid)
 		{
-			LOG_MEDUSA_DEBUG("Constructor of fetch client: remote = ", Poseidon::getIpPortFromSockAddr(addr));
+			LOG_MEDUSA_DEBUG("Constructor of remote client: remote = ", Poseidon::getIpPortFromSockAddr(addr));
 		}
 		~Client(){
 			try {
-				LOG_MEDUSA_DEBUG("Destructor of fetch client: remote = ", getRemoteInfo());
+				LOG_MEDUSA_DEBUG("Destructor of remote client: remote = ", getRemoteInfo());
 			} catch(...){
-				LOG_MEDUSA_DEBUG("Destructor of fetch client: remote is not connected");
+				LOG_MEDUSA_DEBUG("Destructor of remote client: remote is not connected");
 			}
 		}
 
@@ -196,7 +196,7 @@ private:
 
 			const AUTO(session, m_session.lock());
 			if(!session){
-				LOG_MEDUSA_DEBUG("Lost connection to fetch client: fetchUuid = ", m_fetchUuid);
+				LOG_MEDUSA_DEBUG("Lost connection to remote client: fetchUuid = ", m_fetchUuid);
 				forceShutdown();
 				return;
 			}
@@ -242,7 +242,7 @@ private:
 			}
 
 			if(gaiCode == 0){
-				LOG_MEDUSA_DEBUG("Creating fetch client...");
+				LOG_MEDUSA_DEBUG("Creating remote client...");
 				const AUTO(client, boost::make_shared<Client>(addr, elem.useSsl, session, fetchUuid));
 				client->goResident();
 				it->second.m_client = client;
@@ -438,7 +438,7 @@ void FetchSession::onSyncGcTimer(boost::uint64_t now){
 		if(now < it->second.getUpdatedTime() + gcTimeout){
 			continue;
 		}
-		LOG_MEDUSA_DEBUG("Fetch client shutdown due to inactivity: fetchUuid = ", it->first);
+		LOG_MEDUSA_DEBUG("Remote client shutdown due to inactivity: fetchUuid = ", it->first);
 		m_channels.erase(it);
 	}
 }
@@ -453,7 +453,7 @@ void FetchSession::onSyncDataMessage(boost::uint16_t messageId, const Poseidon::
 
 	const AUTO(headerSize, getEncryptedHeaderSize());
 	if(payload.size() < headerSize){
-		LOG_MEDUSA_WARNING("Frame from fetch client is too small, expecting ", headerSize);
+		LOG_MEDUSA_WARNING("Frame from remote client is too small, expecting ", headerSize);
 		DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ST_END_OF_STREAM);
 	}
 	const AUTO(context, tryDecryptHeader(payload, m_password));
