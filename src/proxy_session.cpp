@@ -435,7 +435,7 @@ long ProxySession::onEncodedDataAvail(Poseidon::StreamBuffer encoded){
 
 void ProxySession::onFetchConnected(bool keepAlive){
 	PROFILE_ME;
-	LOG_MEDUSA_DEBUG("Received connect success from fetch server, fetchUuid = ", m_fetchUuid, ", keepAlive = ", keepAlive);
+	LOG_MEDUSA_DEBUG("Received connect success from fetch server: fetchUuid = ", m_fetchUuid, ", keepAlive = ", keepAlive);
 
 	m_keepAlive = keepAlive;
 
@@ -454,7 +454,7 @@ void ProxySession::onFetchConnected(bool keepAlive){
 }
 void ProxySession::onFetchReceived(Poseidon::StreamBuffer data){
 	PROFILE_ME;
-	LOG_MEDUSA_DEBUG("Received data from fetch server, fetchUuid = ", m_fetchUuid, ", size = ", data.size());
+	LOG_MEDUSA_DEBUG("Received data from fetch server: fetchUuid = ", m_fetchUuid, ", size = ", data.size());
 
 	try {
 		if(m_state == S_TUNNEL_ESTABLISHED){
@@ -485,7 +485,7 @@ void ProxySession::onFetchReceived(Poseidon::StreamBuffer data){
 }
 void ProxySession::onFetchEnded(){
 	PROFILE_ME;
-	LOG_MEDUSA_DEBUG("Received EOF response from fetch server: fetch end, fetchUuid = ", m_fetchUuid);
+	LOG_MEDUSA_DEBUG("Received EOF response from fetch server: fetchUuid = ", m_fetchUuid);
 
 	if(m_state >= S_TUNNEL_CONNECTING){
 		LOG_MEDUSA_DEBUG("Shutting down tunnel...");
@@ -514,7 +514,7 @@ void ProxySession::onFetchEnded(){
 }
 void ProxySession::onFetchClosed(int cbppErrCode, int sysErrCode, std::string errMsg){
 	PROFILE_ME;
-	LOG_MEDUSA_DEBUG("Received close response from fetch server: fetch close, fetchUuid = ", m_fetchUuid,
+	LOG_MEDUSA_DEBUG("Received close response from fetch server: fetchUuid = ", m_fetchUuid,
 		", cbppErrCode = ", cbppErrCode, ", sysErrCode = ", sysErrCode, ", errMsg = ", errMsg);
 
 	if(cbppErrCode == Msg::ST_OK){
