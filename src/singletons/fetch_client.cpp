@@ -149,7 +149,7 @@ void FetchClient::onSyncDataMessageEnd(boost::uint64_t payloadSize){
 	if(!session){
 		LOG_MEDUSA_DEBUG("Shutting down expired proxy session: fetchUuid = ", fetchUuid);
 		m_sessions.erase(it);
-		send(fetchUuid, Msg::CS_FetchClose(EPIPE));
+		sendData(fetchUuid, Msg::CS_FetchClose(EPIPE));
 		return;
 	}
 	switch(m_messageId){
@@ -218,7 +218,7 @@ bool FetchClient::connect(const boost::shared_ptr<ProxySession> &session, std::s
 
 	const AUTO(fetchUuid, session->getFetchUuid());
 	m_sessions[fetchUuid] = session;
-	return send(fetchUuid, Msg::CS_FetchConnect(STD_MOVE(host), port, useSsl, keepAlive));
+	return sendData(fetchUuid, Msg::CS_FetchConnect(STD_MOVE(host), port, useSsl, keepAlive));
 }
 bool FetchClient::send(const Poseidon::Uuid &fetchUuid, Poseidon::StreamBuffer data){
 	PROFILE_ME;
@@ -249,7 +249,7 @@ void FetchClient::close(const Poseidon::Uuid &fetchUuid, int cbppErrCode, int sy
 		}
 	}
 	try {
-		send(fetchUuid, Msg::CS_FetchClose(sysErrCode));
+		sendData(fetchUuid, Msg::CS_FetchClose(sysErrCode));
 	} catch(std::exception &e){
 		LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
 		forceShutdown();
@@ -273,7 +273,7 @@ void FetchClient::clear(int cbppErrCode, int sysErrCode, const char *errMsg) NOE
 		}
 
 		try {
-			send(it->first, Msg::CS_FetchClose(sysErrCode));
+			sendData(it->first, Msg::CS_FetchClose(sysErrCode));
 		} catch(std::exception &e){
 			LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
 			forceShutdown();

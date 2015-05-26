@@ -12,7 +12,9 @@
 namespace Medusa {
 
 namespace {
-	const std::string STR_CONNECTION_IS_NOT_PERSISTENT("Connection is not persistent");
+	const std::string STR_CONNECTION_IS_NOT_PERSISTENT	("Connection is not persistent");
+	const std::string STR_NO_CONNECTION_ESTABLISHED		("No connection established");
+	const std::string STR_COULD_NOT_SEND_TO_REMOTE		("Could not send data to remote server");
 }
 
 class FetchSession::Channel {
@@ -492,11 +494,11 @@ void FetchSession::onSyncDataMessage(boost::uint16_t messageId, const Poseidon::
 	ON_RAW_MESSAGE(Msg::CS_FetchSend, req){
 		const AUTO(it, m_channels.find(fetchUuid));
 		if(it == m_channels.end()){
-			send(fetchUuid, Msg::SC_FetchClosed(Msg::ERR_NOT_CONNECTED, ENOTCONN, VAL_INIT));
+			send(fetchUuid, Msg::SC_FetchClosed(Msg::ERR_NOT_CONNECTED, ENOTCONN, STR_NO_CONNECTION_ESTABLISHED));
 			break;
 		}
 		if(!it->second.send(STD_MOVE(req))){
-			send(fetchUuid, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, EPIPE, VAL_INIT));
+			send(fetchUuid, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, EPIPE, STR_COULD_NOT_SEND_TO_REMOTE));
 			m_channels.erase(it);
 			break;
 		}
@@ -504,7 +506,7 @@ void FetchSession::onSyncDataMessage(boost::uint16_t messageId, const Poseidon::
 	ON_MESSAGE(Msg::CS_FetchClose, req){
 		const AUTO(it, m_channels.find(fetchUuid));
 		if(it == m_channels.end()){
-			send(fetchUuid, Msg::SC_FetchClosed(Msg::ERR_NOT_CONNECTED, ENOTCONN, VAL_INIT));
+			send(fetchUuid, Msg::SC_FetchClosed(Msg::ERR_NOT_CONNECTED, ENOTCONN, STR_NO_CONNECTION_ESTABLISHED));
 			break;
 		}
 		it->second.close(req.errCode);
