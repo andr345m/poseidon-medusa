@@ -3,6 +3,7 @@
 #include <poseidon/job_base.hpp>
 #include <poseidon/ip_port.hpp>
 #include <poseidon/mutex.hpp>
+#include <poseidon/condition_variable.hpp>
 #include <poseidon/atomic.hpp>
 #include <poseidon/thread.hpp>
 #include <sys/types.h>
@@ -54,6 +55,7 @@ namespace {
 
 	private:
 		Poseidon::Mutex m_mutex;
+		Poseidon::ConditionVariable m_newAvail;
 		std::deque<Element> m_queue;
 
 		volatile bool m_running;
@@ -74,12 +76,15 @@ namespace {
 		bool pumpOne(){
 			PROFILE_ME;
 
-			if(m_queue.empty()){
-				return false;
+			Element elem;
+			{
+				const Poseidon::Mutex::UniqueLock lock(m_mutex);
+				if(m_queue.empty()){
+					return false;
+				}
+				elem = STD_MOVE(m_queue.front());
+				m_queue.pop_front();
 			}
-
-			AUTO(elem, STD_MOVE(m_queue.front()));
-			m_queue.pop_front();
 
 			try {
 				try {
@@ -145,7 +150,8 @@ namespace {
 					break;
 				}
 
-				::usleep(100000);
+				Poseidon::Mutex::UniqueLock lock(m_mutex);
+				m_newAvail.timedWait(lock, 100);
 			}
 
 			LOG_MEDUSA_INFO("DNS daemon stopped");
@@ -164,6 +170,7 @@ namespace {
 
 			const Poseidon::Mutex::UniqueLock lock(m_mutex);
 			m_queue.push_back(STD_MOVE(elem));
+			m_newAvail.signal();
 		}
 	};
 
