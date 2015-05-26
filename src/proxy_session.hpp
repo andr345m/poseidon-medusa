@@ -1,22 +1,50 @@
 #ifndef MEDUSA_PROXY_SESSION_HPP_
 #define MEDUSA_PROXY_SESSION_HPP_
 
-#include <boost/scoped_ptr.hpp>
 #include <poseidon/tcp_session_base.hpp>
 #include <poseidon/http/server_reader.hpp>
 #include <poseidon/http/server_writer.hpp>
+#include <poseidon/http/client_reader.hpp>
+#include <poseidon/http/client_writer.hpp>
 #include <poseidon/uuid.hpp>
 
 namespace Medusa {
 
 class FetchClient;
 
-class ProxySession : public Poseidon::TcpSessionBase, private Poseidon::Http::ServerReader, private Poseidon::Http::ServerWriter {
+namespace Impl {
+	class ProxySessionServerAdaptor : public Poseidon::Http::ServerReader, public Poseidon::Http::ServerWriter {
+	protected:
+		// ServerReader
+		void onRequestHeaders(Poseidon::Http::RequestHeaders requestHeaders,
+			std::string transferEncoding, boost::uint64_t contentLength) OVERRIDE;
+		void onRequestEntity(boost::uint64_t entityOffset, bool isChunked, Poseidon::StreamBuffer entity) OVERRIDE;
+		bool onRequestEnd(boost::uint64_t contentLength, bool isChunked, Poseidon::OptionalMap headers) OVERRIDE;
+
+		// ServerWriter
+		long onEncodedDataAvail(Poseidon::StreamBuffer encoded) OVERRIDE;
+	};
+
+	class ProxySessionClientAdaptor : public Poseidon::Http::ClientReader, public Poseidon::Http::ClientWriter {
+	protected:
+		// ClientReader
+		void onResponseHeaders(Poseidon::Http::ResponseHeaders responseHeaders,
+			std::string transferEncoding, boost::uint64_t contentLength) OVERRIDE;
+		void onResponseEntity(boost::uint64_t entityOffset, bool isChunked, Poseidon::StreamBuffer entity) OVERRIDE;
+		bool onResponseEnd(boost::uint64_t contentLength, bool isChunked, Poseidon::OptionalMap headers) OVERRIDE;
+
+		// ClientReader
+		long onEncodedDataAvail(Poseidon::StreamBuffer encoded) OVERRIDE;
+	};
+}
+
+class ProxySession : public Poseidon::TcpSessionBase, private Impl::ProxySessionServerAdaptor, private Impl::ProxySessionClientAdaptor {
+	friend ProxySessionServerAdaptor;
+	friend ProxySessionClientAdaptor;
+
 private:
 	class CloseJob;
 	class ReadAvailJob;
-
-	class ClientAdaptor;
 
 private:
 	enum State {
@@ -30,7 +58,6 @@ private:
 private:
 	const Poseidon::Uuid m_fetchUuid;
 	const boost::weak_ptr<FetchClient> m_fetchClient;
-	const boost::scoped_ptr<ClientAdaptor> m_client;
 
 	State m_state;
 	boost::uint64_t m_headerSize;
@@ -46,20 +73,11 @@ private:
 	void shutdown(Poseidon::Http::StatusCode statusCode, Poseidon::OptionalMap headers, const char *what) NOEXCEPT;
 
 protected:
-	// TcpSessionBase
 	void onClose(int errCode) NOEXCEPT OVERRIDE;
 
 	void onReadAvail(Poseidon::StreamBuffer data) OVERRIDE;
 
 	bool send(Poseidon::StreamBuffer data) OVERRIDE;
-
-	// ServerReader
-	void onRequestHeaders(Poseidon::Http::RequestHeaders requestHeaders, std::string transferEncoding, boost::uint64_t contentLength) OVERRIDE;
-	void onRequestEntity(boost::uint64_t entityOffset, bool isChunked, Poseidon::StreamBuffer entity) OVERRIDE;
-	bool onRequestEnd(boost::uint64_t contentLength, bool isChunked, Poseidon::OptionalMap headers) OVERRIDE;
-
-	// ServerWriter
-	long onEncodedDataAvail(Poseidon::StreamBuffer encoded) OVERRIDE;
 
 public:
 	const Poseidon::Uuid &getFetchUuid() const {
