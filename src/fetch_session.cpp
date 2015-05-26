@@ -355,7 +355,7 @@ public:
 		PROFILE_ME;
 
 		if(m_connectQueue.empty()){
-			LOG_MEDUSA_ERROR("No connection in progress?");
+			LOG_MEDUSA_ERROR("No connection in progress? fetchUuid = ", m_fetchUuid);
 			return false;
 		}
 
