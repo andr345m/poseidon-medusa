@@ -83,7 +83,7 @@ void FetchClient::onClose(int errCode) NOEXCEPT {
 	Poseidon::Cbpp::Client::onClose(errCode);
 }
 
-bool FetchClient::send(const Poseidon::Uuid &fetchUuid, boost::uint16_t messageId, Poseidon::StreamBuffer plain){
+bool FetchClient::sendData(const Poseidon::Uuid &fetchUuid, boost::uint16_t messageId, Poseidon::StreamBuffer plain){
 	PROFILE_ME;
 
 	AUTO(pair, encryptHeader(fetchUuid, m_password));
@@ -227,7 +227,7 @@ bool FetchClient::send(const Poseidon::Uuid &fetchUuid, Poseidon::StreamBuffer d
 		LOG_MEDUSA_WARNING("Fetch client not connected? fetchUuid = ", fetchUuid);
 		return false;
 	}
-	return send(fetchUuid, Msg::CS_FetchSend::ID, STD_MOVE(data));
+	return sendData(fetchUuid, Msg::CS_FetchSend::ID, STD_MOVE(data));
 }
 void FetchClient::close(const Poseidon::Uuid &fetchUuid, int cbppErrCode, int sysErrCode, const char *errMsg) NOEXCEPT {
 	PROFILE_ME;

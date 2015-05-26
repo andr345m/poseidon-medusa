@@ -33,12 +33,12 @@ public:
 	~FetchClient();
 
 private:
-	bool send(const Poseidon::Uuid &fetchUuid, boost::uint16_t messageId, Poseidon::StreamBuffer plain);
+	bool sendData(const Poseidon::Uuid &fetchUuid, boost::uint16_t messageId, Poseidon::StreamBuffer plain);
 	bool sendControl(Poseidon::Cbpp::ControlCode controlCode, boost::int64_t vintParam, std::string stringParam);
 
 	template<typename MsgT>
-	bool send(const Poseidon::Uuid &fetchUuid, const MsgT &msg){
-		return send(fetchUuid, MsgT::ID, Poseidon::StreamBuffer(msg));
+	bool sendData(const Poseidon::Uuid &fetchUuid, const MsgT &msg){
+		return sendData(fetchUuid, MsgT::ID, Poseidon::StreamBuffer(msg));
 	}
 
 protected:
