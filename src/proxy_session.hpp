@@ -45,8 +45,6 @@ private:
 	void onSyncReadAvail(Poseidon::StreamBuffer data);
 	void shutdown(Poseidon::Http::StatusCode statusCode, Poseidon::OptionalMap headers, const char *what) NOEXCEPT;
 
-	void onSyncGetRequest(Poseidon::Http::RequestHeaders requestHeaders);
-
 protected:
 	// TcpSessionBase
 	void onClose(int errCode) NOEXCEPT OVERRIDE;

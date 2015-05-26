@@ -148,13 +148,8 @@ void FetchClient::onSyncDataMessageEnd(boost::uint64_t payloadSize){
 	const AUTO(session, it->second.lock());
 	if(!session){
 		LOG_MEDUSA_DEBUG("Proxy session has gone away: fetchUuid = ", fetchUuid);
-		try {
-			send(fetchUuid, Msg::CS_FetchClose(EPIPE));
-		} catch(std::exception &e){
-			LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
-			forceShutdown();
-		}
 		m_sessions.erase(it);
+		send(fetchUuid, Msg::CS_FetchClose(EPIPE));
 		return;
 	}
 	switch(m_messageId){
@@ -202,7 +197,6 @@ void FetchClient::onSyncDataMessageEnd(boost::uint64_t payloadSize){
 		break;
 	default:
 		LOG_MEDUSA_ERROR("Unknown fetch response from server: messageId = ", m_messageId, ", size = ", plain.size());
-		forceShutdown();
 		return;
 	}
 }
