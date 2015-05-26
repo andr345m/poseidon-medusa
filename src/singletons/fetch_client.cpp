@@ -147,7 +147,7 @@ void FetchClient::onSyncDataMessageEnd(boost::uint64_t payloadSize){
 	}
 	const AUTO(session, it->second.lock());
 	if(!session){
-		LOG_MEDUSA_DEBUG("Proxy session has gone away: fetchUuid = ", fetchUuid);
+		LOG_MEDUSA_DEBUG("Shutting down expired proxy session: fetchUuid = ", fetchUuid);
 		m_sessions.erase(it);
 		send(fetchUuid, Msg::CS_FetchClose(EPIPE));
 		return;

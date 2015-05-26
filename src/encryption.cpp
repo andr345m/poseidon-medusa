@@ -15,10 +15,8 @@ namespace {
 		Poseidon::Md5 authMd5;
 	};
 
-#ifdef POSEIDON_CXX11
-	static_assert(std::is_standard_layout<EncryptedHeader>::value, "EncryptedHeader is not a standard-layout structe?");
-	static_assert(sizeof(EncryptedHeader) == 48, "Incompatible layout detected");
-#endif
+	BOOST_STATIC_ASSERT_MSG(std::is_standard_layout<EncryptedHeader>::value, "EncryptedHeader is not a standard-layout struct?");
+	BOOST_STATIC_ASSERT_MSG(sizeof(EncryptedHeader) == 48, "Incompatible layout detected");
 
 	struct NoncedKey {
 		Nonce nonce;
@@ -30,9 +28,7 @@ namespace {
 		}
 	};
 
-#ifdef POSEIDON_CXX11
-	static_assert(sizeof(NoncedKey) == 32, "Incompatible layout detected");
-#endif
+	BOOST_STATIC_ASSERT_MSG(sizeof(NoncedKey) == 32, "Incompatible layout detected");
 
 	// http://en.wikipedia.org/wiki/RC4 有改动。
 
