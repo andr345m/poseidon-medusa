@@ -143,17 +143,18 @@ void FetchClient::onSyncDataMessageEnd(boost::uint64_t payloadSize){
 	const AUTO(it, m_sessions.find(fetchUuid));
 	if(it == m_sessions.end()){
 		LOG_MEDUSA_DEBUG("Proxy session has gone away: fetchUuid = ", fetchUuid);
+		return;
+	}
+	const AUTO(session, it->second.lock());
+	if(!session){
+		LOG_MEDUSA_DEBUG("Proxy session has gone away: fetchUuid = ", fetchUuid);
 		try {
 			send(fetchUuid, Msg::CS_FetchClose(EPIPE));
 		} catch(std::exception &e){
 			LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
 			forceShutdown();
 		}
-		return;
-	}
-	const AUTO(session, it->second.lock());
-	if(!session){
-		LOG_MEDUSA_DEBUG("Proxy session has gone away: fetchUuid = ", fetchUuid);
+		m_sessions.erase(it);
 		return;
 	}
 	switch(m_messageId){
