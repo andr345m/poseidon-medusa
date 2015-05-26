@@ -208,7 +208,7 @@ void ProxySession::shutdown(Poseidon::Http::StatusCode statusCode, Poseidon::Opt
 	PROFILE_ME;
 
 	if(m_state == S_TUNNEL_ESTABLISHED){
-		LOG_MEDUSA_DEBUG("Don't send HTTP response to a tunnel session. Shut it down immediately");
+		LOG_MEDUSA_DEBUG("Don't send HTTP response to a tunnel session. Shut it down immediately.");
 		forceShutdown();
 		return;
 	}
