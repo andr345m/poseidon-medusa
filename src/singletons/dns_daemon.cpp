@@ -2,33 +2,27 @@
 #include "dns_daemon.hpp"
 #include <poseidon/job_base.hpp>
 #include <poseidon/ip_port.hpp>
-#include <poseidon/mutex.hpp>
-#include <poseidon/condition_variable.hpp>
-#include <poseidon/atomic.hpp>
-#include <poseidon/thread.hpp>
-#include <sys/types.h>
-#include <sys/socket.h>
 #include <netdb.h>
-#include <string.h>
 
 namespace Medusa {
 
 namespace {
 	class CallbackJob : public Poseidon::JobBase {
 	private:
-		const DnsDaemon::Callback m_callback;
 		const std::string m_host;
 		const unsigned m_port;
+		const DnsDaemon::Callback m_callback;
+		const DnsDaemon::ExceptionCallback m_except;
+
 		const int m_gaiCode;
 		const Poseidon::SockAddr m_addr;
-		const int m_errCode;
 		const std::string m_errMsg;
 
 	public:
-		CallbackJob(DnsDaemon::Callback callback, std::string host, unsigned port,
-			int gaiCode, const Poseidon::SockAddr &addr, int errCode, std::string errMsg)
-			: m_callback(STD_MOVE_IDN(callback)), m_host(STD_MOVE(host)), m_port(port)
-			, m_gaiCode(gaiCode), m_addr(addr), m_errCode(errCode), m_errMsg(errMsg)
+		CallbackJob(std::string host, unsigned port, DnsDaemon::Callback callback, DnsDaemon::ExceptionCallback except,
+			int gaiCode, const Poseidon::SockAddr &addr, std::string errMsg)
+			: m_host(STD_MOVE(host)), m_port(port), m_callback(STD_MOVE_IDN(callback)), m_except(STD_MOVE_IDN(except))
+			, m_gaiCode(gaiCode), m_addr(addr), m_errMsg(errMsg)
 		{
 		}
 
@@ -39,162 +33,102 @@ namespace {
 		void perform() const OVERRIDE {
 			PROFILE_ME;
 
-			m_callback(m_host, m_port, m_gaiCode, m_addr, m_errCode, m_errMsg.c_str());
-		}
-	};
-
-	class DnsQueue : NONCOPYABLE {
-	private:
-		struct Element {
-			std::string host;
-			unsigned port;
-			DnsDaemon::Callback callback;
-			DnsDaemon::ExceptionCallback except;
-			bool isLowLevel;
-		};
-
-	private:
-		Poseidon::Mutex m_mutex;
-		Poseidon::ConditionVariable m_newAvail;
-		std::deque<Element> m_queue;
-
-		volatile bool m_running;
-		Poseidon::Thread m_thread;
-
-	public:
-		DnsQueue()
-			: m_running(true)
-			, m_thread(boost::bind(&DnsQueue::threadProc, this), "   D")
-		{
-		}
-		~DnsQueue(){
-			Poseidon::atomicStore(m_running, false, Poseidon::ATOMIC_RELEASE);
-			m_thread.join();
-		}
-
-	private:
-		bool pumpOne(){
-			PROFILE_ME;
-
-			Element elem;
-			{
-				const Poseidon::Mutex::UniqueLock lock(m_mutex);
-				if(m_queue.empty()){
-					return false;
-				}
-				elem = STD_MOVE(m_queue.front());
-				m_queue.pop_front();
-			}
-
 			try {
-				try {
-					Poseidon::SockAddr sockAddr;
-
-					char temp[1024];
-					std::sprintf(temp, "%u", elem.port);
-					::addrinfo *res = NULLPTR;
-					const int gaiCode = ::getaddrinfo(elem.host.c_str(), temp, NULLPTR, &res);
-					const int errCode = errno;
-					const char *errMsg;
-					if(gaiCode == 0){
-						try {
-							sockAddr = Poseidon::SockAddr(res->ai_addr, res->ai_addrlen);
-						} catch(...){
-							::freeaddrinfo(res);
-							throw;
-						}
-						::freeaddrinfo(res);
-						errMsg = "";
-						LOG_MEDUSA_DEBUG("DNS lookup success: host:port = ", elem.host, ':', elem.port,
-							", resolvedAs = ", Poseidon::getIpPortFromSockAddr(sockAddr));
-					} else if(gaiCode != EAI_SYSTEM){
-						errMsg = ::gai_strerror(gaiCode);
-						LOG_MEDUSA_DEBUG("DNS lookup failure: host:port = ", elem.host, ':', elem.port,
-							", gaiCode = ", gaiCode, ", errMsg = ", errMsg);
-					} else {
-						errMsg = ::strerror_r(errCode, temp, sizeof(temp));
-						LOG_MEDUSA_DEBUG("DNS lookup failure due to system error: host:port = ", elem.host, ':', elem.port,
-							", errCode = ", errCode, ", errMsg = ", errMsg);
-					}
-					if(elem.isLowLevel){
-						elem.callback(elem.host, elem.port, gaiCode, sockAddr, errCode, errMsg);
-					} else {
-						Poseidon::enqueueJob(boost::make_shared<CallbackJob>(STD_MOVE(elem.callback),
-							STD_MOVE(elem.host), elem.port, gaiCode, sockAddr, errCode, std::string(errMsg)));
-					}
-				} catch(...){
-					if(elem.except){
-						elem.except();
-					}
-					throw;
-				}
+				m_callback(m_host, m_port, m_gaiCode, m_addr, m_errMsg.c_str());
 			} catch(std::exception &e){
-				LOG_MEDUSA_ERROR("std::exception thrown in DNS loop: what = ", e.what());
-			} catch(...){
-				LOG_MEDUSA_ERROR("Unknown exception thrown in DNS loop");
-			}
-
-			return true;
-		}
-
-		void threadProc() NOEXCEPT {
-			PROFILE_ME;
-			LOG_MEDUSA_INFO("DNS daemon started");
-
-			for(;;){
-				while(pumpOne()){
-					// noop
+				LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
+				if(m_except){
+					m_except();
 				}
-
-				if(!atomicLoad(m_running, Poseidon::ATOMIC_ACQUIRE)){
-					break;
-				}
-
-				Poseidon::Mutex::UniqueLock lock(m_mutex);
-				m_newAvail.timedWait(lock, 100);
+				throw;
 			}
-
-			LOG_MEDUSA_INFO("DNS daemon stopped");
-		}
-
-	public:
-		void push(std::string host, unsigned port, DnsDaemon::Callback callback,
-			DnsDaemon::ExceptionCallback except, bool isLowLevel)
-		{
-			Element elem;
-			elem.host = STD_MOVE(host);
-			elem.port = port;
-			elem.callback = STD_MOVE_IDN(callback);
-			elem.except = STD_MOVE_IDN(except);
-			elem.isLowLevel = isLowLevel;
-
-			const Poseidon::Mutex::UniqueLock lock(m_mutex);
-			m_queue.push_back(STD_MOVE(elem));
-			m_newAvail.signal();
 		}
 	};
 
-	boost::weak_ptr<DnsQueue> g_queue;
+	struct DnsCallbackParam {
+		std::string host;
+		unsigned port;
+		DnsDaemon::Callback callback;
+		DnsDaemon::ExceptionCallback except;
+		bool isLowLevel;
 
-	MODULE_RAII_PRIORITY(handles, 9000){
-		AUTO(queue, boost::make_shared<DnsQueue>());
-		g_queue = queue;
-		handles.push(STD_MOVE_IDN(queue));
+		char portStr[16];
+		::gaicb cb;
+		::gaicb *req;
+
+		DnsCallbackParam(std::string host_, unsigned port_,
+			DnsDaemon::Callback callback_, DnsDaemon::ExceptionCallback except_, bool isLowLevel_)
+			: host(STD_MOVE(host_)), port(port_)
+			, callback(STD_MOVE_IDN(callback_)), except(STD_MOVE_IDN(except_)), isLowLevel(isLowLevel_)
+		{
+			std::sprintf(portStr, "%hu", port);
+			cb.ar_name = host.c_str();
+			cb.ar_service = portStr;
+			cb.ar_request = NULLPTR;
+			cb.ar_result = NULLPTR;
+			req = &cb;
+		}
+		~DnsCallbackParam(){
+			if(cb.ar_result){
+				::freeaddrinfo(cb.ar_result);
+			}
+		}
+	};
+
+	void dnsCallback(::sigval sigvalParam) NOEXCEPT {
+		PROFILE_ME;
+
+		Poseidon::Logger::setThreadTag("   D");
+
+		const boost::scoped_ptr<DnsCallbackParam> param(static_cast<DnsCallbackParam *>(sigvalParam.sival_ptr));
+
+		try {
+			const int gaiCode = ::gai_error(param->req);
+			Poseidon::SockAddr sockAddr;
+			const char *errMsg;
+			if(gaiCode == 0){
+				sockAddr = Poseidon::SockAddr(param->cb.ar_result->ai_addr, param->cb.ar_result->ai_addrlen);
+				errMsg = "";
+				LOG_MEDUSA_DEBUG("DNS lookup success: host:port = ", param->host, ':', param->port,
+					", result = ", Poseidon::getIpPortFromSockAddr(sockAddr));
+			} else {
+				errMsg = ::gai_strerror(gaiCode);
+				LOG_MEDUSA_DEBUG("DNS lookup failure: host:port = ", param->host, ':', param->port,
+					", gaiCode = ", gaiCode, ", errMsg = ", errMsg);
+			}
+
+			if(param->isLowLevel){
+				param->callback(param->host, param->port, gaiCode, sockAddr, errMsg);
+			} else {
+				Poseidon::enqueueJob(boost::make_shared<CallbackJob>(
+					STD_MOVE(param->host), param->port, STD_MOVE(param->callback), param->except, gaiCode, sockAddr, errMsg));
+			}
+		} catch(std::exception &e){
+			LOG_MEDUSA_ERROR("std::exception thrown in DNS loop: what = ", e.what());
+			if(param->except){
+				param->except();
+			}
+		}
 	}
 }
 
-void DnsDaemon::asyncLookup(std::string host, unsigned port, Callback callback,
-	DnsDaemon::ExceptionCallback except, bool isLowLevel)
+void DnsDaemon::asyncLookup(std::string host, unsigned port,
+	DnsDaemon::Callback callback, DnsDaemon::ExceptionCallback except, bool isLowLevel)
 {
 	PROFILE_ME;
 
-	const AUTO(queue, g_queue.lock());
-	if(!queue){
-		LOG_MEDUSA_ERROR("DNS queue has not been created");
-		DEBUG_THROW(Exception, sslit("DNS queue has not been created"));
+	const AUTO(param, new DnsCallbackParam(STD_MOVE(host), port, STD_MOVE(callback), STD_MOVE(except), isLowLevel));
+	::sigevent sev;
+	sev.sigev_notify = SIGEV_THREAD;
+	sev.sigev_value.sival_ptr = param;
+	sev.sigev_notify_function = &dnsCallback;
+	sev.sigev_notify_attributes = NULLPTR;
+	const int gaiCode = ::getaddrinfo_a(GAI_NOWAIT, &(param->req), 1, &sev); // noexcept
+	if(gaiCode != 0){
+		LOG_MEDUSA_ERROR("Could not initiate async DNS lookup: gaiCode = ", gaiCode, ", errMsg = ", ::gai_strerror(gaiCode));
+		delete param;
+		DEBUG_THROW(Exception, sslit("Could not initiate async DNS lookup"));
 	}
-
-	queue->push(STD_MOVE(host), port, STD_MOVE(callback), STD_MOVE(except), isLowLevel);
 }
 
 }

@@ -10,8 +10,8 @@ namespace Medusa {
 struct DnsDaemon {
 	typedef boost::function<
 		void (const std::string &host, unsigned port,
-			// gaiCode 是 getaddrinfo() 的返回值，errCode 是 errno 当时的值。
-			int gaiCode, const Poseidon::SockAddr &addr, int errCode, const char *errMsg)
+			// gaiCode 是 getaddrinfo() 的返回值。
+			int gaiCode, const Poseidon::SockAddr &addr, const char *errMsg)
 		> Callback;
 
 	typedef boost::function<

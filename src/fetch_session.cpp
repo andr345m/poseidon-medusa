@@ -216,11 +216,11 @@ private:
 
 private:
 	static void dnsCallback(const boost::weak_ptr<FetchSession> &weakSession, const Poseidon::Uuid &fetchUuid,
-		const std::string &host, unsigned port, int gaiCode, const Poseidon::SockAddr &addr, int errCode, const char *errMsg)
+		const std::string &host, unsigned port, int gaiCode, const Poseidon::SockAddr &addr, const char *errMsg)
 	{
 		PROFILE_ME;
 		LOG_MEDUSA_DEBUG("DNS result: fetchUuid = ", fetchUuid,
-			", host:port = ", host, ':', port, ", gaiCode = ", gaiCode, ", errCode = ", errCode, ", errMsg = ", errMsg);
+			", host:port = ", host, ':', port, ", gaiCode = ", gaiCode, ", errMsg = ", errMsg);
 
 		const AUTO(session, weakSession.lock());
 		if(!session){
@@ -305,7 +305,7 @@ private:
 		LOG_MEDUSA_DEBUG("Next fetch request: host:port = ", elem.host, ':', elem.port,
 			", useSsl = ", elem.useSsl, ", keepAlive = ", elem.keepAlive);
 		DnsDaemon::asyncLookup(elem.host, elem.port,
-			boost::bind(&dnsCallback, m_session, m_fetchUuid,  _1, _2, _3, _4, _5, _6),
+			boost::bind(&dnsCallback, m_session, m_fetchUuid,  _1, _2, _3, _4, _5),
 			boost::bind(&dnsException, m_session), false);
 	}
 	void killClient(bool force){
