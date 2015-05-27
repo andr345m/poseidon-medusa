@@ -12,7 +12,26 @@
 namespace Medusa {
 
 namespace {
-	boost::weak_ptr<FetchClient> g_client;
+	std::vector<boost::weak_ptr<FetchClient> > g_clients;
+	std::size_t g_currentIndex = 0;
+
+	boost::weak_ptr<FetchClient> &getNextClientRef(){
+		PROFILE_ME;
+
+		if(g_clients.empty()){
+			AUTO(count, getConfig<std::size_t>("fetch_client_count", 5));
+			if(count == 0){
+				LOG_MEDUSA_WARNING("Fetch client count was set to zero? Corrected as one.");
+				count = 1;
+			}
+			g_clients.resize(count);
+		}
+
+		if(++g_currentIndex >= g_clients.size()){
+			g_currentIndex = 0;
+		}
+		return g_clients.at(g_currentIndex);
+	}
 }
 
 class FetchClient::CloseJob : public Poseidon::JobBase {
@@ -42,10 +61,17 @@ protected:
 };
 
 boost::shared_ptr<FetchClient> FetchClient::get(){
-	return g_client.lock();
+	PROFILE_ME;
+
+	const AUTO_REF(weakClient, getNextClientRef());
+	AUTO(client, weakClient.lock());
+	return client;
 }
 boost::shared_ptr<FetchClient> FetchClient::require(){
-	AUTO(client, g_client.lock());
+	PROFILE_ME;
+
+	AUTO_REF(weakClient, getNextClientRef());
+	AUTO(client, weakClient.lock());
 	if(!client){
 		AUTO(addr, getConfig<std::string>("fetch_client_addr", "0.0.0.0"));
 		AUTO(port, getConfig<unsigned>("fetch_client_port", 5326));
@@ -57,7 +83,7 @@ boost::shared_ptr<FetchClient> FetchClient::require(){
 		LOG_MEDUSA_INFO("Creating fetch client to ", addrPort, (ssl ? " using SSL" : ""));
 		client.reset(new FetchClient(addrPort, ssl, hbtm, STD_MOVE(pass)));
 		client->goResident();
-		g_client = client;
+		weakClient = client;
 	}
 	return client;
 }
