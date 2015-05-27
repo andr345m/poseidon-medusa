@@ -515,14 +515,6 @@ void ProxySession::onFetchEnded(){
 		Poseidon::Http::ClientReader::terminateContent();
 	}
 
-	AUTO_REF(queue, Poseidon::Http::ClientReader::getQueue());
-	if(!queue.empty()){
-		LOG_MEDUSA_DEBUG("Invalid response from remote server. Terminate the connection.");
-		shutdownRead();
-		shutdownWrite();
-		return;
-	}
-
 	if(!m_keepAlive){
 		shutdownRead();
 		shutdownWrite();

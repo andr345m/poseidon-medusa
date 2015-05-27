@@ -129,7 +129,7 @@ void FetchClient::onSyncDataMessageHeader(boost::uint16_t messageId, boost::uint
 
 	const AUTO(headerSize, getEncryptedHeaderSize());
 	if(payloadSize < headerSize){
-		LOG_MEDUSA_ERROR("Frame from fetch server is too small, expecting ", headerSize);
+		LOG_MEDUSA_ERROR("Frame from fetch server is too small: expecting ", headerSize, ", got ", payloadSize);
 		forceShutdown();
 		return;
 	}
