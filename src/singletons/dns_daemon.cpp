@@ -2,7 +2,10 @@
 #include "dns_daemon.hpp"
 #include <poseidon/job_base.hpp>
 #include <poseidon/ip_port.hpp>
+#include <poseidon/atomic.hpp>
+#include <poseidon/module_raii.hpp>
 #include <netdb.h>
+#include <unistd.h>
 
 namespace Medusa {
 
@@ -44,6 +47,8 @@ namespace {
 			}
 		}
 	};
+
+	volatile std::size_t g_pendingCallbackCount = 0;
 
 	struct DnsCallbackParam {
 		std::string host;
@@ -109,6 +114,26 @@ namespace {
 				param->except();
 			}
 		}
+
+		Poseidon::atomicSub(g_pendingCallbackCount, 1, Poseidon::ATOMIC_RELAXED);
+	}
+
+	struct CallbackCancellationGuard {
+		~CallbackCancellationGuard(){
+			for(;;){
+				const AUTO(count, Poseidon::atomicLoad(g_pendingCallbackCount, Poseidon::ATOMIC_RELAXED));
+				if(count == 0){
+					break;
+				}
+				LOG_MEDUSA_INFO("Waiting for ", count, " pending DNS callbacks...");
+				::gai_cancel(NULLPTR);
+				::usleep(100000);
+			}
+		}
+	};
+
+	MODULE_RAII(handles){
+		handles.push(boost::make_shared<CallbackCancellationGuard>());
 	}
 }
 
@@ -129,6 +154,7 @@ void DnsDaemon::asyncLookup(std::string host, unsigned port,
 		delete param;
 		DEBUG_THROW(Exception, sslit("Could not initiate async DNS lookup"));
 	}
+	Poseidon::atomicAdd(g_pendingCallbackCount, 1, Poseidon::ATOMIC_RELAXED);
 }
 
 }
