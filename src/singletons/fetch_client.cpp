@@ -2,6 +2,7 @@
 #include "fetch_client.hpp"
 #include <poseidon/job_base.hpp>
 #include <poseidon/singletons/timer_daemon.hpp>
+#include <poseidon/cbpp/control_message.hpp>
 #include <poseidon/cbpp/control_codes.hpp>
 #include "../proxy_session.hpp"
 #include "../encryption.hpp"
@@ -230,10 +231,9 @@ void FetchClient::onSyncDataMessageEnd(boost::uint64_t payloadSize){
 void FetchClient::onSyncErrorMessage(boost::uint16_t messageId, Poseidon::Cbpp::StatusCode statusCode, const std::string &reason){
 	PROFILE_ME;
 
-	if(statusCode != Msg::ST_OK){
+	if((messageId != Poseidon::Cbpp::ControlMessage::ID) && (statusCode != Msg::ST_OK)){
 		LOG_MEDUSA_ERROR("Fetch error: messageId = ", messageId, ", statusCode = ", statusCode, ", reason = ", reason);
 		forceShutdown();
-		return;
 	}
 
 	Poseidon::Cbpp::Client::onSyncErrorMessage(messageId, statusCode, reason);
