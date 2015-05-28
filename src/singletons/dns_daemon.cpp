@@ -143,18 +143,22 @@ void DnsDaemon::asyncLookup(std::string host, unsigned port,
 	PROFILE_ME;
 
 	const AUTO(param, new DnsCallbackParam(STD_MOVE(host), port, STD_MOVE(callback), STD_MOVE(except), isLowLevel));
-	::sigevent sev;
-	sev.sigev_notify = SIGEV_THREAD;
-	sev.sigev_value.sival_ptr = param;
-	sev.sigev_notify_function = &dnsCallback;
-	sev.sigev_notify_attributes = NULLPTR;
-	const int gaiCode = ::getaddrinfo_a(GAI_NOWAIT, &(param->req), 1, &sev); // noexcept
-	if(gaiCode != 0){
-		LOG_MEDUSA_ERROR("Could not initiate async DNS lookup: gaiCode = ", gaiCode, ", errMsg = ", ::gai_strerror(gaiCode));
+	try {
+		::sigevent sev;
+		sev.sigev_notify = SIGEV_THREAD;
+		sev.sigev_value.sival_ptr = param;
+		sev.sigev_notify_function = &dnsCallback;
+		sev.sigev_notify_attributes = NULLPTR;
+		const int gaiCode = ::getaddrinfo_a(GAI_NOWAIT, &(param->req), 1, &sev); // noexcept
+		if(gaiCode != 0){
+			LOG_MEDUSA_ERROR("Could not initiate async DNS lookup: gaiCode = ", gaiCode, ", errMsg = ", ::gai_strerror(gaiCode));
+			DEBUG_THROW(Exception, sslit("Could not initiate async DNS lookup"));
+		}
+	} catch(...){
 		delete param;
-		DEBUG_THROW(Exception, sslit("Could not initiate async DNS lookup"));
+		throw;
 	}
-	Poseidon::atomicAdd(g_pendingCallbackCount, 1, Poseidon::ATOMIC_RELAXED);
+	Poseidon::atomicAdd(g_pendingCallbackCount, 1, Poseidon::ATOMIC_RELAXED); // noexcept
 }
 
 }
