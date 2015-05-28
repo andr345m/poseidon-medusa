@@ -33,7 +33,7 @@ namespace Impl {
 		void onResponseEntity(boost::uint64_t entityOffset, bool isChunked, Poseidon::StreamBuffer entity) OVERRIDE;
 		bool onResponseEnd(boost::uint64_t contentLength, bool isChunked, Poseidon::OptionalMap headers) OVERRIDE;
 
-		// ClientReader
+		// ClientWriter
 		long onEncodedDataAvail(Poseidon::StreamBuffer encoded) OVERRIDE;
 	};
 }
