@@ -152,7 +152,6 @@ private:
 
 	class Client : public Poseidon::TcpClientBase {
 	private:
-		const boost::uint64_t m_timeout;
 		const boost::weak_ptr<FetchSession> m_session;
 		const Poseidon::Uuid m_fetchUuid;
 
@@ -160,7 +159,6 @@ private:
 		Client(const Poseidon::SockAddr &addr, bool useSsl,
 			const boost::shared_ptr<FetchSession> &session, const Poseidon::Uuid &fetchUuid)
 			: Poseidon::TcpClientBase(addr, useSsl)
-			, m_timeout(getConfig<boost::uint64_t>("remote_client_timeout", 10000))
 			, m_session(session), m_fetchUuid(fetchUuid)
 		{
 			LOG_MEDUSA_DEBUG("Constructor of remote client: remote = ", Poseidon::getIpPortFromSockAddr(addr));
@@ -208,7 +206,7 @@ private:
 			try {
 				Poseidon::enqueueJob(boost::make_shared<ClientReadAvailJob>(
 					session, m_fetchUuid, STD_MOVE(data)));
-				setTimeout(m_timeout);
+				setTimeout(0);
 			} catch(std::exception &e){
 				LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
 				forceShutdown();
@@ -220,7 +218,8 @@ private:
 		void goResident(){
 			PROFILE_ME;
 
-			setTimeout(m_timeout);
+			const AUTO(connectTimeout, getConfig<boost::uint64_t>("remote_client_connect_timeout", 10000));
+			Poseidon::TcpClientBase::setTimeout(connectTimeout);
 
 			Poseidon::TcpClientBase::goResident();
 		}

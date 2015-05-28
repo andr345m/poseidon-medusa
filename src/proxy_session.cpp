@@ -457,13 +457,12 @@ void ProxySession::onFetchConnected(bool keepAlive){
 	m_keepAlive = keepAlive;
 
 	if(m_state == S_TUNNEL_CONNECTING){
-/*		Poseidon::Http::ResponseHeaders responseHeaders;
+		Poseidon::Http::ResponseHeaders responseHeaders;
 		responseHeaders.version = 10001;
 		responseHeaders.statusCode = Poseidon::Http::ST_OK;
 		responseHeaders.reason = "Connection Established";
+		responseHeaders.headers.set("Proxy-Connection", "Keep-Alive");
 		Poseidon::Http::ServerWriter::putResponse(STD_MOVE(responseHeaders), VAL_INIT);
-*/
-		Poseidon::TcpSessionBase::send(Poseidon::StreamBuffer("HTTP/1.1 200 Connection Established\r\n\r\n"));
 
 		LOG_MEDUSA_DEBUG("Tunnel established!");
 		m_state = S_TUNNEL_ESTABLISHED;
