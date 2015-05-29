@@ -8,6 +8,10 @@
 
 namespace Medusa {
 
+namespace {
+	const std::string STR_CONNECTION_ESTABLISHED("Connection Established");
+}
+
 namespace Impl {
 	void Impl::ProxySessionServerAdaptor::onRequestHeaders(
 		Poseidon::Http::RequestHeaders requestHeaders, std::string transferEncoding, boost::uint64_t contentLength)
@@ -476,14 +480,11 @@ void ProxySession::onFetchConnected(bool keepAlive){
 	m_contentLength = WAITING_FOR_HEADERS;
 
 	if(m_state == S_TUNNEL_CONNECTING){
-/*		Poseidon::Http::ResponseHeaders responseHeaders;
-		responseHeaders.version = 10001;
+		Poseidon::Http::ResponseHeaders responseHeaders;
+		responseHeaders.version = 10000;
 		responseHeaders.statusCode = Poseidon::Http::ST_OK;
-		responseHeaders.reason = "Connection Established";
-		responseHeaders.headers.set("Proxy-Connection", "Keep-Alive");
-		Poseidon::Http::ServerWriter::putResponse(STD_MOVE(responseHeaders), VAL_INIT);
-*/
-		send(Poseidon::StreamBuffer("HTTP/1.0 200 Connection established\r\n\r\n"));
+		responseHeaders.reason = STR_CONNECTION_ESTABLISHED;
+		Poseidon::Http::ServerWriter::putResponseHeaders(STD_MOVE(responseHeaders));
 
 		LOG_MEDUSA_DEBUG("Tunnel established!");
 		m_state = S_TUNNEL_ESTABLISHED;
