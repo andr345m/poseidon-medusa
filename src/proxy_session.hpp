@@ -49,10 +49,9 @@ private:
 private:
 	enum State {
 		S_HTTP_HEADERS			= 0,
-		S_HTTP_IDENTITY			= 1,
-		S_HTTP_CHUNKED			= 2,
-		S_TUNNEL_CONNECTING		= 3,
-		S_TUNNEL_ESTABLISHED	= 4,
+		S_HTTP_ENTITY			= 1,
+		S_TUNNEL_CONNECTING		= 2,
+		S_TUNNEL_ESTABLISHED	= 3,
 	};
 
 	enum {

@@ -317,16 +317,18 @@ void ProxySession::onSyncServerRequestHeaders(
 		headers.set("Connection", "Close");
 		headers.set("X-Forwarded-For", getRemoteInfo().ip.get());
 
-		if(!Poseidon::Http::ClientWriter::putRequestHeaders(STD_MOVE(requestHeaders))){
+		bool succeeded;
+		if(contentLength == Poseidon::Http::ServerReader::CONTENT_CHUNKED){
+			succeeded = Poseidon::Http::ClientWriter::putChunkedHeader(STD_MOVE(requestHeaders));
+		} else {
+			succeeded = Poseidon::Http::ClientWriter::putRequestHeaders(STD_MOVE(requestHeaders));
+		}
+		if(!succeeded){
 			LOG_MEDUSA_DEBUG("Lost connection to fetch server");
 			DEBUG_THROW(Exception, sslit("Lost connection to fetch server"));
 		}
 
-		if(contentLength == Poseidon::Http::ServerReader::CONTENT_CHUNKED){
-			m_state = ProxySession::S_HTTP_CHUNKED;
-		} else {
-			m_state = ProxySession::S_HTTP_IDENTITY;
-		}
+		m_state = ProxySession::S_HTTP_ENTITY;
 	}
 }
 void ProxySession::onSyncServerRequestEntity(
@@ -340,16 +342,16 @@ void ProxySession::onSyncServerRequestEntity(
 		return;
 	}
 
-	if(m_state == ProxySession::S_HTTP_CHUNKED){
+	if(isChunked){
 		if(!Poseidon::Http::ClientWriter::putChunk(STD_MOVE(entity))){
 			LOG_MEDUSA_DEBUG("Lost connection to fetch server");
 			DEBUG_THROW(Exception, sslit("Lost connection to fetch server"));
 		}
-	} else if(m_state == ProxySession::S_HTTP_IDENTITY){
-		Poseidon::Http::ClientWriter::putEntity(STD_MOVE(entity));
 	} else {
-		LOG_MEDUSA_ERROR("Unexpected proxy session state: ", m_state);
-		DEBUG_THROW(Exception, sslit("Unexpected proxy session state"));
+		if(!Poseidon::Http::ClientWriter::putEntity(STD_MOVE(entity))){
+			LOG_MEDUSA_DEBUG("Lost connection to fetch server");
+			DEBUG_THROW(Exception, sslit("Lost connection to fetch server"));
+		}
 	}
 }
 bool ProxySession::onSyncServerRequestEnd(
@@ -363,16 +365,11 @@ bool ProxySession::onSyncServerRequestEnd(
 		return false;
 	}
 
-	if(m_state == ProxySession::S_HTTP_IDENTITY){
-		// noop
-	} else if(m_state == ProxySession::S_HTTP_CHUNKED){
+	if(isChunked){
 		if(!Poseidon::Http::ClientWriter::putChunkedTrailer(STD_MOVE(headers))){
 			LOG_MEDUSA_DEBUG("Lost connection to fetch server");
 			DEBUG_THROW(Exception, sslit("Lost connection to fetch server"));
 		}
-	} else {
-		LOG_MEDUSA_ERROR("Unexpected proxy session state: ", m_state);
-		DEBUG_THROW(Exception, sslit("Unexpected proxy session state"));
 	}
 
 	m_state = ProxySession::S_HTTP_HEADERS;
@@ -381,7 +378,7 @@ bool ProxySession::onSyncServerRequestEnd(
 }
 
 void ProxySession::onSyncClientResponseHeaders(
-	Poseidon::Http::ResponseHeaders responseHeaders, std::string transferEncoding, boost::uint64_t contentLength)
+	Poseidon::Http::ResponseHeaders responseHeaders, std::string /* transferEncoding */, boost::uint64_t contentLength)
 {
 	PROFILE_ME;
 	LOG_MEDUSA_DEBUG("Proxy response header: fetchUuid = ", m_fetchUuid,
@@ -395,15 +392,17 @@ void ProxySession::onSyncClientResponseHeaders(
 	headers.erase("Connection");
 	headers.erase("Prxoy-Authenticate");
 	headers.erase("Upgrade");
-	if(transferEncoding.empty()){
-		headers.set("Transfer-Encoding", "chunked");
-	}
 	if(m_keepAlive){
 		headers.set("Proxy-Connection", "Keep-Alive");
 	} else {
 		headers.set("Proxy-Connection", "Close");
 	}
-	Poseidon::Http::ServerWriter::putChunkedHeader(STD_MOVE(responseHeaders));
+
+	if(contentLength == Poseidon::Http::ClientReader::CONTENT_CHUNKED){
+		Poseidon::Http::ServerWriter::putChunkedHeader(STD_MOVE(responseHeaders));
+	} else {
+		Poseidon::Http::ServerWriter::putResponseHeaders(STD_MOVE(responseHeaders));
+	}
 }
 void ProxySession::onSyncClientResponseEntity(
 	boost::uint64_t entityOffset, bool isChunked, Poseidon::StreamBuffer entity)
@@ -418,7 +417,11 @@ void ProxySession::onSyncClientResponseEntity(
 
 	m_entityOffset += entity.size();
 
-	Poseidon::Http::ServerWriter::putChunk(STD_MOVE(entity));
+	if(isChunked){
+		Poseidon::Http::ServerWriter::putChunk(STD_MOVE(entity));
+	} else {
+		Poseidon::Http::ServerWriter::putEntity(STD_MOVE(entity));
+	}
 }
 bool ProxySession::onSyncClientResponseEnd(
 	boost::uint64_t contentLength, bool isChunked, Poseidon::OptionalMap headers)
@@ -427,7 +430,9 @@ bool ProxySession::onSyncClientResponseEnd(
 	LOG_MEDUSA_DEBUG("Proxy response end: fetchUuid = ", m_fetchUuid,
 		", contentLength = ", contentLength, ", isChunked = ", isChunked);
 
-	Poseidon::Http::ServerWriter::putChunkedTrailer(STD_MOVE(headers));
+	if(isChunked){
+		Poseidon::Http::ServerWriter::putChunkedTrailer(STD_MOVE(headers));
+	}
 
 	return true;
 }
