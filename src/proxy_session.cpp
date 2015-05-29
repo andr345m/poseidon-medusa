@@ -3,7 +3,6 @@
 #include <poseidon/string.hpp>
 #include <poseidon/job_base.hpp>
 #include <poseidon/http/exception.hpp>
-#include <poseidon/http/const_strings.hpp>
 #include "singletons/fetch_client.hpp"
 #include "msg/error_codes.hpp"
 
@@ -316,7 +315,7 @@ void ProxySession::onSyncServerRequestHeaders(
 		headers.set("X-Forwarded-For", getRemoteInfo().ip.get());
 
 		if(contentLength == 0){
-			headers.set("Content-Length", Poseidon::Http::STR_0);
+			headers.erase("Content-Length");
 			headers.erase("Transfer-Encoding");
 			if(!Poseidon::Http::ClientWriter::putRequest(STD_MOVE(requestHeaders))){
 				LOG_MEDUSA_DEBUG("Lost connection to fetch server");
@@ -408,7 +407,6 @@ void ProxySession::onSyncClientResponseHeaders(
 	headers.erase("Connection");
 	headers.erase("Prxoy-Authenticate");
 	headers.erase("Upgrade");
-	headers.erase("Content-Length");
 	if(transferEncoding.empty()){
 		headers.set("Transfer-Encoding", "chunked");
 	}
