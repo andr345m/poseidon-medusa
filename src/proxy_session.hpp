@@ -55,6 +55,10 @@ private:
 		S_TUNNEL_ESTABLISHED	= 4,
 	};
 
+	enum {
+		WAITING_FOR_HEADERS		= (boost::uint64_t)-128,
+	};
+
 private:
 	const Poseidon::Uuid m_fetchUuid;
 	const boost::weak_ptr<FetchClient> m_fetchClient;
@@ -63,6 +67,8 @@ private:
 	boost::uint64_t m_headerSize;
 
 	bool m_keepAlive;
+	boost::uint64_t m_contentLength;
+	boost::uint64_t m_entityOffset;
 
 public:
 	explicit ProxySession(Poseidon::UniqueFile socket);
@@ -71,6 +77,16 @@ public:
 private:
 	void onSyncReadAvail(Poseidon::StreamBuffer data);
 	void shutdown(Poseidon::Http::StatusCode statusCode, Poseidon::OptionalMap headers, const char *what) NOEXCEPT;
+
+	void onSyncServerRequestHeaders(Poseidon::Http::RequestHeaders requestHeaders,
+		std::string transferEncoding, boost::uint64_t contentLength);
+	void onSyncServerRequestEntity(boost::uint64_t entityOffset, bool isChunked, Poseidon::StreamBuffer entity);
+	bool onSyncServerRequestEnd(boost::uint64_t contentLength, bool isChunked, Poseidon::OptionalMap headers);
+
+	void onSyncClientResponseHeaders(Poseidon::Http::ResponseHeaders responseHeaders,
+		std::string transferEncoding, boost::uint64_t contentLength);
+	void onSyncClientResponseEntity(boost::uint64_t entityOffset, bool isChunked, Poseidon::StreamBuffer entity);
+	bool onSyncClientResponseEnd(boost::uint64_t contentLength, bool isChunked, Poseidon::OptionalMap headers);
 
 protected:
 	void onClose(int errCode) NOEXCEPT OVERRIDE;
