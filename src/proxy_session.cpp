@@ -9,7 +9,7 @@
 namespace Medusa {
 
 namespace {
-	const std::string STR_CONNECTION_ESTABLISHED("Connection Established");
+	const std::string STR_CONNECTION_ESTABLISHED("Connection established");
 }
 
 namespace Impl {
