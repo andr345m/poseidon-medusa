@@ -315,7 +315,6 @@ void ProxySession::onSyncServerRequestHeaders(
 		headers.set("X-Forwarded-For", getRemoteInfo().ip.get());
 
 		if(contentLength == 0){
-			headers.erase("Content-Length");
 			headers.erase("Transfer-Encoding");
 			if(!Poseidon::Http::ClientWriter::putRequest(STD_MOVE(requestHeaders))){
 				LOG_MEDUSA_DEBUG("Lost connection to fetch server");
@@ -323,7 +322,6 @@ void ProxySession::onSyncServerRequestHeaders(
 			}
 			m_state = ProxySession::S_HTTP_IDENTITY;
 		} else {
-			headers.erase("Content-Length");
 			if(transferEncoding.empty()){
 				headers.set("Transfer-Encoding", "chunked");
 			}
