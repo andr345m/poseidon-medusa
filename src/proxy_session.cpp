@@ -533,6 +533,19 @@ void ProxySession::onFetchEnded(){
 
 	if(m_state >= S_TUNNEL_CONNECTING){
 		LOG_MEDUSA_DEBUG("Shutting down tunnel...");
+	_shutdown:
+		shutdownRead();
+		shutdownWrite();
+		return;
+	}
+
+	if(m_contentLength == WAITING_FOR_HEADERS){
+		LOG_MEDUSA_DEBUG("No valid HTTP headers received from remote server");
+		DEBUG_THROW(Poseidon::Http::Exception,
+			Poseidon::Http::ST_BAD_GATEWAY, sslit("No valid HTTP headers received from remote server"));
+	}
+	if((m_contentLength < Poseidon::Http::ClientReader::CONTENT_LENGTH_MAX) && (m_entityOffset != m_contentLength)){
+		LOG_MEDUSA_DEBUG("Contents truncated: entityOffset = ", m_entityOffset, ", contentLength = ", m_contentLength);
 		goto _shutdown;
 	}
 
@@ -540,19 +553,10 @@ void ProxySession::onFetchEnded(){
 		Poseidon::Http::ClientReader::terminateContent();
 	}
 
-	if((m_contentLength < Poseidon::Http::ClientReader::CONTENT_LENGTH_MAX) && (m_entityOffset != m_contentLength)){
-		LOG_MEDUSA_DEBUG("Contents truncated: entityOffset = ", m_entityOffset, ", contentLength = ", m_contentLength);
-		goto _shutdown;
-	}
 	if(!m_keepAlive){
 		LOG_MEDUSA_DEBUG("Proxy-Connection was set to Close. Shut down now.");
 		goto _shutdown;
 	}
-	return;
-
-_shutdown:
-	shutdownRead();
-	shutdownWrite();
 }
 void ProxySession::onFetchClosed(int cbppErrCode, int sysErrCode, std::string errMsg){
 	PROFILE_ME;
