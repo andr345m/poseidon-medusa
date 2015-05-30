@@ -97,10 +97,8 @@ private:
 
 			assert(!it->second.m_connectQueue.empty());
 			AUTO_REF(elem, it->second.m_connectQueue.front());
+
 			elem.connected = true;
-
-			session->send(it->first, Msg::SC_FetchConnected(elem.keepAlive));
-
 			if(!elem.pending.empty()){
 				const AUTO(client, it->second.m_client.lock());
 				if(client){
@@ -108,6 +106,8 @@ private:
 				}
 				elem.pending.clear();
 			}
+
+			session->send(it->first, Msg::SC_FetchConnected(elem.keepAlive));
 		}
 	};
 
@@ -127,11 +127,19 @@ private:
 			PROFILE_ME;
 			LOG_MEDUSA_DEBUG("Remote client close: fetchUuid = ", it->first, ", errCode = ", m_errCode);
 
+			assert(!it->second.m_connectQueue.empty());
+			AUTO_REF(elem, it->second.m_connectQueue.front());
+
 			if(m_errCode != 0){
 				try {
 					std::string errMsg;
 					errMsg.resize(255);
-					unsigned len = (unsigned)std::sprintf(&errMsg[0], "Lost connection to remote server: errno was %d: ", m_errCode);
+					unsigned len;
+					if(elem.connected){
+						len = (unsigned)std::sprintf(&errMsg[0], "Lost connection to remote server: errno was %d: ", m_errCode);
+					} else {
+						len = (unsigned)std::sprintf(&errMsg[0], "Could not connect to remote server: errno was %d: ", m_errCode);
+					}
 					errMsg.resize(len);
 					errMsg += Poseidon::getErrorDesc(m_errCode).get();
 					session->send(it->first, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, m_errCode, STD_MOVE(errMsg)));
@@ -142,21 +150,17 @@ private:
 				return;
 			}
 
-			assert(!it->second.m_connectQueue.empty());
-			AUTO_REF(elem, it->second.m_connectQueue.front());
-
-			session->send(it->first, Msg::SC_FetchEnded());
-
 			if(elem.keepAlive){
 				it->second.m_connectQueue.pop_front();
 				if(!it->second.m_connectQueue.empty()){
 					it->second.createClient();
 				}
 			} else {
-				session->send(it->first,
-					Msg::SC_FetchClosed(Msg::ST_OK, 0, STR_CONNECTION_IS_NOT_PERSISTENT));
+				session->send(it->first, Msg::SC_FetchClosed(Msg::ST_OK, 0, STR_CONNECTION_IS_NOT_PERSISTENT));
 				session->m_channels.erase(it);
 			}
+
+			session->send(it->first, Msg::SC_FetchEnded());
 		}
 	};
 
