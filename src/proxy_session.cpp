@@ -484,6 +484,7 @@ void ProxySession::onFetchConnected(bool keepAlive){
 		responseHeaders.version = 10000;
 		responseHeaders.statusCode = Poseidon::Http::ST_OK;
 		responseHeaders.reason = STR_CONNECTION_ESTABLISHED;
+		responseHeaders.headers.set("Proxy-Connection", "Keep-Alive");
 		Poseidon::Http::ServerWriter::putResponse(STD_MOVE(responseHeaders), VAL_INIT);
 
 		LOG_MEDUSA_DEBUG("Tunnel established!");
