@@ -83,6 +83,34 @@ private:
 		virtual void perform(const boost::shared_ptr<FetchSession> &session, std::map<Poseidon::Uuid, Channel>::iterator it) const = 0;
 	};
 
+	class ClientConnectJob : public ClientSyncJobBase {
+	public:
+		ClientConnectJob(const boost::shared_ptr<FetchSession> &session, const Poseidon::Uuid &fetchUuid)
+			: ClientSyncJobBase(session, fetchUuid)
+		{
+		}
+
+	protected:
+		void perform(const boost::shared_ptr<FetchSession> &session, std::map<Poseidon::Uuid, Channel>::iterator it) const OVERRIDE {
+			PROFILE_ME;
+			LOG_MEDUSA_DEBUG("Remote client connect: fetchUuid = ", it->first);
+
+			assert(!it->second.m_connectQueue.empty());
+			AUTO_REF(elem, it->second.m_connectQueue.front());
+			elem.connected = true;
+
+			session->send(it->first, Msg::SC_FetchConnected(elem.keepAlive));
+
+			if(!elem.pending.empty()){
+				const AUTO(client, it->second.m_client.lock());
+				if(client){
+					client->send(STD_MOVE(elem.pending));
+				}
+				elem.pending.clear();
+			}
+		}
+	};
+
 	class ClientCloseJob : public ClientSyncJobBase {
 	private:
 		const int m_errCode;
@@ -114,10 +142,12 @@ private:
 				return;
 			}
 
+			assert(!it->second.m_connectQueue.empty());
+			AUTO_REF(elem, it->second.m_connectQueue.front());
+
 			session->send(it->first, Msg::SC_FetchEnded());
 
-			const bool keepAlive = it->second.m_connectQueue.front().keepAlive;
-			if(keepAlive){
+			if(elem.keepAlive){
 				it->second.m_connectQueue.pop_front();
 				if(!it->second.m_connectQueue.empty()){
 					it->second.createClient();
@@ -173,15 +203,22 @@ private:
 		}
 
 	protected:
+		void onConnect() OVERRIDE {
+			PROFILE_ME;
+
+			const AUTO(session, m_session.lock());
+			if(session){
+				Poseidon::enqueueJob(boost::make_shared<ClientConnectJob>(
+					session, m_fetchUuid));
+			}
+
+			Poseidon::TcpClientBase::onConnect();
+		}
 		void onClose(int errCode) NOEXCEPT OVERRIDE {
 			PROFILE_ME;
 
-			do {
-				const AUTO(session, m_session.lock());
-				if(!session){
-					break;
-				}
-
+			const AUTO(session, m_session.lock());
+			if(session){
 				try {
 					Poseidon::enqueueJob(boost::make_shared<ClientCloseJob>(
 						session, m_fetchUuid, errCode));
@@ -189,7 +226,7 @@ private:
 					LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
 					session->forceShutdown();
 				}
-			} while(false);
+			}
 
 			Poseidon::TcpClientBase::onClose(errCode);
 		}
@@ -276,14 +313,6 @@ private:
 				const AUTO(client, boost::make_shared<Client>(addr, elem.useSsl, session, fetchUuid));
 				client->goResident();
 				it->second.m_client = client;
-
-				elem.connected = true;
-				if(!elem.pending.empty()){
-					client->send(STD_MOVE(elem.pending));
-					elem.pending.clear();
-				}
-
-				session->send(fetchUuid, Msg::SC_FetchConnected(elem.keepAlive));
 				it->second.m_updatedTime = Poseidon::getFastMonoClock();
 			} else {
 				session->send(fetchUuid, Msg::SC_FetchClosed(cbppErrCode, sysErrCode, STD_MOVE(errMsgStr)));
