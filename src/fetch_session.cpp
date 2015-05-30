@@ -289,7 +289,6 @@ private:
 				LOG_MEDUSA_ERROR("No pending connect request?");
 				DEBUG_THROW(Exception, sslit("No pending connect request?"));
 			}
-
 			AUTO_REF(elem, it->second.m_connectQueue.front());
 			if((elem.host != host) || (elem.port != port)){
 				LOG_MEDUSA_ERROR("Unexpected DNS callback: expecting ", elem.host, ':', elem.port, ", got ", host, ':', port);
@@ -300,16 +299,16 @@ private:
 			int sysErrCode = 0;
 			std::string errMsgStr;
 
-			if(addr.isPrivate()){
-				LOG_MEDUSA_DEBUG("Connection to private address requested. Abort.");
-				cbppErrCode = Msg::ERR_ACCESS_DENIED;
-				sysErrCode = ECONNREFUSED;
-				errMsgStr = STR_PRIVATE_ADDR_REQUESTED;
-			} else if(gaiCode != 0){
+			if(gaiCode != 0){
 				LOG_MEDUSA_DEBUG("DNS failure...");
 				cbppErrCode = Msg::ERR_DNS_FAILURE;
 				sysErrCode = gaiCode;
 				errMsgStr = errMsg;
+			} else if(addr.isPrivate()){
+				LOG_MEDUSA_DEBUG("Connection to private address requested. Abort.");
+				cbppErrCode = Msg::ERR_ACCESS_DENIED;
+				sysErrCode = ECONNREFUSED;
+				errMsgStr = STR_PRIVATE_ADDR_REQUESTED;
 			}
 
 			if(cbppErrCode == 0){
