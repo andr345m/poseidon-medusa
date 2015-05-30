@@ -12,6 +12,7 @@
 namespace Medusa {
 
 namespace {
+	const std::string STR_PRIVATE_ADDR_REQUESTED		("Connection to private address requested");
 	const std::string STR_CONNECTION_IS_NOT_PERSISTENT	("Connection is not persistent");
 	const std::string STR_NO_CONNECTION_ESTABLISHED		("No connection established");
 	const std::string STR_COULD_NOT_SEND_TO_REMOTE		("Could not send data to remote server");
@@ -254,7 +255,23 @@ private:
 				DEBUG_THROW(Exception, sslit("Unexpected DNS callback"));
 			}
 
-			if(gaiCode == 0){
+			int cbppErrCode = 0;
+			int sysErrCode = 0;
+			std::string errMsgStr;
+
+			if(addr.isPrivate()){
+				LOG_MEDUSA_DEBUG("Connection to private address requested. Abort.");
+				cbppErrCode = Msg::ERR_ACCESS_DENIED;
+				sysErrCode = ECONNREFUSED;
+				errMsgStr = STR_PRIVATE_ADDR_REQUESTED;
+			} else if(gaiCode != 0){
+				LOG_MEDUSA_DEBUG("DNS failure...");
+				cbppErrCode = Msg::ERR_DNS_FAILURE;
+				sysErrCode = gaiCode;
+				errMsgStr = errMsg;
+			}
+
+			if(cbppErrCode == 0){
 				LOG_MEDUSA_DEBUG("Creating remote client...");
 				const AUTO(client, boost::make_shared<Client>(addr, elem.useSsl, session, fetchUuid));
 				client->goResident();
@@ -269,8 +286,7 @@ private:
 				session->send(fetchUuid, Msg::SC_FetchConnected(elem.keepAlive));
 				it->second.m_updatedTime = Poseidon::getFastMonoClock();
 			} else {
-				LOG_MEDUSA_DEBUG("DNS failure...");
-				session->send(fetchUuid, Msg::SC_FetchClosed(Msg::ERR_DNS_FAILURE, gaiCode, errMsg));
+				session->send(fetchUuid, Msg::SC_FetchClosed(cbppErrCode, sysErrCode, STD_MOVE(errMsgStr)));
 				session->m_channels.erase(it);
 			}
 		} catch(std::exception &e){
