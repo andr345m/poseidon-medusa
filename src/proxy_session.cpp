@@ -402,11 +402,7 @@ void ProxySession::onSyncClientResponseHeaders(
 		headers.set("Proxy-Connection", "Close");
 	}
 
-	if(contentLength == Poseidon::Http::ClientReader::CONTENT_CHUNKED){
-		Poseidon::Http::ServerWriter::putChunkedHeader(STD_MOVE(responseHeaders));
-	} else {
-		Poseidon::Http::ServerWriter::putResponseHeaders(STD_MOVE(responseHeaders));
-	}
+	Poseidon::Http::ServerWriter::putChunkedHeader(STD_MOVE(responseHeaders));
 }
 void ProxySession::onSyncClientResponseEntity(
 	boost::uint64_t entityOffset, bool isChunked, Poseidon::StreamBuffer entity)
@@ -421,10 +417,8 @@ void ProxySession::onSyncClientResponseEntity(
 
 	m_entityOffset += entity.size();
 
-	if(isChunked){
+	if(!entity.empty()){
 		Poseidon::Http::ServerWriter::putChunk(STD_MOVE(entity));
-	} else {
-		Poseidon::Http::ServerWriter::putEntity(STD_MOVE(entity));
 	}
 }
 bool ProxySession::onSyncClientResponseEnd(
@@ -434,9 +428,7 @@ bool ProxySession::onSyncClientResponseEnd(
 	LOG_MEDUSA_DEBUG("Proxy response end: fetchUuid = ", m_fetchUuid,
 		", contentLength = ", contentLength, ", isChunked = ", isChunked);
 
-	if(isChunked){
-		Poseidon::Http::ServerWriter::putChunkedTrailer(STD_MOVE(headers));
-	}
+	Poseidon::Http::ServerWriter::putChunkedTrailer(STD_MOVE(headers));
 
 	return true;
 }
