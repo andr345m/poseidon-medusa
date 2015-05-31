@@ -93,7 +93,7 @@ private:
 	protected:
 		void perform(const boost::shared_ptr<FetchSession> &session, std::map<Poseidon::Uuid, Channel>::iterator it) const OVERRIDE {
 			PROFILE_ME;
-			LOG_MEDUSA_DEBUG("Remote client connect: fetchUuid = ", it->first);
+			LOG_MEDUSA_DEBUG("Remote client connected: fetchUuid = ", it->first);
 
 			assert(!it->second.m_connectQueue.empty());
 			AUTO_REF(elem, it->second.m_connectQueue.front());
@@ -125,7 +125,7 @@ private:
 	protected:
 		void perform(const boost::shared_ptr<FetchSession> &session, std::map<Poseidon::Uuid, Channel>::iterator it) const OVERRIDE {
 			PROFILE_ME;
-			LOG_MEDUSA_DEBUG("Remote client close: fetchUuid = ", it->first, ", errCode = ", m_errCode);
+			LOG_MEDUSA_DEBUG("Remote client closed: fetchUuid = ", it->first, ", errCode = ", m_errCode);
 
 			assert(!it->second.m_connectQueue.empty());
 			AUTO_REF(elem, it->second.m_connectQueue.front());

@@ -42,5 +42,16 @@
   # 若直接启动，ssh 掉线之后会结束，可以用 nohup 或 screen 启动挂在后台。
   ./runserver.sh
 
+修改配置文件（配置文件内有注释）：
+  # 使用 ./runserver.sh：
+  cd etc/poseidon-medusa/
+  cp medusa-template.conf medusa.conf
+  nano medusa.conf
+
+  # 使用 ./makedeb.sh 创建 .deb 包并安装后：
+  cd /usr/etc/poseidon-medusa/
+  sudo cp medusa-template.conf medusa.conf
+  sudo nano medusa.conf
+
 问题反馈
   请联系 lh_mouse at 126 dot com（注明 Medusa 相关）。
