@@ -150,6 +150,8 @@ private:
 				return;
 			}
 
+			session->send(it->first, Msg::SC_FetchEnded());
+
 			if(elem.keepAlive){
 				it->second.m_connectQueue.pop_front();
 				if(!it->second.m_connectQueue.empty()){
@@ -159,8 +161,6 @@ private:
 				session->send(it->first, Msg::SC_FetchClosed(Msg::ST_OK, 0, STR_CONNECTION_IS_NOT_PERSISTENT));
 				session->m_channels.erase(it);
 			}
-
-			session->send(it->first, Msg::SC_FetchEnded());
 		}
 	};
 
