@@ -559,8 +559,8 @@ void ProxySession::onFetchClosed(int cbppErrCode, int sysErrCode, std::string er
 		return;
 	}
 
-	char temp[64];
-	unsigned len = (unsigned)std::sprintf(temp, "Fetch error %d: ", cbppErrCode);
+	char temp[256];
+	unsigned len = (unsigned)std::sprintf(temp, "Fetch error %d (sys error %d): ", cbppErrCode, sysErrCode);
 	errMsg.insert(errMsg.begin(), temp, temp + len);
 	shutdown(Poseidon::Http::ST_BAD_GATEWAY, VAL_INIT, errMsg.c_str());
 }
