@@ -81,7 +81,6 @@ boost::shared_ptr<FetchClient> FetchClient::require(){
 		AUTO(pass, getConfig<std::string>("fetch_client_password", ""));
 
 		const Poseidon::IpPort addrPort(SharedNts(addr), port);
-		LOG_MEDUSA_INFO("Creating fetch client to ", addrPort, (ssl ? " using SSL" : ""));
 		client.reset(new FetchClient(addrPort, ssl, hbtm, STD_MOVE(pass)));
 		client->goResident();
 		weakClient = client;
@@ -93,8 +92,15 @@ FetchClient::FetchClient(const Poseidon::IpPort &addr, bool useSsl, boost::uint6
 	: Poseidon::Cbpp::Client(addr, useSsl, keepAliveInterval)
 	, m_password(STD_MOVE(password))
 {
+	LOG_MEDUSA_INFO("Creating fetch client: addr = ", addr);
 }
 FetchClient::~FetchClient(){
+	try {
+		LOG_MEDUSA_INFO("Shutting down fetch client: addr = ", getRemoteInfo());
+	} catch(...){
+		LOG_MEDUSA_INFO("Shutting down fetch client: remote is not connected.");
+	}
+
 	clear(Msg::ERR_CONNECTION_LOST, ECONNRESET, "Lost connection to fetch server");
 }
 
