@@ -57,6 +57,7 @@ namespace {
 		DnsDaemon::ExceptionCallback except;
 		bool isLowLevel;
 
+		std::string hostStr;
 		char portStr[16];
 		::gaicb cb;
 		::gaicb *req;
@@ -66,8 +67,16 @@ namespace {
 			: host(STD_MOVE(host_)), port(port_)
 			, callback(STD_MOVE_IDN(callback_)), except(STD_MOVE_IDN(except_)), isLowLevel(isLowLevel_)
 		{
+			assert(!host.empty());
+
+			if((host.begin()[0] == '[') && (host.end()[-1] == ']')){
+				hostStr.assign(host.begin() + 1, host.end() - 1);
+			} else {
+				hostStr = host;
+			}
 			std::sprintf(portStr, "%hu", port);
-			cb.ar_name = host.c_str();
+
+			cb.ar_name = hostStr.c_str();
 			cb.ar_service = portStr;
 			cb.ar_request = NULLPTR;
 			cb.ar_result = NULLPTR;
@@ -141,6 +150,11 @@ void DnsDaemon::asyncLookup(std::string host, unsigned port,
 	DnsDaemon::Callback callback, DnsDaemon::ExceptionCallback except, bool isLowLevel)
 {
 	PROFILE_ME;
+
+	if(host.empty()){
+		LOG_MEDUSA_ERROR("Empty host string?");
+		DEBUG_THROW(Exception, sslit("Empty host string?"));
+	}
 
 	const AUTO(param, new DnsCallbackParam(STD_MOVE(host), port, STD_MOVE(callback), STD_MOVE(except), isLowLevel));
 	try {
