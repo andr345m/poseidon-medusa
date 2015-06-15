@@ -277,7 +277,16 @@ void ProxySession::onSyncServerRequestHeaders(
 		host = STD_MOVE(requestHeaders.uri);
 		requestHeaders.uri = "/";
 	}
-	pos = host.find(':');
+	if(host[0] == '['){
+		pos = host.find(']');
+		if(pos == std::string::npos){
+			LOG_MEDUSA_DEBUG("Invalid IPv6 address: host = ", host);
+			DEBUG_THROW(Poseidon::Http::Exception, Poseidon::Http::ST_BAD_REQUEST);
+		}
+		pos = host.find(':', pos + 1);
+	} else {
+		pos = host.find(':');
+	}
 	if(pos != std::string::npos){
 		char *endptr;
 		port = std::strtoul(host.c_str() + pos + 1, &endptr, 10);
