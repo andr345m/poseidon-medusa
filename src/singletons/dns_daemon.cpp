@@ -103,12 +103,10 @@ namespace {
 			if(gaiCode == 0){
 				sockAddr = Poseidon::SockAddr(param->cb.ar_result->ai_addr, param->cb.ar_result->ai_addrlen);
 				errMsg = "";
-				LOG_MEDUSA_DEBUG("DNS lookup success: host:port = ", param->host, ':', param->port,
-					", result = ", Poseidon::getIpPortFromSockAddr(sockAddr));
+				LOG_MEDUSA_DEBUG("DNS lookup success: host = ", param->host, ", result = ", Poseidon::getIpPortFromSockAddr(sockAddr).ip);
 			} else {
 				errMsg = ::gai_strerror(gaiCode);
-				LOG_MEDUSA_DEBUG("DNS lookup failure: host:port = ", param->host, ':', param->port,
-					", gaiCode = ", gaiCode, ", errMsg = ", errMsg);
+				LOG_MEDUSA_DEBUG("DNS lookup failure: host:port = ", param->host, ", gaiCode = ", gaiCode, ", errMsg = ", errMsg);
 			}
 
 			if(param->isLowLevel){
