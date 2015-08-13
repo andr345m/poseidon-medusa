@@ -125,9 +125,6 @@ protected:
 
 		try {
 			session->onSyncReadAvail(STD_MOVE(m_data));
-		} catch(TryAgainLater &){
-			LOG_MEDUSA_FATAL("You are not allowed to throw TryAgainLater here.");
-			std::abort();
 		} catch(Poseidon::Http::Exception &e){
 			LOG_MEDUSA_INFO("Http::Exception thrown: statusCode = ", e.statusCode(), ", what = ", e.what());
 			session->shutdown(e.statusCode(), e.headers(), e.what());
