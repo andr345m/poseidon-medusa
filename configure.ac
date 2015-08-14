@@ -6,7 +6,7 @@ AC_CONFIG_MACRO_DIR([m4])
 AC_PROG_CXX
 AC_PROG_LIBTOOL
 
-AC_CHECK_LIB([tcmalloc], [main], [], [exit -2;])
+# AC_CHECK_LIB([tcmalloc], [main], [], [exit -2;])
 AC_CHECK_LIB([anl], [main], [], [exit -2;])
 AC_CHECK_LIB([poseidon-main], [main], [], [exit -2;])
 
