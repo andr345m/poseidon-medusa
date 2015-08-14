@@ -509,7 +509,7 @@ void FetchSession::onSyncDataMessage(boost::uint16_t messageId, const Poseidon::
 
 	if(!m_gcTimer){
 		m_gcTimer = Poseidon::TimerDaemon::registerTimer(5000, 5000,
-			boost::bind(&syncGcTimerProc, virtualWeakFromThis<FetchSession>(), _1));
+			boost::bind(&syncGcTimerProc, virtualWeakFromThis<FetchSession>(), _2));
 	}
 
 	const AUTO(headerSize, getEncryptedHeaderSize());
