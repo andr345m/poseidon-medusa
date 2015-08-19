@@ -241,6 +241,8 @@ void ProxySession::onSyncServerRequestHeaders(
 			Poseidon::Http::ST_NOT_FOUND, sslit("What do you wanna get from a proxy server by relative URI? :>"));
 	}
 
+	LOG_MEDUSA_INFO("Fetch URI: ", requestHeaders.uri);
+
 	AUTO_REF(headers, requestHeaders.headers);
 
 	// TODO 代理服务器登录。
