@@ -3,24 +3,12 @@
 
 #include <string>
 #include <boost/function.hpp>
-#include <poseidon/sock_addr.hpp>
+#include <poseidon/fwd.hpp>
 
 namespace Medusa {
 
 struct DnsDaemon {
-	typedef boost::function<
-		void (const std::string &host, unsigned port,
-			// gaiCode 是 getaddrinfo() 的返回值。
-			int gaiCode, const Poseidon::SockAddr &addr, const char *errMsg)
-		> Callback;
-
-	typedef boost::function<
-		void ()
-		> ExceptionCallback;
-
-	// except 不是线程安全的。
-	static void asyncLookup(std::string host, unsigned port, Callback callback,
-		ExceptionCallback except = ExceptionCallback(), bool isLowLevel = false);
+	static void syncLookUp(Poseidon::SockAddr &sockAddr, const std::string &host, unsigned port);
 
 private:
 	DnsDaemon();

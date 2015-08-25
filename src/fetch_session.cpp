@@ -2,6 +2,7 @@
 #include "fetch_session.hpp"
 #include <poseidon/singletons/timer_daemon.hpp>
 #include <poseidon/job_base.hpp>
+#include <poseidon/sock_addr.hpp>
 #include <poseidon/tcp_client_base.hpp>
 #include "encryption.hpp"
 #include "msg/cs_fetch.hpp"
@@ -268,75 +269,6 @@ private:
 	};
 
 private:
-	static void dnsCallback(const boost::weak_ptr<FetchSession> &weakSession, const Poseidon::Uuid &fetchUuid,
-		const std::string &host, unsigned port, int gaiCode, const Poseidon::SockAddr &addr, const char *errMsg)
-	{
-		PROFILE_ME;
-		LOG_MEDUSA_DEBUG("DNS result: fetchUuid = ", fetchUuid,
-			", host:port = ", host, ':', port, ", gaiCode = ", gaiCode, ", errMsg = ", errMsg);
-
-		const AUTO(session, weakSession.lock());
-		if(!session){
-			return;
-		}
-		const AUTO(it, session->m_channels.find(fetchUuid));
-		if(it == session->m_channels.end()){
-			return;
-		}
-
-		try {
-			if(it->second.m_connectQueue.empty()){
-				LOG_MEDUSA_ERROR("No pending connect request?");
-				DEBUG_THROW(Exception, sslit("No pending connect request?"));
-			}
-			AUTO_REF(elem, it->second.m_connectQueue.front());
-			if((elem.host != host) || (elem.port != port)){
-				LOG_MEDUSA_ERROR("Unexpected DNS callback: expecting ", elem.host, ':', elem.port, ", got ", host, ':', port);
-				DEBUG_THROW(Exception, sslit("Unexpected DNS callback"));
-			}
-
-			int cbppErrCode = 0;
-			int sysErrCode = 0;
-			std::string errMsgStr;
-
-			if(gaiCode != 0){
-				LOG_MEDUSA_DEBUG("DNS failure...");
-				cbppErrCode = Msg::ERR_DNS_FAILURE;
-				sysErrCode = gaiCode;
-				errMsgStr = errMsg;
-			} else if(addr.isPrivate()){
-				LOG_MEDUSA_DEBUG("Connection to private address requested. Abort.");
-				cbppErrCode = Msg::ERR_ACCESS_DENIED;
-				sysErrCode = ECONNREFUSED;
-				errMsgStr = STR_PRIVATE_ADDR_REQUESTED;
-			}
-
-			if(cbppErrCode == 0){
-				LOG_MEDUSA_DEBUG("Creating remote client...");
-				const AUTO(client, boost::make_shared<Client>(addr, elem.useSsl, session, fetchUuid));
-				client->goResident();
-				it->second.m_client = client;
-				it->second.m_updatedTime = Poseidon::getFastMonoClock();
-			} else {
-				session->send(fetchUuid, Msg::SC_FetchClosed(cbppErrCode, sysErrCode, STD_MOVE(errMsgStr)));
-				session->m_channels.erase(it);
-			}
-		} catch(std::exception &e){
-			LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
-			session->forceShutdown();
-		}
-	}
-	static void dnsException(const boost::weak_ptr<FetchSession> &weakSession) NOEXCEPT {
-		PROFILE_ME;
-		LOG_MEDUSA_ERROR("Handling DNS exception...");
-
-		const AUTO(session, weakSession.lock());
-		if(session){
-			session->forceShutdown();
-		}
-	}
-
-private:
 	const boost::weak_ptr<FetchSession> m_session;
 	const Poseidon::Uuid m_fetchUuid;
 
@@ -363,9 +295,47 @@ private:
 		const AUTO_REF(elem, m_connectQueue.front());
 		LOG_MEDUSA_DEBUG("Next fetch request: host:port = ", elem.host, ':', elem.port,
 			", useSsl = ", elem.useSsl, ", keepAlive = ", elem.keepAlive);
-		DnsDaemon::asyncLookup(elem.host, elem.port,
-			boost::bind(&dnsCallback, m_session, m_fetchUuid,  _1, _2, _3, _4, _5),
-			boost::bind(&dnsException, m_session), false);
+		try {
+			Poseidon::SockAddr addr;
+			try {
+				DnsDaemon::syncLookUp(addr, elem.host, elem.port);
+			} catch(std::exception &e){
+				LOG_MEDUSA_DEBUG("DNS failure...");
+				const AUTO(session, m_session.lock());
+				if(session){
+					session->send(m_fetchUuid, Msg::SC_FetchClosed(Msg::ERR_DNS_FAILURE, -1, e.what()));
+					session->m_channels.erase(m_fetchUuid);
+				}
+				return;
+			}
+			LOG_MEDUSA_DEBUG("DNS lookup succeeded: fetchUuid = ", m_fetchUuid, ", host:port = ", elem.host, ':', elem.port);
+
+			if(addr.isPrivate()){
+				LOG_MEDUSA_DEBUG("Connection to private address requested. Abort.");
+				const AUTO(session, m_session.lock());
+				if(session){
+					session->send(m_fetchUuid, Msg::SC_FetchClosed(Msg::ERR_ACCESS_DENIED, ECONNREFUSED, STR_PRIVATE_ADDR_REQUESTED));
+					session->m_channels.erase(m_fetchUuid);
+				}
+				return;
+			}
+
+			const AUTO(session, m_session.lock());
+			if(!session){
+				return;
+			}
+			LOG_MEDUSA_DEBUG("Creating remote client...");
+			const AUTO(client, boost::make_shared<Client>(addr, elem.useSsl, session, m_fetchUuid));
+			client->goResident();
+			m_client = client;
+			m_updatedTime = Poseidon::getFastMonoClock();
+		} catch(std::exception &e){
+			LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
+			const AUTO(session, m_session.lock());
+			if(session){
+				session->forceShutdown();
+			}
+		}
 	}
 	void killClient(bool force){
 		PROFILE_ME;
