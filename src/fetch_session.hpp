@@ -20,7 +20,7 @@ private:
 
 	boost::shared_ptr<Poseidon::TimerItem> m_gcTimer;
 
-	std::map<Poseidon::Uuid, Channel> m_channels;
+	std::map<Poseidon::Uuid, boost::shared_ptr<Channel> > m_channels;
 
 public:
 	FetchSession(Poseidon::UniqueFile socket, std::string password);

@@ -39,6 +39,8 @@ private:
 		}
 	};
 
+	typedef std::map<Poseidon::Uuid, boost::shared_ptr<Channel> >::iterator ChannelIterator;
+
 	class ClientSyncJobBase : public Poseidon::JobBase {
 	private:
 		const boost::weak_ptr<FetchSession> m_session;
@@ -81,7 +83,7 @@ private:
 		}
 
 	protected:
-		virtual void perform(const boost::shared_ptr<FetchSession> &session, std::map<Poseidon::Uuid, Channel>::iterator it) const = 0;
+		virtual void perform(const boost::shared_ptr<FetchSession> &session, ChannelIterator it) const = 0;
 	};
 
 	class ClientConnectJob : public ClientSyncJobBase {
@@ -92,16 +94,17 @@ private:
 		}
 
 	protected:
-		void perform(const boost::shared_ptr<FetchSession> &session, std::map<Poseidon::Uuid, Channel>::iterator it) const OVERRIDE {
+		void perform(const boost::shared_ptr<FetchSession> &session, ChannelIterator it) const OVERRIDE {
 			PROFILE_ME;
 			LOG_MEDUSA_DEBUG("Remote client connected: fetchUuid = ", it->first);
 
-			assert(!it->second.m_connectQueue.empty());
-			AUTO_REF(elem, it->second.m_connectQueue.front());
+			const AUTO(channel, it->second);
+			assert(!channel->m_connectQueue.empty());
+			AUTO_REF(elem, channel->m_connectQueue.front());
 
 			elem.connected = true;
 			if(!elem.pending.empty()){
-				const AUTO(client, it->second.m_client.lock());
+				const AUTO(client, channel->m_client.lock());
 				if(client){
 					client->send(STD_MOVE(elem.pending));
 				}
@@ -124,12 +127,13 @@ private:
 		}
 
 	protected:
-		void perform(const boost::shared_ptr<FetchSession> &session, std::map<Poseidon::Uuid, Channel>::iterator it) const OVERRIDE {
+		void perform(const boost::shared_ptr<FetchSession> &session, ChannelIterator it) const OVERRIDE {
 			PROFILE_ME;
 			LOG_MEDUSA_DEBUG("Remote client closed: fetchUuid = ", it->first, ", errCode = ", m_errCode);
 
-			assert(!it->second.m_connectQueue.empty());
-			AUTO_REF(elem, it->second.m_connectQueue.front());
+			const AUTO(channel, it->second);
+			assert(!channel->m_connectQueue.empty());
+			AUTO_REF(elem, channel->m_connectQueue.front());
 
 			if(m_errCode != 0){
 				try {
@@ -154,9 +158,9 @@ private:
 			session->send(it->first, Msg::SC_FetchEnded());
 
 			if(elem.keepAlive){
-				it->second.m_connectQueue.pop_front();
-				if(!it->second.m_connectQueue.empty()){
-					it->second.createClient();
+				channel->m_connectQueue.pop_front();
+				if(!channel->m_connectQueue.empty()){
+					channel->createClient();
 				}
 			} else {
 				session->send(it->first, Msg::SC_FetchClosed(Msg::ST_OK, 0, STR_CONNECTION_IS_NOT_PERSISTENT));
@@ -177,12 +181,14 @@ private:
 		}
 
 	protected:
-		void perform(const boost::shared_ptr<FetchSession> &session, std::map<Poseidon::Uuid, Channel>::iterator it) const OVERRIDE {
+		void perform(const boost::shared_ptr<FetchSession> &session, ChannelIterator it) const OVERRIDE {
 			PROFILE_ME;
 			LOG_MEDUSA_DEBUG("Remote client read avail: fetchUuid = ", it->first, ", size = ", m_data.size());
 
+			const AUTO(channel, it->second);
+
 			session->send(it->first, Msg::SC_FetchReceived::ID, STD_MOVE(m_data));
-			it->second.m_updatedTime = Poseidon::getFastMonoClock();
+			channel->m_updatedTime = Poseidon::getFastMonoClock();
 		}
 	};
 
@@ -466,7 +472,8 @@ void FetchSession::onSyncGcTimer(boost::uint64_t now){
 	const AUTO(gcTimeout, getConfig<boost::uint64_t>("fetch_channel_gc_timeout", 30000));
 
 	for(AUTO(next, m_channels.begin()), it = next; (next != m_channels.end()) && (++next, true); it = next){
-		if(now < it->second.getUpdatedTime() + gcTimeout){
+		const AUTO_REF(channel, it->second);
+		if(now < channel->getUpdatedTime() + gcTimeout){
 			continue;
 		}
 		LOG_MEDUSA_DEBUG("Remote client shutdown due to inactivity: fetchUuid = ", it->first);
@@ -516,9 +523,11 @@ void FetchSession::onSyncDataMessage(boost::uint16_t messageId, const Poseidon::
 	ON_MESSAGE(Msg::CS_FetchConnect, req){
 		AUTO(it, m_channels.find(fetchUuid));
 		if(it == m_channels.end()){
-			it = m_channels.insert(std::make_pair(fetchUuid, Channel(virtualSharedFromThis<FetchSession>(), fetchUuid))).first;
+			it = m_channels.insert(std::make_pair(fetchUuid,
+				boost::make_shared<Channel>(virtualSharedFromThis<FetchSession>(), fetchUuid))).first;
 		}
-		it->second.connect(STD_MOVE(req.host), req.port, req.useSsl, req.keepAlive);
+		const AUTO(channel, it->second);
+		channel->connect(STD_MOVE(req.host), req.port, req.useSsl, req.keepAlive);
 	}
 	ON_RAW_MESSAGE(Msg::CS_FetchSend, req){
 		const AUTO(it, m_channels.find(fetchUuid));
@@ -526,7 +535,8 @@ void FetchSession::onSyncDataMessage(boost::uint16_t messageId, const Poseidon::
 			send(fetchUuid, Msg::SC_FetchClosed(Msg::ERR_NOT_CONNECTED, ENOTCONN, STR_NO_CONNECTION_ESTABLISHED));
 			break;
 		}
-		if(!it->second.send(STD_MOVE(req))){
+		const AUTO(channel, it->second);
+		if(!channel->send(STD_MOVE(req))){
 			send(fetchUuid, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, EPIPE, STR_COULD_NOT_SEND_TO_REMOTE));
 			m_channels.erase(it);
 			break;
@@ -538,7 +548,8 @@ void FetchSession::onSyncDataMessage(boost::uint16_t messageId, const Poseidon::
 			send(fetchUuid, Msg::SC_FetchClosed(Msg::ERR_NOT_CONNECTED, ENOTCONN, STR_NO_CONNECTION_ESTABLISHED));
 			break;
 		}
-		it->second.close(req.errCode);
+		const AUTO(channel, it->second);
+		channel->close(req.errCode);
 		m_channels.erase(it);
 	}
 //=============================================================================
