@@ -131,16 +131,12 @@ std::pair<boost::shared_ptr<EncryptionContext>, Poseidon::StreamBuffer> encryptH
 Poseidon::StreamBuffer encryptPayload(const boost::shared_ptr<EncryptionContext> &context, Poseidon::StreamBuffer plain){
 	PROFILE_ME;
 
-	struct Helper {
-		static bool callback(void *context, void *data, std::size_t size){
-			encryptBytes(static_cast<EncryptionContext *>(context), static_cast<unsigned char *>(data), size);
-			return true;
-		}
-	};
-
-	Poseidon::StreamBuffer ret(STD_MOVE(plain));
-	ret.traverse(&Helper::callback, context.get());
-	return ret;
+	AUTO(ce, plain.getChunkEnumerator());
+	while(ce){
+		encryptBytes(context.get(), ce.data(), ce.size());
+		++ce;
+	}
+	return STD_MOVE(plain);
 }
 
 boost::shared_ptr<EncryptionContext> tryDecryptHeader(const Poseidon::StreamBuffer &encrypted, const std::string &key){
@@ -166,16 +162,12 @@ boost::shared_ptr<EncryptionContext> tryDecryptHeader(const Poseidon::StreamBuff
 Poseidon::StreamBuffer decryptPayload(const boost::shared_ptr<EncryptionContext> &context, Poseidon::StreamBuffer encrypted){
 	PROFILE_ME;
 
-	struct Helper {
-		static bool callback(void *context, void *data, std::size_t size){
-			decryptBytes(static_cast<EncryptionContext *>(context), static_cast<unsigned char *>(data), size);
-			return true;
-		}
-	};
-
-	Poseidon::StreamBuffer ret(STD_MOVE(encrypted));
-	ret.traverse(&Helper::callback, context.get());
-	return ret;
+	AUTO(ce, encrypted.getChunkEnumerator());
+	while(ce){
+		decryptBytes(context.get(), ce.data(), ce.size());
+		++ce;
+	}
+	return STD_MOVE(encrypted);
 }
 
 }
