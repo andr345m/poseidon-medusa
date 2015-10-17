@@ -56,7 +56,7 @@ private:
 		boost::weak_ptr<const void> getCategory() const FINAL {
 			return m_session;
 		}
-		void perform() const FINAL {
+		void perform() FINAL {
 			PROFILE_ME;
 
 			const AUTO(session, m_session.lock());
@@ -69,7 +69,7 @@ private:
 			}
 
 			try {
-				perform(session, it);
+				reallyPerform(session, it);
 			} catch(std::exception &e){
 				LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
 				try {
@@ -83,7 +83,7 @@ private:
 		}
 
 	protected:
-		virtual void perform(const boost::shared_ptr<FetchSession> &session, ChannelIterator it) const = 0;
+		virtual void reallyPerform(const boost::shared_ptr<FetchSession> &session, ChannelIterator it) = 0;
 	};
 
 	class ClientConnectJob : public ClientSyncJobBase {
@@ -94,7 +94,7 @@ private:
 		}
 
 	protected:
-		void perform(const boost::shared_ptr<FetchSession> &session, ChannelIterator it) const OVERRIDE {
+		void reallyPerform(const boost::shared_ptr<FetchSession> &session, ChannelIterator it) OVERRIDE {
 			PROFILE_ME;
 			LOG_MEDUSA_DEBUG("Remote client connected: fetchUuid = ", it->first);
 
@@ -117,7 +117,7 @@ private:
 
 	class ClientCloseJob : public ClientSyncJobBase {
 	private:
-		const int m_errCode;
+		int m_errCode;
 
 	public:
 		ClientCloseJob(const boost::shared_ptr<FetchSession> &session, const Poseidon::Uuid &fetchUuid, int errCode)
@@ -127,7 +127,7 @@ private:
 		}
 
 	protected:
-		void perform(const boost::shared_ptr<FetchSession> &session, ChannelIterator it) const OVERRIDE {
+		void reallyPerform(const boost::shared_ptr<FetchSession> &session, ChannelIterator it) OVERRIDE {
 			PROFILE_ME;
 			LOG_MEDUSA_DEBUG("Remote client closed: fetchUuid = ", it->first, ", errCode = ", m_errCode);
 
@@ -171,7 +171,7 @@ private:
 
 	class ClientReadAvailJob : public ClientSyncJobBase {
 	private:
-		mutable Poseidon::StreamBuffer m_data;
+		Poseidon::StreamBuffer m_data;
 
 	public:
 		ClientReadAvailJob(const boost::shared_ptr<FetchSession> &session, const Poseidon::Uuid &fetchUuid, Poseidon::StreamBuffer data)
@@ -181,7 +181,7 @@ private:
 		}
 
 	protected:
-		void perform(const boost::shared_ptr<FetchSession> &session, ChannelIterator it) const OVERRIDE {
+		void reallyPerform(const boost::shared_ptr<FetchSession> &session, ChannelIterator it) OVERRIDE {
 			PROFILE_ME;
 			LOG_MEDUSA_DEBUG("Remote client read avail: fetchUuid = ", it->first, ", size = ", m_data.size());
 
@@ -481,7 +481,7 @@ void FetchSession::onSyncGcTimer(boost::uint64_t now){
 	}
 }
 
-void FetchSession::onSyncDataMessage(boost::uint16_t messageId, const Poseidon::StreamBuffer &payload){
+void FetchSession::onSyncDataMessage(boost::uint16_t messageId, Poseidon::StreamBuffer payload){
 	PROFILE_ME;
 
 	if(!m_gcTimer){
@@ -499,9 +499,8 @@ void FetchSession::onSyncDataMessage(boost::uint16_t messageId, const Poseidon::
 		LOG_MEDUSA_WARNING("Unexpected checksum. Maybe you provided a wrong password?");
 		DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ST_FORBIDDEN);
 	}
-	Poseidon::StreamBuffer temp(payload);
-	temp.discard(headerSize);
-	AUTO(plain, decryptPayload(context, STD_MOVE(temp)));
+	payload.discard(headerSize);
+	AUTO(plain, decryptPayload(context, STD_MOVE(payload)));
 
 	const AUTO_REF(fetchUuid, context->uuid);
 	LOG_MEDUSA_DEBUG("Fetch request: fetchUuid = ", fetchUuid, ", messageId = ", messageId);

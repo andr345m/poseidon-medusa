@@ -88,7 +88,7 @@ protected:
 	boost::weak_ptr<const void> getCategory() const FINAL {
 		return m_session;
 	}
-	void perform() const FINAL {
+	void perform() FINAL {
 		PROFILE_ME;
 
 		const AUTO(fetchClient, m_fetchClient.lock());
@@ -103,7 +103,7 @@ class ProxySession::ReadAvailJob : public Poseidon::JobBase {
 private:
 	const boost::weak_ptr<ProxySession> m_session;
 
-	mutable Poseidon::StreamBuffer m_data;
+	Poseidon::StreamBuffer m_data;
 
 public:
 	ReadAvailJob(const boost::shared_ptr<ProxySession> &session, Poseidon::StreamBuffer data)
@@ -115,7 +115,7 @@ protected:
 	boost::weak_ptr<const void> getCategory() const FINAL {
 		return m_session;
 	}
-	void perform() const FINAL {
+	void perform() FINAL {
 		PROFILE_ME;
 
 		const AUTO(session, m_session.lock());

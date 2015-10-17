@@ -50,7 +50,7 @@ protected:
 	boost::weak_ptr<const void> getCategory() const FINAL {
 		return m_client;
 	}
-	void perform() const FINAL {
+	void perform() FINAL {
 		PROFILE_ME;
 
 		if(m_errCode == 0){
@@ -144,12 +144,11 @@ void FetchClient::onSyncDataMessageHeader(boost::uint16_t messageId, boost::uint
 	m_messageId = messageId;
 	m_payload.clear();
 }
-void FetchClient::onSyncDataMessagePayload(boost::uint64_t payloadOffset, const Poseidon::StreamBuffer &payload){
+void FetchClient::onSyncDataMessagePayload(boost::uint64_t payloadOffset, Poseidon::StreamBuffer payload){
 	PROFILE_ME;
 	LOG_MEDUSA_DEBUG("Fetch data message fragment: payloadOffset = ", payloadOffset, ", fragmentSize = ", payload.size());
 
-	AUTO(temp, payload);
-	m_payload.splice(temp);
+	m_payload.splice(payload);
 }
 void FetchClient::onSyncDataMessageEnd(boost::uint64_t payloadSize){
 	PROFILE_ME;
@@ -234,7 +233,7 @@ void FetchClient::onSyncDataMessageEnd(boost::uint64_t payloadSize){
 	}
 }
 
-void FetchClient::onSyncErrorMessage(boost::uint16_t messageId, Poseidon::Cbpp::StatusCode statusCode, const std::string &reason){
+void FetchClient::onSyncErrorMessage(boost::uint16_t messageId, Poseidon::Cbpp::StatusCode statusCode, std::string reason){
 	PROFILE_ME;
 
 	if((messageId != Poseidon::Cbpp::ControlMessage::ID) && (statusCode != Msg::ST_OK)){
@@ -242,7 +241,7 @@ void FetchClient::onSyncErrorMessage(boost::uint16_t messageId, Poseidon::Cbpp::
 		forceShutdown();
 	}
 
-	Poseidon::Cbpp::Client::onSyncErrorMessage(messageId, statusCode, reason);
+	Poseidon::Cbpp::Client::onSyncErrorMessage(messageId, statusCode, STD_MOVE(reason));
 }
 
 bool FetchClient::connect(const boost::shared_ptr<ProxySession> &session, std::string host, unsigned port, bool useSsl, bool keepAlive){

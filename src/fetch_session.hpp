@@ -30,7 +30,7 @@ private:
 	void onSyncGcTimer(boost::uint64_t now);
 
 protected:
-	void onSyncDataMessage(boost::uint16_t messageId, const Poseidon::StreamBuffer &payload) OVERRIDE;
+	void onSyncDataMessage(boost::uint16_t messageId, Poseidon::StreamBuffer payload) OVERRIDE;
 
 public:
 	bool send(const Poseidon::Uuid &fetchUuid, boost::uint16_t messageId, Poseidon::StreamBuffer plain);

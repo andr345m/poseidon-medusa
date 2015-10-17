@@ -45,10 +45,10 @@ protected:
 	void onClose(int errCode) NOEXCEPT OVERRIDE;
 
 	void onSyncDataMessageHeader(boost::uint16_t messageId, boost::uint64_t payloadSize) OVERRIDE;
-	void onSyncDataMessagePayload(boost::uint64_t payloadOffset, const Poseidon::StreamBuffer &payload) OVERRIDE;
+	void onSyncDataMessagePayload(boost::uint64_t payloadOffset, Poseidon::StreamBuffer payload) OVERRIDE;
 	void onSyncDataMessageEnd(boost::uint64_t payloadSize) OVERRIDE;
 
-	void onSyncErrorMessage(boost::uint16_t messageId, Poseidon::Cbpp::StatusCode statusCode, const std::string &reason) OVERRIDE;
+	void onSyncErrorMessage(boost::uint16_t messageId, Poseidon::Cbpp::StatusCode statusCode, std::string reason) OVERRIDE;
 
 public:
 	bool connect(const boost::shared_ptr<ProxySession> &session, std::string host, unsigned port, bool useSsl, bool keepAlive);
