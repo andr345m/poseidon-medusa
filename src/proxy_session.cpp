@@ -9,7 +9,9 @@
 namespace Medusa {
 
 namespace {
-	const std::string STR_CONNECTION_ESTABLISHED("Connection established");
+	const std::string STR_CONNECTION_ESTABLISHED = "Connection established";
+	const std::string STR_KEEP_ALIVE             = "Keep-Alive";
+	const std::string STR_CLOSE                  = "Close";
 }
 
 namespace Impl {
@@ -207,8 +209,8 @@ void ProxySession::shutdown(Poseidon::Http::StatusCode statusCode, Poseidon::Opt
 	}
 
 	try {
-		headers.set("Connection", "Close");
-		headers.set("Proxy-Connection", "Close");
+		headers.set(sslit("Connection"), "Close");
+		headers.set(sslit("Proxy-Connection"), "Close");
 
 		Poseidon::Http::ResponseHeaders responseHeaders;
 		responseHeaders.version = 10001;
@@ -300,9 +302,9 @@ void ProxySession::onSyncServerRequestHeaders(
 	if(requestHeaders.verb != Poseidon::Http::V_CONNECT){
 		const AUTO_REF(connection, headers.get("Proxy-Connection"));
 		if(requestHeaders.version < 10001){
-			keepAlive = (::strcasecmp(connection.c_str(), "Keep-Alive") == 0);
+			keepAlive = (::strcasecmp(connection.c_str(), STR_KEEP_ALIVE.c_str()) == 0);
 		} else {
-			keepAlive = (::strcasecmp(connection.c_str(), "Close") != 0);
+			keepAlive = (::strcasecmp(connection.c_str(), STR_CLOSE.c_str()) != 0);
 		}
 	}
 
@@ -326,8 +328,8 @@ void ProxySession::onSyncServerRequestHeaders(
 		headers.erase("Proxy-Connection");
 		headers.erase("Upgrade");
 
-		headers.set("Connection", "Close");
-		headers.set("X-Forwarded-For", getRemoteInfo().ip.get());
+		headers.set(sslit("Connection"), "Close");
+		headers.set(sslit("X-Forwarded-For"), getRemoteInfo().ip.get());
 
 		bool succeeded;
 		if(contentLength == Poseidon::Http::ServerReader::CONTENT_CHUNKED){
@@ -404,11 +406,7 @@ void ProxySession::onSyncClientResponseHeaders(
 	headers.erase("Connection");
 	headers.erase("Prxoy-Authenticate");
 	headers.erase("Upgrade");
-	if(m_keepAlive){
-		headers.set("Proxy-Connection", "Keep-Alive");
-	} else {
-		headers.set("Proxy-Connection", "Close");
-	}
+	headers.set(sslit("Proxy-Connection"), m_keepAlive ? STR_KEEP_ALIVE : STR_CLOSE);
 
 	Poseidon::Http::ServerWriter::putChunkedHeader(STD_MOVE(responseHeaders));
 }
@@ -484,7 +482,7 @@ void ProxySession::onFetchConnected(bool keepAlive){
 		responseHeaders.version = 10000;
 		responseHeaders.statusCode = Poseidon::Http::ST_OK;
 		responseHeaders.reason = STR_CONNECTION_ESTABLISHED;
-		responseHeaders.headers.set("Proxy-Connection", "Keep-Alive");
+		responseHeaders.headers.set(sslit("Proxy-Connection"), STR_KEEP_ALIVE);
 		Poseidon::Http::ServerWriter::putResponse(STD_MOVE(responseHeaders), VAL_INIT);
 
 		LOG_MEDUSA_DEBUG("Tunnel established!");
