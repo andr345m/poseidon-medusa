@@ -21,40 +21,40 @@ public:
 private:
 	const std::string m_password;
 
-	unsigned m_messageId;
+	unsigned m_message_id;
 	Poseidon::StreamBuffer m_payload;
 
 	std::map<Poseidon::Uuid, boost::weak_ptr<ProxySession> > m_sessions;
 
 private:
-	FetchClient(const Poseidon::IpPort &addr, bool useSsl, boost::uint64_t keepAliveInterval, std::string password);
+	FetchClient(const Poseidon::IpPort &addr, bool use_ssl, boost::uint64_t keep_alive_interval, std::string password);
 
 public:
 	~FetchClient();
 
 private:
-	bool sendData(const Poseidon::Uuid &fetchUuid, boost::uint16_t messageId, Poseidon::StreamBuffer plain);
-	bool sendControl(Poseidon::Cbpp::ControlCode controlCode, boost::int64_t vintParam, std::string stringParam);
+	bool send_data(const Poseidon::Uuid &fetch_uuid, boost::uint16_t message_id, Poseidon::StreamBuffer plain);
+	bool send_control(Poseidon::Cbpp::ControlCode control_code, boost::int64_t vint_param, std::string string_param);
 
 	template<typename MsgT>
-	bool sendData(const Poseidon::Uuid &fetchUuid, const MsgT &msg){
-		return sendData(fetchUuid, MsgT::ID, Poseidon::StreamBuffer(msg));
+	bool send_data(const Poseidon::Uuid &fetch_uuid, const MsgT &msg){
+		return send_data(fetch_uuid, MsgT::ID, Poseidon::StreamBuffer(msg));
 	}
 
 protected:
-	void onClose(int errCode) NOEXCEPT OVERRIDE;
+	void on_close(int err_code) NOEXCEPT OVERRIDE;
 
-	void onSyncDataMessageHeader(boost::uint16_t messageId, boost::uint64_t payloadSize) OVERRIDE;
-	void onSyncDataMessagePayload(boost::uint64_t payloadOffset, Poseidon::StreamBuffer payload) OVERRIDE;
-	void onSyncDataMessageEnd(boost::uint64_t payloadSize) OVERRIDE;
+	void on_sync_data_message_header(boost::uint16_t message_id, boost::uint64_t payload_size) OVERRIDE;
+	void on_sync_data_message_payload(boost::uint64_t payload_offset, Poseidon::StreamBuffer payload) OVERRIDE;
+	void on_sync_data_message_end(boost::uint64_t payload_size) OVERRIDE;
 
-	void onSyncErrorMessage(boost::uint16_t messageId, Poseidon::Cbpp::StatusCode statusCode, std::string reason) OVERRIDE;
+	void on_sync_error_message(boost::uint16_t message_id, Poseidon::Cbpp::StatusCode status_code, std::string reason) OVERRIDE;
 
 public:
-	bool connect(const boost::shared_ptr<ProxySession> &session, std::string host, unsigned port, bool useSsl, bool keepAlive);
-	bool send(const Poseidon::Uuid &fetchUuid, Poseidon::StreamBuffer data);
-	void close(const Poseidon::Uuid &fetchUuid, int cbppErrCode, int sysErrCode, const char *errMsg) NOEXCEPT;
-	void clear(int cbppErrCode, int sysErrCode, const char *errMsg) NOEXCEPT;
+	bool connect(const boost::shared_ptr<ProxySession> &session, std::string host, unsigned port, bool use_ssl, bool keep_alive);
+	bool send(const Poseidon::Uuid &fetch_uuid, Poseidon::StreamBuffer data);
+	void close(const Poseidon::Uuid &fetch_uuid, int cbpp_err_code, int sys_err_code, const char *err_msg) NOEXCEPT;
+	void clear(int cbpp_err_code, int sys_err_code, const char *err_msg) NOEXCEPT;
 };
 
 }

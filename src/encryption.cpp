@@ -12,7 +12,7 @@ namespace {
 	struct EncryptedHeader {
 		Nonce nonce;
 		Poseidon::Uuid uuid;
-		Poseidon::Md5 authMd5;
+		Poseidon::Md5 auth_md5;
 	};
 
 	BOOST_STATIC_ASSERT_MSG(std::is_standard_layout<EncryptedHeader>::value, "EncryptedHeader is not a standard-layout struct?");
@@ -20,10 +20,10 @@ namespace {
 
 	struct NoncedKey {
 		Nonce nonce;
-		Poseidon::Md5 keyMd5;
+		Poseidon::Md5 key_md5;
 
 		explicit NoncedKey(const Nonce &nonce_, const std::string &key_)
-			: nonce(nonce_), keyMd5(Poseidon::md5Hash(key_))
+			: nonce(nonce_), key_md5(Poseidon::md5_hash(key_))
 		{
 		}
 	};
@@ -32,7 +32,7 @@ namespace {
 
 	// http://en.wikipedia.org/wiki/RC4 有改动。
 
-	boost::shared_ptr<EncryptionContext> createContext(const Poseidon::Uuid &uuid, const NoncedKey &noncedKey){
+	boost::shared_ptr<EncryptionContext> create_context(const Poseidon::Uuid &uuid, const NoncedKey &nonced_key){
 		PROFILE_ME;
 
 		AUTO(ret, boost::make_shared<EncryptionContext>());
@@ -56,13 +56,13 @@ namespace {
 			++i;
 
 			for(unsigned r = 0; r < 16; ++r){
-				GEN_S(noncedKey.nonce[r]);
+				GEN_S(nonced_key.nonce[r]);
 			}
 			for(unsigned r = 0; r < 16; ++r){
 				GEN_S(uuid[r]);
 			}
 			for(unsigned r = 0; r < 16; ++r){
-				GEN_S(noncedKey.keyMd5[r]);
+				GEN_S(nonced_key.key_md5[r]);
 			}
 			for(unsigned r = 0; r < 16; ++r){
 				GEN_S(uuid[r]);
@@ -71,7 +71,7 @@ namespace {
 
 		return ret;
 	}
-	void encryptBytes(EncryptionContext *ctx, unsigned char *data, std::size_t size){
+	void encrypt_bytes(EncryptionContext *ctx, unsigned char *data, std::size_t size){
 		PROFILE_ME;
 
 		for(std::size_t i = 0; i < size; ++i){
@@ -88,7 +88,7 @@ namespace {
 			data[i] = byte;
 		}
 	}
-	void decryptBytes(EncryptionContext *ctx, unsigned char *data, std::size_t size){
+	void decrypt_bytes(EncryptionContext *ctx, unsigned char *data, std::size_t size){
 		PROFILE_ME;
 
 		for(std::size_t i = 0; i < size; ++i){
@@ -106,65 +106,65 @@ namespace {
 	}
 }
 
-std::size_t getEncryptedHeaderSize(){
+std::size_t get_encrypted_header_size(){
 	return sizeof(EncryptedHeader);
 }
 
-std::pair<boost::shared_ptr<EncryptionContext>, Poseidon::StreamBuffer> encryptHeader(const Poseidon::Uuid &uuid, const std::string &key){
+std::pair<boost::shared_ptr<EncryptionContext>, Poseidon::StreamBuffer> encrypt_header(const Poseidon::Uuid &uuid, const std::string &key){
 	PROFILE_ME;
 
 	Nonce nonce;
 	for(AUTO(it, nonce.begin()); it != nonce.end(); ++it){
 		*it = Poseidon::rand32();
 	}
-	const NoncedKey noncedKey(nonce, key);
-	AUTO(context, createContext(uuid, noncedKey));
+	const NoncedKey nonced_key(nonce, key);
+	AUTO(context, create_context(uuid, nonced_key));
 
 	EncryptedHeader header;
 	header.nonce = nonce;
 	header.uuid = uuid;
-	header.authMd5 = Poseidon::md5Hash(&noncedKey, sizeof(noncedKey));
+	header.auth_md5 = Poseidon::md5_hash(&nonced_key, sizeof(nonced_key));
 	AUTO(encrypted, Poseidon::StreamBuffer(&header, sizeof(header)));
 
 	return std::make_pair(STD_MOVE(context), STD_MOVE(encrypted));
 }
-Poseidon::StreamBuffer encryptPayload(const boost::shared_ptr<EncryptionContext> &context, Poseidon::StreamBuffer plain){
+Poseidon::StreamBuffer encrypt_payload(const boost::shared_ptr<EncryptionContext> &context, Poseidon::StreamBuffer plain){
 	PROFILE_ME;
 
-	AUTO(ce, plain.getChunkEnumerator());
+	AUTO(ce, plain.get_chunk_enumerator());
 	while(ce){
-		encryptBytes(context.get(), ce.data(), ce.size());
+		encrypt_bytes(context.get(), ce.data(), ce.size());
 		++ce;
 	}
 	return STD_MOVE(plain);
 }
 
-boost::shared_ptr<EncryptionContext> tryDecryptHeader(const Poseidon::StreamBuffer &encrypted, const std::string &key){
+boost::shared_ptr<EncryptionContext> try_decrypt_header(const Poseidon::StreamBuffer &encrypted, const std::string &key){
 	PROFILE_ME;
 
-	const AUTO(headerSize, getEncryptedHeaderSize());
-	if(encrypted.size() < headerSize){
-		LOG_MEDUSA_ERROR("No enough data provided, expecting at least ", headerSize, " bytes.");
+	const AUTO(header_size, get_encrypted_header_size());
+	if(encrypted.size() < header_size){
+		LOG_MEDUSA_ERROR("No enough data provided, expecting at least ", header_size, " bytes.");
 		DEBUG_THROW(Exception, sslit("No enough data provided"));
 	}
 
 	EncryptedHeader header;
 	encrypted.peek(&header, sizeof(header));
-	const NoncedKey noncedKey(header.nonce, key);
-	const AUTO(expectedMd5, Poseidon::md5Hash(&noncedKey, sizeof(noncedKey)));
-	if(expectedMd5 != header.authMd5){
-		LOG_MEDUSA_DEBUG("Unexpected MD5: expecting ", Poseidon::HexDumper(expectedMd5.data(), expectedMd5.size()),
-			", got ", Poseidon::HexDumper(header.authMd5.data(), header.authMd5.size()));
+	const NoncedKey nonced_key(header.nonce, key);
+	const AUTO(expected_md5, Poseidon::md5_hash(&nonced_key, sizeof(nonced_key)));
+	if(expected_md5 != header.auth_md5){
+		LOG_MEDUSA_DEBUG("Unexpected MD5: expecting ", Poseidon::HexDumper(expected_md5.data(), expected_md5.size()),
+			", got ", Poseidon::HexDumper(header.auth_md5.data(), header.auth_md5.size()));
 		return VAL_INIT;
 	}
-	return createContext(header.uuid, noncedKey);
+	return create_context(header.uuid, nonced_key);
 }
-Poseidon::StreamBuffer decryptPayload(const boost::shared_ptr<EncryptionContext> &context, Poseidon::StreamBuffer encrypted){
+Poseidon::StreamBuffer decrypt_payload(const boost::shared_ptr<EncryptionContext> &context, Poseidon::StreamBuffer encrypted){
 	PROFILE_ME;
 
-	AUTO(ce, encrypted.getChunkEnumerator());
+	AUTO(ce, encrypted.get_chunk_enumerator());
 	while(ce){
-		decryptBytes(context.get(), ce.data(), ce.size());
+		decrypt_bytes(context.get(), ce.data(), ce.size());
 		++ce;
 	}
 	return STD_MOVE(encrypted);

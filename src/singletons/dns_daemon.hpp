@@ -8,7 +8,7 @@
 namespace Medusa {
 
 struct DnsDaemon {
-	static void syncLookUp(Poseidon::SockAddr &sockAddr, const std::string &host, unsigned port);
+	static void sync_look_up(Poseidon::SockAddr &sock_addr, const std::string &host, unsigned port);
 
 private:
 	DnsDaemon();

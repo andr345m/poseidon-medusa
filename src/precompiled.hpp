@@ -23,7 +23,7 @@ namespace Medusa {
 typedef Poseidon::Exception     Exception;
 typedef Poseidon::SharedNts     SharedNts;
 
-DECLARE_MODULE_CONFIG(getConfig, getConfigV)
+DECLARE_MODULE_CONFIG(get_config, get_config_v)
 
 using Poseidon::sslit;
 

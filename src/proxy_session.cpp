@@ -15,26 +15,26 @@ namespace {
 }
 
 namespace Impl {
-	void Impl::ProxySessionServerAdaptor::onRequestHeaders(
-		Poseidon::Http::RequestHeaders requestHeaders, std::string transferEncoding, boost::uint64_t contentLength)
+	void Impl::ProxySessionServerAdaptor::on_request_headers(
+		Poseidon::Http::RequestHeaders request_headers, std::string transfer_encoding, boost::uint64_t content_length)
 	{
 		static_cast<ProxySession *>(this)->
-			onSyncServerRequestHeaders(STD_MOVE(requestHeaders), STD_MOVE(transferEncoding), contentLength);
+			on_sync_server_request_headers(STD_MOVE(request_headers), STD_MOVE(transfer_encoding), content_length);
 	}
-	void Impl::ProxySessionServerAdaptor::onRequestEntity(
-		boost::uint64_t entityOffset, bool isChunked, Poseidon::StreamBuffer entity)
+	void Impl::ProxySessionServerAdaptor::on_request_entity(
+		boost::uint64_t entity_offset, bool is_chunked, Poseidon::StreamBuffer entity)
 	{
 		static_cast<ProxySession *>(this)->
-			onSyncServerRequestEntity(entityOffset, isChunked, STD_MOVE(entity));
+			on_sync_server_request_entity(entity_offset, is_chunked, STD_MOVE(entity));
 	}
-	bool Impl::ProxySessionServerAdaptor::onRequestEnd(
-		boost::uint64_t contentLength, bool isChunked, Poseidon::OptionalMap headers)
+	bool Impl::ProxySessionServerAdaptor::on_request_end(
+		boost::uint64_t content_length, bool is_chunked, Poseidon::OptionalMap headers)
 	{
 		return static_cast<ProxySession *>(this)->
-			onSyncServerRequestEnd(contentLength, isChunked, STD_MOVE(headers));
+			on_sync_server_request_end(content_length, is_chunked, STD_MOVE(headers));
 	}
 
-	long Impl::ProxySessionServerAdaptor::onEncodedDataAvail(
+	long Impl::ProxySessionServerAdaptor::on_encoded_data_avail(
 		Poseidon::StreamBuffer encoded)
 	{
 		PROFILE_ME;
@@ -42,62 +42,62 @@ namespace Impl {
 		return static_cast<ProxySession *>(this)->send(STD_MOVE(encoded));
 	}
 
-	void Impl::ProxySessionClientAdaptor::onResponseHeaders(
-		Poseidon::Http::ResponseHeaders responseHeaders, std::string transferEncoding, boost::uint64_t contentLength)
+	void Impl::ProxySessionClientAdaptor::on_response_headers(
+		Poseidon::Http::ResponseHeaders response_headers, std::string transfer_encoding, boost::uint64_t content_length)
 	{
 		static_cast<ProxySession *>(this)->
-			onSyncClientResponseHeaders(STD_MOVE(responseHeaders), STD_MOVE(transferEncoding), contentLength);
+			on_sync_client_response_headers(STD_MOVE(response_headers), STD_MOVE(transfer_encoding), content_length);
 	}
-	void Impl::ProxySessionClientAdaptor::onResponseEntity(
-		boost::uint64_t entityOffset, bool isChunked, Poseidon::StreamBuffer entity)
+	void Impl::ProxySessionClientAdaptor::on_response_entity(
+		boost::uint64_t entity_offset, bool is_chunked, Poseidon::StreamBuffer entity)
 	{
 		static_cast<ProxySession *>(this)->
-			onSyncClientResponseEntity(entityOffset, isChunked, STD_MOVE(entity));
+			on_sync_client_response_entity(entity_offset, is_chunked, STD_MOVE(entity));
 	}
-	bool Impl::ProxySessionClientAdaptor::onResponseEnd(
-		boost::uint64_t contentLength, bool isChunked, Poseidon::OptionalMap headers)
+	bool Impl::ProxySessionClientAdaptor::on_response_end(
+		boost::uint64_t content_length, bool is_chunked, Poseidon::OptionalMap headers)
 	{
 		return static_cast<ProxySession *>(this)->
-			onSyncClientResponseEnd(contentLength, isChunked, STD_MOVE(headers));
+			on_sync_client_response_end(content_length, is_chunked, STD_MOVE(headers));
 	}
 
-	long Impl::ProxySessionClientAdaptor::onEncodedDataAvail(Poseidon::StreamBuffer encoded){
+	long Impl::ProxySessionClientAdaptor::on_encoded_data_avail(Poseidon::StreamBuffer encoded){
 		PROFILE_ME;
 
-		const AUTO(fetchClient, static_cast<ProxySession *>(this)->m_fetchClient.lock());
-		if(!fetchClient){
+		const AUTO(fetch_client, static_cast<ProxySession *>(this)->m_fetch_client.lock());
+		if(!fetch_client){
 			return false;
 		}
-		return fetchClient->send(static_cast<ProxySession *>(this)->m_fetchUuid, STD_MOVE(encoded));
+		return fetch_client->send(static_cast<ProxySession *>(this)->m_fetch_uuid, STD_MOVE(encoded));
 	}
 }
 
 class ProxySession::CloseJob : public Poseidon::JobBase {
 private:
 	const boost::weak_ptr<ProxySession> m_session;
-	const Poseidon::Uuid m_fetchUuid;
-	const boost::weak_ptr<FetchClient> m_fetchClient;
-	const int m_errCode;
+	const Poseidon::Uuid m_fetch_uuid;
+	const boost::weak_ptr<FetchClient> m_fetch_client;
+	const int m_err_code;
 
 public:
-	CloseJob(const boost::shared_ptr<ProxySession> &session, int errCode)
-		: m_session(session), m_fetchUuid(session->m_fetchUuid), m_fetchClient(session->m_fetchClient)
-		, m_errCode(errCode)
+	CloseJob(const boost::shared_ptr<ProxySession> &session, int err_code)
+		: m_session(session), m_fetch_uuid(session->m_fetch_uuid), m_fetch_client(session->m_fetch_client)
+		, m_err_code(err_code)
 	{
 	}
 
 protected:
-	boost::weak_ptr<const void> getCategory() const FINAL {
+	boost::weak_ptr<const void> get_category() const FINAL {
 		return m_session;
 	}
 	void perform() FINAL {
 		PROFILE_ME;
 
-		const AUTO(fetchClient, m_fetchClient.lock());
-		if(!fetchClient){
+		const AUTO(fetch_client, m_fetch_client.lock());
+		if(!fetch_client){
 			return;
 		}
-		fetchClient->close(m_fetchUuid, Msg::ST_OK, m_errCode, "Requested by proxy client");
+		fetch_client->close(m_fetch_uuid, Msg::ST_OK, m_err_code, "Requested by proxy client");
 	}
 };
 
@@ -114,7 +114,7 @@ public:
 	}
 
 protected:
-	boost::weak_ptr<const void> getCategory() const FINAL {
+	boost::weak_ptr<const void> get_category() const FINAL {
 		return m_session;
 	}
 	void perform() FINAL {
@@ -126,10 +126,10 @@ protected:
 		}
 
 		try {
-			session->onSyncReadAvail(STD_MOVE(m_data));
+			session->on_sync_read_avail(STD_MOVE(m_data));
 		} catch(Poseidon::Http::Exception &e){
-			LOG_MEDUSA_INFO("Http::Exception thrown: statusCode = ", e.statusCode(), ", what = ", e.what());
-			session->shutdown(e.statusCode(), e.headers(), e.what());
+			LOG_MEDUSA_INFO("Http::Exception thrown: status_code = ", e.status_code(), ", what = ", e.what());
+			session->shutdown(e.status_code(), e.headers(), e.what());
 		} catch(std::exception &e){
 			LOG_MEDUSA_INFO("std::exception thrown: what = ", e.what());
 			session->shutdown(Poseidon::Http::ST_BAD_GATEWAY, VAL_INIT, e.what());
@@ -139,52 +139,52 @@ protected:
 
 ProxySession::ProxySession(Poseidon::UniqueFile socket)
 	: Poseidon::TcpSessionBase(STD_MOVE(socket))
-	, m_fetchUuid(Poseidon::Uuid::random()), m_fetchClient(FetchClient::require())
-	, m_state(S_HTTP_HEADERS), m_headerSize(0)
+	, m_fetch_uuid(Poseidon::Uuid::random()), m_fetch_client(FetchClient::require())
+	, m_state(S_HTTP_HEADERS), m_header_size(0)
 {
-	LOG_MEDUSA_INFO("Accepted proxy request from ", getRemoteInfo(), ": fetchUuid = ", m_fetchUuid);
+	LOG_MEDUSA_INFO("Accepted proxy request from ", get_remote_info(), ": fetch_uuid = ", m_fetch_uuid);
 }
 ProxySession::~ProxySession(){
 	try {
-		LOG_MEDUSA_INFO("Shut down proxy request from ", getRemoteInfo(), ": fetchUuid = ", m_fetchUuid);
+		LOG_MEDUSA_INFO("Shut down proxy request from ", get_remote_info(), ": fetch_uuid = ", m_fetch_uuid);
 	} catch(...){
-		LOG_MEDUSA_WARNING("Unknown proxy request remote address? fetchUuid = ", m_fetchUuid);
+		LOG_MEDUSA_WARNING("Unknown proxy request remote address? fetch_uuid = ", m_fetch_uuid);
 	}
 }
 
-void ProxySession::onSyncReadAvail(Poseidon::StreamBuffer data){
+void ProxySession::on_sync_read_avail(Poseidon::StreamBuffer data){
 	PROFILE_ME;
 	LOG_MEDUSA_DEBUG("Received data from proxy client: size = ", data.size());
 
 	try {
-		const AUTO(fetchClient, m_fetchClient.lock());
-		if(!fetchClient){
+		const AUTO(fetch_client, m_fetch_client.lock());
+		if(!fetch_client){
 			DEBUG_THROW(Poseidon::Http::Exception,
 				Poseidon::Http::ST_BAD_GATEWAY, sslit("Lost connection to fetch server"));
 		}
 
 		if(m_state >= S_TUNNEL_CONNECTING){
-			if(!fetchClient->send(m_fetchUuid, STD_MOVE(data))){
+			if(!fetch_client->send(m_fetch_uuid, STD_MOVE(data))){
 				DEBUG_THROW(Poseidon::Http::Exception,
 					Poseidon::Http::ST_GATEWAY_TIMEOUT, sslit("Could not send data to fetch server"));
 			}
 		} else {
 			if(m_state == S_HTTP_HEADERS){
-				const AUTO(maxHeaderSize, getConfig<boost::uint64_t>("proxy_http_header_max_header_size", 16384));
-				if(m_headerSize > maxHeaderSize){
+				const AUTO(max_header_size, get_config<boost::uint64_t>("proxy_http_header_max_header_size", 16384));
+				if(m_header_size > max_header_size){
 					DEBUG_THROW(Poseidon::Http::Exception,
 						Poseidon::Http::ST_REQUEST_ENTITY_TOO_LARGE, sslit("Max request header size exceeded"));
 				}
-				m_headerSize += data.size();
+				m_header_size += data.size();
 			}
 
-			Poseidon::Http::ServerReader::putEncodedData(STD_MOVE(data), true);
+			Poseidon::Http::ServerReader::put_encoded_data(STD_MOVE(data), true);
 
 			if(m_state >= S_TUNNEL_CONNECTING){
 				Poseidon::StreamBuffer queue;
-				queue.swap(Poseidon::Http::ServerReader::getQueue());
+				queue.swap(Poseidon::Http::ServerReader::get_queue());
 				if(!queue.empty()){
-					if(!fetchClient->send(m_fetchUuid, STD_MOVE(queue))){
+					if(!fetch_client->send(m_fetch_uuid, STD_MOVE(queue))){
 						DEBUG_THROW(Poseidon::Http::Exception,
 							Poseidon::Http::ST_GATEWAY_TIMEOUT, sslit("Could not send data to fetch server"));
 					}
@@ -192,19 +192,19 @@ void ProxySession::onSyncReadAvail(Poseidon::StreamBuffer data){
 			}
 		}
 	} catch(Poseidon::Http::Exception &e){
-		LOG_MEDUSA_INFO("Http::Exception thrown: statusCode = ", e.statusCode(), ", what = ", e.what());
-		shutdown(e.statusCode(), e.headers(), e.what());
+		LOG_MEDUSA_INFO("Http::Exception thrown: status_code = ", e.status_code(), ", what = ", e.what());
+		shutdown(e.status_code(), e.headers(), e.what());
 	} catch(std::exception &e){
 		LOG_MEDUSA_INFO("std::exception thrown: what = ", e.what());
 		shutdown(Poseidon::Http::ST_BAD_GATEWAY, VAL_INIT, e.what());
 	}
 }
-void ProxySession::shutdown(Poseidon::Http::StatusCode statusCode, Poseidon::OptionalMap headers, const char *what) NOEXCEPT {
+void ProxySession::shutdown(Poseidon::Http::StatusCode status_code, Poseidon::OptionalMap headers, const char *what) NOEXCEPT {
 	PROFILE_ME;
 
 	if(m_state == S_TUNNEL_ESTABLISHED){
 		LOG_MEDUSA_DEBUG("Don't send HTTP response to a tunnel session. Shut it down immediately.");
-		forceShutdown();
+		force_shutdown();
 		return;
 	}
 
@@ -212,71 +212,71 @@ void ProxySession::shutdown(Poseidon::Http::StatusCode statusCode, Poseidon::Opt
 		headers.set(sslit("Connection"), "Close");
 		headers.set(sslit("Proxy-Connection"), "Close");
 
-		Poseidon::Http::ResponseHeaders responseHeaders;
-		responseHeaders.version = 10001;
-		responseHeaders.statusCode = statusCode;
-		responseHeaders.reason = Poseidon::Http::getStatusCodeDesc(statusCode).descShort;
-		responseHeaders.headers = STD_MOVE(headers);
+		Poseidon::Http::ResponseHeaders response_headers;
+		response_headers.version = 10001;
+		response_headers.status_code = status_code;
+		response_headers.reason = Poseidon::Http::get_status_code_desc(status_code).desc_short;
+		response_headers.headers = STD_MOVE(headers);
 		if(what[0] == (char)0xFF){
-			Poseidon::Http::ServerWriter::putDefaultResponse(STD_MOVE(responseHeaders));
+			Poseidon::Http::ServerWriter::put_default_response(STD_MOVE(response_headers));
 		} else if(what[0] == 0){
-			Poseidon::Http::ServerWriter::putResponse(STD_MOVE(responseHeaders), Poseidon::StreamBuffer("No reason given"));
+			Poseidon::Http::ServerWriter::put_response(STD_MOVE(response_headers), Poseidon::StreamBuffer("No reason given"));
 		} else {
-			Poseidon::Http::ServerWriter::putResponse(STD_MOVE(responseHeaders), Poseidon::StreamBuffer(what));
+			Poseidon::Http::ServerWriter::put_response(STD_MOVE(response_headers), Poseidon::StreamBuffer(what));
 		}
-		shutdownRead();
-		shutdownWrite();
+		shutdown_read();
+		shutdown_write();
 	} catch(...){
-		forceShutdown();
+		force_shutdown();
 	}
 }
 
-void ProxySession::onSyncServerRequestHeaders(
-	Poseidon::Http::RequestHeaders requestHeaders, std::string /* transferEncoding */, boost::uint64_t contentLength)
+void ProxySession::on_sync_server_request_headers(
+	Poseidon::Http::RequestHeaders request_headers, std::string /* transfer_encoding */, boost::uint64_t content_length)
 {
 	PROFILE_ME;
-	LOG_MEDUSA_DEBUG("Proxy request header: fetchUuid = ", m_fetchUuid,
-		", URI = ", requestHeaders.uri);
+	LOG_MEDUSA_DEBUG("Proxy request header: fetch_uuid = ", m_fetch_uuid,
+		", URI = ", request_headers.uri);
 
-	if(requestHeaders.uri[0] == '/'){
+	if(request_headers.uri[0] == '/'){
 		DEBUG_THROW(Poseidon::Http::Exception,
 			Poseidon::Http::ST_NOT_FOUND, sslit("What do you wanna get from a proxy server by relative URI? :>"));
 	}
 
-	LOG_MEDUSA_INFO("Fetch URI: ", requestHeaders.uri);
+	LOG_MEDUSA_INFO("Fetch URI: ", request_headers.uri);
 
-	AUTO_REF(headers, requestHeaders.headers);
+	AUTO_REF(headers, request_headers.headers);
 
 	// TODO 代理服务器登录。
 
 	std::string host;
 	unsigned port = 80;
-	bool useSsl = false;
+	bool use_ssl = false;
 
-	requestHeaders.uri = Poseidon::trim(STD_MOVE(requestHeaders.uri));
-	AUTO(pos, requestHeaders.uri.find_first_not_of("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"));
-	if((pos != std::string::npos) && (pos + 3 <= requestHeaders.uri.size()) && (requestHeaders.uri.compare(pos, 3, "://", 3) == 0)){
-		requestHeaders.uri.at(pos) = 0;
-		LOG_MEDUSA_DEBUG("Request protocol = ", requestHeaders.uri.c_str());
-		if(::strcasecmp(requestHeaders.uri.c_str(), "http") == 0){
+	request_headers.uri = Poseidon::trim(STD_MOVE(request_headers.uri));
+	AUTO(pos, request_headers.uri.find_first_not_of("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"));
+	if((pos != std::string::npos) && (pos + 3 <= request_headers.uri.size()) && (request_headers.uri.compare(pos, 3, "://", 3) == 0)){
+		request_headers.uri.at(pos) = 0;
+		LOG_MEDUSA_DEBUG("Request protocol = ", request_headers.uri.c_str());
+		if(::strcasecmp(request_headers.uri.c_str(), "http") == 0){
 			// noop
-		} else if(::strcasecmp(requestHeaders.uri.c_str(), "https") == 0){
+		} else if(::strcasecmp(request_headers.uri.c_str(), "https") == 0){
 			port = 443;
-			useSsl = true;
+			use_ssl = true;
 		} else {
-			LOG_MEDUSA_DEBUG("Unknown protocol: ", requestHeaders.uri.c_str());
+			LOG_MEDUSA_DEBUG("Unknown protocol: ", request_headers.uri.c_str());
 			DEBUG_THROW(Poseidon::Http::Exception,
 				Poseidon::Http::ST_BAD_REQUEST, sslit("Unknown protocol"));
 		}
-		requestHeaders.uri.erase(0, pos + 3);
+		request_headers.uri.erase(0, pos + 3);
 	}
-	pos = requestHeaders.uri.find('/');
+	pos = request_headers.uri.find('/');
 	if(pos != std::string::npos){
-		host = requestHeaders.uri.substr(0, pos);
-		requestHeaders.uri.erase(0, pos);
+		host = request_headers.uri.substr(0, pos);
+		request_headers.uri.erase(0, pos);
 	} else {
-		host = STD_MOVE(requestHeaders.uri);
-		requestHeaders.uri = "/";
+		host = STD_MOVE(request_headers.uri);
+		request_headers.uri = "/";
 	}
 	if(host[0] == '['){
 		pos = host.find(']');
@@ -298,29 +298,29 @@ void ProxySession::onSyncServerRequestHeaders(
 		host.erase(pos);
 	}
 
-	bool keepAlive = true;
-	if(requestHeaders.verb != Poseidon::Http::V_CONNECT){
+	bool keep_alive = true;
+	if(request_headers.verb != Poseidon::Http::V_CONNECT){
 		const AUTO_REF(connection, headers.get("Proxy-Connection"));
-		if(requestHeaders.version < 10001){
-			keepAlive = (::strcasecmp(connection.c_str(), STR_KEEP_ALIVE.c_str()) == 0);
+		if(request_headers.version < 10001){
+			keep_alive = (::strcasecmp(connection.c_str(), STR_KEEP_ALIVE.c_str()) == 0);
 		} else {
-			keepAlive = (::strcasecmp(connection.c_str(), STR_CLOSE.c_str()) != 0);
+			keep_alive = (::strcasecmp(connection.c_str(), STR_CLOSE.c_str()) != 0);
 		}
 	}
 
-	const AUTO(fetchClient, m_fetchClient.lock());
-	if(!fetchClient){
+	const AUTO(fetch_client, m_fetch_client.lock());
+	if(!fetch_client){
 		LOG_MEDUSA_DEBUG("Lost connection to fetch server");
 		DEBUG_THROW(Poseidon::Http::Exception,
 			Poseidon::Http::ST_BAD_GATEWAY, sslit("Lost connection to fetch server"));
 	}
-	if(!fetchClient->connect(virtualSharedFromThis<ProxySession>(), STD_MOVE(host), port, useSsl, keepAlive)){
+	if(!fetch_client->connect(virtual_shared_from_this<ProxySession>(), STD_MOVE(host), port, use_ssl, keep_alive)){
 		LOG_MEDUSA_DEBUG("Could not send data to fetch server");
 		DEBUG_THROW(Poseidon::Http::Exception,
 			Poseidon::Http::ST_BAD_GATEWAY, sslit("Could not send data to fetch server"));
 	}
 
-	if(requestHeaders.verb == Poseidon::Http::V_CONNECT){
+	if(request_headers.verb == Poseidon::Http::V_CONNECT){
 		LOG_MEDUSA_DEBUG("Preparing tunnel...");
 		m_state = ProxySession::S_TUNNEL_CONNECTING;
 	} else {
@@ -329,13 +329,13 @@ void ProxySession::onSyncServerRequestHeaders(
 		headers.erase("Upgrade");
 
 		headers.set(sslit("Connection"), "Close");
-		headers.set(sslit("X-Forwarded-For"), getRemoteInfo().ip.get());
+		headers.set(sslit("X-Forwarded-For"), get_remote_info().ip.get());
 
 		bool succeeded;
-		if(contentLength == Poseidon::Http::ServerReader::CONTENT_CHUNKED){
-			succeeded = Poseidon::Http::ClientWriter::putChunkedHeader(STD_MOVE(requestHeaders));
+		if(content_length == Poseidon::Http::ServerReader::CONTENT_CHUNKED){
+			succeeded = Poseidon::Http::ClientWriter::put_chunked_header(STD_MOVE(request_headers));
 		} else {
-			succeeded = Poseidon::Http::ClientWriter::putRequestHeaders(STD_MOVE(requestHeaders));
+			succeeded = Poseidon::Http::ClientWriter::put_request_headers(STD_MOVE(request_headers));
 		}
 		if(!succeeded){
 			LOG_MEDUSA_DEBUG("Lost connection to fetch server");
@@ -345,123 +345,123 @@ void ProxySession::onSyncServerRequestHeaders(
 		m_state = ProxySession::S_HTTP_ENTITY;
 	}
 }
-void ProxySession::onSyncServerRequestEntity(
-	boost::uint64_t entityOffset, bool isChunked, Poseidon::StreamBuffer entity)
+void ProxySession::on_sync_server_request_entity(
+	boost::uint64_t entity_offset, bool is_chunked, Poseidon::StreamBuffer entity)
 {
 	PROFILE_ME;
-	LOG_MEDUSA_DEBUG("Proxy request entity: fetchUuid = ", m_fetchUuid,
-		", entityOffset = ", entityOffset, ", isChunked = ", isChunked, ", entitySize = ", entity.size());
+	LOG_MEDUSA_DEBUG("Proxy request entity: fetch_uuid = ", m_fetch_uuid,
+		", entity_offset = ", entity_offset, ", is_chunked = ", is_chunked, ", entity_size = ", entity.size());
 
 	if(m_state >= ProxySession::S_TUNNEL_CONNECTING){
 		return;
 	}
 
-	if(isChunked){
-		if(!Poseidon::Http::ClientWriter::putChunk(STD_MOVE(entity))){
+	if(is_chunked){
+		if(!Poseidon::Http::ClientWriter::put_chunk(STD_MOVE(entity))){
 			LOG_MEDUSA_DEBUG("Lost connection to fetch server");
 			DEBUG_THROW(Exception, sslit("Lost connection to fetch server"));
 		}
 	} else {
-		if(!Poseidon::Http::ClientWriter::putEntity(STD_MOVE(entity))){
+		if(!Poseidon::Http::ClientWriter::put_entity(STD_MOVE(entity))){
 			LOG_MEDUSA_DEBUG("Lost connection to fetch server");
 			DEBUG_THROW(Exception, sslit("Lost connection to fetch server"));
 		}
 	}
 }
-bool ProxySession::onSyncServerRequestEnd(
-	boost::uint64_t contentLength, bool isChunked, Poseidon::OptionalMap headers)
+bool ProxySession::on_sync_server_request_end(
+	boost::uint64_t content_length, bool is_chunked, Poseidon::OptionalMap headers)
 {
 	PROFILE_ME;
-	LOG_MEDUSA_DEBUG("Proxy request end: fetchUuid = ", m_fetchUuid,
-		", contentLength = ", contentLength, ", isChunked = ", isChunked);
+	LOG_MEDUSA_DEBUG("Proxy request end: fetch_uuid = ", m_fetch_uuid,
+		", content_length = ", content_length, ", is_chunked = ", is_chunked);
 
 	if(m_state >= ProxySession::S_TUNNEL_CONNECTING){
 		return false;
 	}
 
-	if(isChunked){
-		if(!Poseidon::Http::ClientWriter::putChunkedTrailer(STD_MOVE(headers))){
+	if(is_chunked){
+		if(!Poseidon::Http::ClientWriter::put_chunked_trailer(STD_MOVE(headers))){
 			LOG_MEDUSA_DEBUG("Lost connection to fetch server");
 			DEBUG_THROW(Exception, sslit("Lost connection to fetch server"));
 		}
 	}
 
 	m_state = ProxySession::S_HTTP_HEADERS;
-	m_headerSize = 0;
+	m_header_size = 0;
 	return true;
 }
 
-void ProxySession::onSyncClientResponseHeaders(
-	Poseidon::Http::ResponseHeaders responseHeaders, std::string /* transferEncoding */, boost::uint64_t contentLength)
+void ProxySession::on_sync_client_response_headers(
+	Poseidon::Http::ResponseHeaders response_headers, std::string /* transfer_encoding */, boost::uint64_t content_length)
 {
 	PROFILE_ME;
-	LOG_MEDUSA_DEBUG("Proxy response header: fetchUuid = ", m_fetchUuid,
-		", statusCode = ", responseHeaders.statusCode, ", reason = ", responseHeaders.reason);
+	LOG_MEDUSA_DEBUG("Proxy response header: fetch_uuid = ", m_fetch_uuid,
+		", status_code = ", response_headers.status_code, ", reason = ", response_headers.reason);
 
-	m_contentLength = contentLength;
-	m_entityOffset = 0;
+	m_content_length = content_length;
+	m_entity_offset = 0;
 
-	responseHeaders.version = 10001;
-	AUTO_REF(headers, responseHeaders.headers);
+	response_headers.version = 10001;
+	AUTO_REF(headers, response_headers.headers);
 	headers.erase("Connection");
 	headers.erase("Prxoy-Authenticate");
 	headers.erase("Upgrade");
-	headers.set(sslit("Proxy-Connection"), m_keepAlive ? STR_KEEP_ALIVE : STR_CLOSE);
+	headers.set(sslit("Proxy-Connection"), m_keep_alive ? STR_KEEP_ALIVE : STR_CLOSE);
 
-	Poseidon::Http::ServerWriter::putChunkedHeader(STD_MOVE(responseHeaders));
+	Poseidon::Http::ServerWriter::put_chunked_header(STD_MOVE(response_headers));
 }
-void ProxySession::onSyncClientResponseEntity(
-	boost::uint64_t entityOffset, bool isChunked, Poseidon::StreamBuffer entity)
+void ProxySession::on_sync_client_response_entity(
+	boost::uint64_t entity_offset, bool is_chunked, Poseidon::StreamBuffer entity)
 {
 	PROFILE_ME;
-	LOG_MEDUSA_DEBUG("Proxy response entity: fetchUuid = ", m_fetchUuid,
-		", entityOffset = ", entityOffset, ", isChunked = ", isChunked, ", entitySize = ", entity.size());
+	LOG_MEDUSA_DEBUG("Proxy response entity: fetch_uuid = ", m_fetch_uuid,
+		", entity_offset = ", entity_offset, ", is_chunked = ", is_chunked, ", entity_size = ", entity.size());
 
 	if(entity.empty()){
 		return;
 	}
 
-	m_entityOffset += entity.size();
+	m_entity_offset += entity.size();
 
 	if(!entity.empty()){
-		Poseidon::Http::ServerWriter::putChunk(STD_MOVE(entity));
+		Poseidon::Http::ServerWriter::put_chunk(STD_MOVE(entity));
 	}
 }
-bool ProxySession::onSyncClientResponseEnd(
-	boost::uint64_t contentLength, bool isChunked, Poseidon::OptionalMap headers)
+bool ProxySession::on_sync_client_response_end(
+	boost::uint64_t content_length, bool is_chunked, Poseidon::OptionalMap headers)
 {
 	PROFILE_ME;
-	LOG_MEDUSA_DEBUG("Proxy response end: fetchUuid = ", m_fetchUuid,
-		", contentLength = ", contentLength, ", isChunked = ", isChunked);
+	LOG_MEDUSA_DEBUG("Proxy response end: fetch_uuid = ", m_fetch_uuid,
+		", content_length = ", content_length, ", is_chunked = ", is_chunked);
 
-	Poseidon::Http::ServerWriter::putChunkedTrailer(STD_MOVE(headers));
+	Poseidon::Http::ServerWriter::put_chunked_trailer(STD_MOVE(headers));
 
 	return true;
 }
 
-void ProxySession::onClose(int errCode) NOEXCEPT {
+void ProxySession::on_close(int err_code) NOEXCEPT {
 	PROFILE_ME;
-	LOG_MEDUSA_DEBUG("Proxy session closed: errCode = ", errCode);
+	LOG_MEDUSA_DEBUG("Proxy session closed: err_code = ", err_code);
 
-	const AUTO(fetchClient, m_fetchClient.lock());
-	if(fetchClient){
+	const AUTO(fetch_client, m_fetch_client.lock());
+	if(fetch_client){
 		try {
-			Poseidon::enqueueJob(boost::make_shared<CloseJob>(
-				virtualSharedFromThis<ProxySession>(), errCode));
+			Poseidon::enqueue_job(boost::make_shared<CloseJob>(
+				virtual_shared_from_this<ProxySession>(), err_code));
 		} catch(std::exception &e){
 			LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
-			fetchClient->forceShutdown();
+			fetch_client->force_shutdown();
 		}
 	}
 
-	Poseidon::TcpSessionBase::onClose(errCode);
+	Poseidon::TcpSessionBase::on_close(err_code);
 }
 
-void ProxySession::onReadAvail(Poseidon::StreamBuffer data){
+void ProxySession::on_read_avail(Poseidon::StreamBuffer data){
 	PROFILE_ME;
 
-	Poseidon::enqueueJob(boost::make_shared<ReadAvailJob>(
-		virtualSharedFromThis<ProxySession>(), STD_MOVE(data)));
+	Poseidon::enqueue_job(boost::make_shared<ReadAvailJob>(
+		virtual_shared_from_this<ProxySession>(), STD_MOVE(data)));
 }
 
 bool ProxySession::send(Poseidon::StreamBuffer data){
@@ -470,105 +470,105 @@ bool ProxySession::send(Poseidon::StreamBuffer data){
 	return Poseidon::TcpSessionBase::send(STD_MOVE(data));
 }
 
-void ProxySession::onFetchConnected(bool keepAlive){
+void ProxySession::on_fetch_connected(bool keep_alive){
 	PROFILE_ME;
-	LOG_MEDUSA_DEBUG("Received connect success from fetch server: fetchUuid = ", m_fetchUuid, ", keepAlive = ", keepAlive);
+	LOG_MEDUSA_DEBUG("Received connect success from fetch server: fetch_uuid = ", m_fetch_uuid, ", keep_alive = ", keep_alive);
 
-	m_keepAlive = keepAlive;
-	m_contentLength = WAITING_FOR_HEADERS;
+	m_keep_alive = keep_alive;
+	m_content_length = WAITING_FOR_HEADERS;
 
 	if(m_state == S_TUNNEL_CONNECTING){
-		Poseidon::Http::ResponseHeaders responseHeaders;
-		responseHeaders.version = 10000;
-		responseHeaders.statusCode = Poseidon::Http::ST_OK;
-		responseHeaders.reason = STR_CONNECTION_ESTABLISHED;
-		responseHeaders.headers.set(sslit("Proxy-Connection"), STR_KEEP_ALIVE);
-		Poseidon::Http::ServerWriter::putResponse(STD_MOVE(responseHeaders), VAL_INIT);
+		Poseidon::Http::ResponseHeaders response_headers;
+		response_headers.version = 10000;
+		response_headers.status_code = Poseidon::Http::ST_OK;
+		response_headers.reason = STR_CONNECTION_ESTABLISHED;
+		response_headers.headers.set(sslit("Proxy-Connection"), STR_KEEP_ALIVE);
+		Poseidon::Http::ServerWriter::put_response(STD_MOVE(response_headers), VAL_INIT);
 
 		LOG_MEDUSA_DEBUG("Tunnel established!");
 		m_state = S_TUNNEL_ESTABLISHED;
 	}
 }
-void ProxySession::onFetchReceived(Poseidon::StreamBuffer data){
+void ProxySession::on_fetch_received(Poseidon::StreamBuffer data){
 	PROFILE_ME;
-	LOG_MEDUSA_DEBUG("Received data from fetch server: fetchUuid = ", m_fetchUuid, ", size = ", data.size());
+	LOG_MEDUSA_DEBUG("Received data from fetch server: fetch_uuid = ", m_fetch_uuid, ", size = ", data.size());
 
 	try {
 		if(m_state == S_TUNNEL_ESTABLISHED){
 			send(STD_MOVE(data));
 		} else {
-			Poseidon::Http::ClientReader::putEncodedData(STD_MOVE(data));
+			Poseidon::Http::ClientReader::put_encoded_data(STD_MOVE(data));
 
 			if(m_state == S_TUNNEL_ESTABLISHED){
 				Poseidon::StreamBuffer queue;
-				queue.swap(Poseidon::Http::ClientReader::getQueue());
+				queue.swap(Poseidon::Http::ClientReader::get_queue());
 				if(!queue.empty()){
 					send(STD_MOVE(queue));
 				}
 			}
 		}
 
-		boost::uint64_t keepAliveTimeout;
+		boost::uint64_t keep_alive_timeout;
 		if(m_state < S_TUNNEL_CONNECTING){
-			keepAliveTimeout = getConfig<boost::uint64_t>("proxy_http_keep_alive_timeout", 15000);
+			keep_alive_timeout = get_config<boost::uint64_t>("proxy_http_keep_alive_timeout", 15000);
 		} else {
-			keepAliveTimeout = getConfig<boost::uint64_t>("proxy_tunnel_keep_alive_timeout", 300000);
+			keep_alive_timeout = get_config<boost::uint64_t>("proxy_tunnel_keep_alive_timeout", 300000);
 		}
-		setTimeout(keepAliveTimeout);
+		set_timeout(keep_alive_timeout);
 	} catch(std::exception &e){
 		LOG_MEDUSA_INFO("std::exception thrown: what = ", e.what());
 		shutdown(Poseidon::Http::ST_BAD_GATEWAY, VAL_INIT, e.what());
 	}
 }
-void ProxySession::onFetchEnded(){
+void ProxySession::on_fetch_ended(){
 	PROFILE_ME;
-	LOG_MEDUSA_DEBUG("Received EOF response from fetch server: fetchUuid = ", m_fetchUuid);
+	LOG_MEDUSA_DEBUG("Received EOF response from fetch server: fetch_uuid = ", m_fetch_uuid);
 
 	if(m_state >= S_TUNNEL_CONNECTING){
 		LOG_MEDUSA_DEBUG("Shutting down tunnel...");
-		shutdownRead();
-		shutdownWrite();
+		shutdown_read();
+		shutdown_write();
 		return;
 	}
 
-	if(m_contentLength == WAITING_FOR_HEADERS){
+	if(m_content_length == WAITING_FOR_HEADERS){
 		LOG_MEDUSA_DEBUG("No valid HTTP headers received from remote server");
 		shutdown(Poseidon::Http::ST_BAD_GATEWAY, VAL_INIT, "No valid HTTP headers received from remote server");
 		return;
 	}
-	if((m_contentLength < Poseidon::Http::ClientReader::CONTENT_LENGTH_MAX) && (m_entityOffset != m_contentLength)){
-		LOG_MEDUSA_DEBUG("Contents truncated: entityOffset = ", m_entityOffset, ", contentLength = ", m_contentLength);
-		shutdownRead();
-		shutdownWrite();
+	if((m_content_length < Poseidon::Http::ClientReader::CONTENT_LENGTH_MAX) && (m_entity_offset != m_content_length)){
+		LOG_MEDUSA_DEBUG("Contents truncated: entity_offset = ", m_entity_offset, ", content_length = ", m_content_length);
+		shutdown_read();
+		shutdown_write();
 		return;
 	}
 
-	if(Poseidon::Http::ClientReader::isContentTillEof()){
-		Poseidon::Http::ClientReader::terminateContent();
+	if(Poseidon::Http::ClientReader::is_content_till_eof()){
+		Poseidon::Http::ClientReader::terminate_content();
 	}
 
-	if(!m_keepAlive){
+	if(!m_keep_alive){
 		LOG_MEDUSA_DEBUG("Proxy-Connection was set to Close. Shut down now.");
-		shutdownRead();
-		shutdownWrite();
+		shutdown_read();
+		shutdown_write();
 		return;
 	}
 }
-void ProxySession::onFetchClosed(int cbppErrCode, int sysErrCode, std::string errMsg){
+void ProxySession::on_fetch_closed(int cbpp_err_code, int sys_err_code, std::string err_msg){
 	PROFILE_ME;
-	LOG_MEDUSA_DEBUG("Received close response from fetch server: fetchUuid = ", m_fetchUuid,
-		", cbppErrCode = ", cbppErrCode, ", sysErrCode = ", sysErrCode, ", errMsg = ", errMsg);
+	LOG_MEDUSA_DEBUG("Received close response from fetch server: fetch_uuid = ", m_fetch_uuid,
+		", cbpp_err_code = ", cbpp_err_code, ", sys_err_code = ", sys_err_code, ", err_msg = ", err_msg);
 
-	if(cbppErrCode == Msg::ST_OK){
-		shutdownRead();
-		shutdownWrite();
+	if(cbpp_err_code == Msg::ST_OK){
+		shutdown_read();
+		shutdown_write();
 		return;
 	}
 
 	char temp[256];
-	unsigned len = (unsigned)std::sprintf(temp, "Fetch error %d (sys error %d): ", cbppErrCode, sysErrCode);
-	errMsg.insert(errMsg.begin(), temp, temp + len);
-	shutdown(Poseidon::Http::ST_BAD_GATEWAY, VAL_INIT, errMsg.c_str());
+	unsigned len = (unsigned)std::sprintf(temp, "Fetch error %d (sys error %d): ", cbpp_err_code, sys_err_code);
+	err_msg.insert(err_msg.begin(), temp, temp + len);
+	shutdown(Poseidon::Http::ST_BAD_GATEWAY, VAL_INIT, err_msg.c_str());
 }
 
 }

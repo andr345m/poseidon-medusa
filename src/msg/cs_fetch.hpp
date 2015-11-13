@@ -12,8 +12,8 @@ namespace Msg {
 #define MESSAGE_FIELDS	\
 	FIELD_STRING		(host)	\
 	FIELD_VUINT			(port)	\
-	FIELD_VUINT			(useSsl)	\
-	FIELD_VUINT			(keepAlive)
+	FIELD_VUINT			(use_ssl)	\
+	FIELD_VUINT			(keep_alive)
 #include <poseidon/cbpp/message_generator.hpp>
 
 #define MESSAGE_NAME	CS_FetchSend
@@ -25,7 +25,7 @@ namespace Msg {
 #define MESSAGE_NAME	CS_FetchClose
 #define MESSAGE_ID		102
 #define MESSAGE_FIELDS	\
-	FIELD_VINT			(errCode)
+	FIELD_VINT			(err_code)
 #include <poseidon/cbpp/message_generator.hpp>
 
 }

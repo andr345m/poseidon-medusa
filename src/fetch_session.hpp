@@ -13,12 +13,12 @@ private:
 	class Channel;
 
 private:
-	static void syncGcTimerProc(const boost::weak_ptr<FetchSession> &weak, boost::uint64_t now) NOEXCEPT;
+	static void sync_gc_timer_proc(const boost::weak_ptr<FetchSession> &weak, boost::uint64_t now) NOEXCEPT;
 
 private:
 	const std::string m_password;
 
-	boost::shared_ptr<Poseidon::TimerItem> m_gcTimer;
+	boost::shared_ptr<Poseidon::TimerItem> m_gc_timer;
 
 	std::map<Poseidon::Uuid, boost::shared_ptr<Channel> > m_channels;
 
@@ -27,17 +27,17 @@ public:
 	~FetchSession();
 
 private:
-	void onSyncGcTimer(boost::uint64_t now);
+	void on_sync_gc_timer(boost::uint64_t now);
 
 protected:
-	void onSyncDataMessage(boost::uint16_t messageId, Poseidon::StreamBuffer payload) OVERRIDE;
+	void on_sync_data_message(boost::uint16_t message_id, Poseidon::StreamBuffer payload) OVERRIDE;
 
 public:
-	bool send(const Poseidon::Uuid &fetchUuid, boost::uint16_t messageId, Poseidon::StreamBuffer plain);
+	bool send(const Poseidon::Uuid &fetch_uuid, boost::uint16_t message_id, Poseidon::StreamBuffer plain);
 
 	template<typename MsgT>
-	bool send(const Poseidon::Uuid &fetchUuid, const MsgT &msg){
-		return send(fetchUuid, MsgT::ID, Poseidon::StreamBuffer(msg));
+	bool send(const Poseidon::Uuid &fetch_uuid, const MsgT &msg){
+		return send(fetch_uuid, MsgT::ID, Poseidon::StreamBuffer(msg));
 	}
 };
 

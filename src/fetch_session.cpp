@@ -26,14 +26,14 @@ private:
 	struct ConnectElement {
 		std::string host;
 		unsigned port;
-		bool useSsl;
-		bool keepAlive;
+		bool use_ssl;
+		bool keep_alive;
 
 		bool connected;
 		Poseidon::StreamBuffer pending;
 
-		ConnectElement(std::string host_, unsigned port_, bool useSsl_, bool keepAlive_)
-			: host(STD_MOVE(host_)), port(port_), useSsl(useSsl_), keepAlive(keepAlive_)
+		ConnectElement(std::string host_, unsigned port_, bool use_ssl_, bool keep_alive_)
+			: host(STD_MOVE(host_)), port(port_), use_ssl(use_ssl_), keep_alive(keep_alive_)
 			, connected(false)
 		{
 		}
@@ -44,16 +44,16 @@ private:
 	class ClientSyncJobBase : public Poseidon::JobBase {
 	private:
 		const boost::weak_ptr<FetchSession> m_session;
-		const Poseidon::Uuid m_fetchUuid;
+		const Poseidon::Uuid m_fetch_uuid;
 
 	public:
-		ClientSyncJobBase(const boost::shared_ptr<FetchSession> &session, const Poseidon::Uuid &fetchUuid)
-			: m_session(session), m_fetchUuid(fetchUuid)
+		ClientSyncJobBase(const boost::shared_ptr<FetchSession> &session, const Poseidon::Uuid &fetch_uuid)
+			: m_session(session), m_fetch_uuid(fetch_uuid)
 		{
 		}
 
 	private:
-		boost::weak_ptr<const void> getCategory() const FINAL {
+		boost::weak_ptr<const void> get_category() const FINAL {
 			return m_session;
 		}
 		void perform() FINAL {
@@ -63,44 +63,44 @@ private:
 			if(!session){
 				return;
 			}
-			const AUTO(it, session->m_channels.find(m_fetchUuid));
+			const AUTO(it, session->m_channels.find(m_fetch_uuid));
 			if(it == session->m_channels.end()){
 				return;
 			}
 
 			try {
-				reallyPerform(session, it);
+				really_perform(session, it);
 			} catch(std::exception &e){
 				LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
 				try {
-					session->sendError(0, Msg::ST_INTERNAL_ERROR, e.what());
-					session->shutdownRead();
-					session->shutdownWrite();
+					session->send_error(0, Msg::ST_INTERNAL_ERROR, e.what());
+					session->shutdown_read();
+					session->shutdown_write();
 				} catch(...){
-					session->forceShutdown();
+					session->force_shutdown();
 				}
 			}
 		}
 
 	protected:
-		virtual void reallyPerform(const boost::shared_ptr<FetchSession> &session, ChannelIterator it) = 0;
+		virtual void really_perform(const boost::shared_ptr<FetchSession> &session, ChannelIterator it) = 0;
 	};
 
 	class ClientConnectJob : public ClientSyncJobBase {
 	public:
-		ClientConnectJob(const boost::shared_ptr<FetchSession> &session, const Poseidon::Uuid &fetchUuid)
-			: ClientSyncJobBase(session, fetchUuid)
+		ClientConnectJob(const boost::shared_ptr<FetchSession> &session, const Poseidon::Uuid &fetch_uuid)
+			: ClientSyncJobBase(session, fetch_uuid)
 		{
 		}
 
 	protected:
-		void reallyPerform(const boost::shared_ptr<FetchSession> &session, ChannelIterator it) OVERRIDE {
+		void really_perform(const boost::shared_ptr<FetchSession> &session, ChannelIterator it) OVERRIDE {
 			PROFILE_ME;
-			LOG_MEDUSA_DEBUG("Remote client connected: fetchUuid = ", it->first);
+			LOG_MEDUSA_DEBUG("Remote client connected: fetch_uuid = ", it->first);
 
 			const AUTO(channel, it->second);
-			assert(!channel->m_connectQueue.empty());
-			AUTO_REF(elem, channel->m_connectQueue.front());
+			assert(!channel->m_connect_queue.empty());
+			AUTO_REF(elem, channel->m_connect_queue.front());
 
 			elem.connected = true;
 			if(!elem.pending.empty()){
@@ -111,43 +111,43 @@ private:
 				elem.pending.clear();
 			}
 
-			session->send(it->first, Msg::SC_FetchConnected(elem.keepAlive));
+			session->send(it->first, Msg::SC_FetchConnected(elem.keep_alive));
 		}
 	};
 
 	class ClientCloseJob : public ClientSyncJobBase {
 	private:
-		int m_errCode;
+		int m_err_code;
 
 	public:
-		ClientCloseJob(const boost::shared_ptr<FetchSession> &session, const Poseidon::Uuid &fetchUuid, int errCode)
-			: ClientSyncJobBase(session, fetchUuid)
-			, m_errCode(errCode)
+		ClientCloseJob(const boost::shared_ptr<FetchSession> &session, const Poseidon::Uuid &fetch_uuid, int err_code)
+			: ClientSyncJobBase(session, fetch_uuid)
+			, m_err_code(err_code)
 		{
 		}
 
 	protected:
-		void reallyPerform(const boost::shared_ptr<FetchSession> &session, ChannelIterator it) OVERRIDE {
+		void really_perform(const boost::shared_ptr<FetchSession> &session, ChannelIterator it) OVERRIDE {
 			PROFILE_ME;
-			LOG_MEDUSA_DEBUG("Remote client closed: fetchUuid = ", it->first, ", errCode = ", m_errCode);
+			LOG_MEDUSA_DEBUG("Remote client closed: fetch_uuid = ", it->first, ", err_code = ", m_err_code);
 
 			const AUTO(channel, it->second);
-			assert(!channel->m_connectQueue.empty());
-			AUTO_REF(elem, channel->m_connectQueue.front());
+			assert(!channel->m_connect_queue.empty());
+			AUTO_REF(elem, channel->m_connect_queue.front());
 
-			if(m_errCode != 0){
+			if(m_err_code != 0){
 				try {
-					std::string errMsg;
-					errMsg.resize(255);
+					std::string err_msg;
+					err_msg.resize(255);
 					unsigned len;
 					if(elem.connected){
-						len = (unsigned)std::sprintf(&errMsg[0], "Lost connection to remote server: errno was %d: ", m_errCode);
+						len = (unsigned)std::sprintf(&err_msg[0], "Lost connection to remote server: errno was %d: ", m_err_code);
 					} else {
-						len = (unsigned)std::sprintf(&errMsg[0], "Could not connect to remote server: errno was %d: ", m_errCode);
+						len = (unsigned)std::sprintf(&err_msg[0], "Could not connect to remote server: errno was %d: ", m_err_code);
 					}
-					errMsg.resize(len);
-					errMsg += Poseidon::getErrorDesc(m_errCode).get();
-					session->send(it->first, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, m_errCode, STD_MOVE(errMsg)));
+					err_msg.resize(len);
+					err_msg += Poseidon::get_error_desc(m_err_code).get();
+					session->send(it->first, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, m_err_code, STD_MOVE(err_msg)));
 				} catch(std::exception &e){
 					LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
 				}
@@ -157,10 +157,10 @@ private:
 
 			session->send(it->first, Msg::SC_FetchEnded());
 
-			if(elem.keepAlive){
-				channel->m_connectQueue.pop_front();
-				if(!channel->m_connectQueue.empty()){
-					channel->createClient();
+			if(elem.keep_alive){
+				channel->m_connect_queue.pop_front();
+				if(!channel->m_connect_queue.empty()){
+					channel->create_client();
 				}
 			} else {
 				session->send(it->first, Msg::SC_FetchClosed(Msg::ST_OK, 0, STR_CONNECTION_IS_NOT_PERSISTENT));
@@ -174,154 +174,154 @@ private:
 		Poseidon::StreamBuffer m_data;
 
 	public:
-		ClientReadAvailJob(const boost::shared_ptr<FetchSession> &session, const Poseidon::Uuid &fetchUuid, Poseidon::StreamBuffer data)
-			: ClientSyncJobBase(session, fetchUuid)
+		ClientReadAvailJob(const boost::shared_ptr<FetchSession> &session, const Poseidon::Uuid &fetch_uuid, Poseidon::StreamBuffer data)
+			: ClientSyncJobBase(session, fetch_uuid)
 			, m_data(STD_MOVE(data))
 		{
 		}
 
 	protected:
-		void reallyPerform(const boost::shared_ptr<FetchSession> &session, ChannelIterator it) OVERRIDE {
+		void really_perform(const boost::shared_ptr<FetchSession> &session, ChannelIterator it) OVERRIDE {
 			PROFILE_ME;
-			LOG_MEDUSA_DEBUG("Remote client read avail: fetchUuid = ", it->first, ", size = ", m_data.size());
+			LOG_MEDUSA_DEBUG("Remote client read avail: fetch_uuid = ", it->first, ", size = ", m_data.size());
 
 			const AUTO(channel, it->second);
 
 			session->send(it->first, Msg::SC_FetchReceived::ID, STD_MOVE(m_data));
-			channel->m_updatedTime = Poseidon::getFastMonoClock();
+			channel->m_updated_time = Poseidon::get_fast_mono_clock();
 		}
 	};
 
 	class Client : public Poseidon::TcpClientBase {
 	private:
 		const boost::weak_ptr<FetchSession> m_session;
-		const Poseidon::Uuid m_fetchUuid;
+		const Poseidon::Uuid m_fetch_uuid;
 
 	public:
-		Client(const Poseidon::SockAddr &addr, bool useSsl,
-			const boost::shared_ptr<FetchSession> &session, const Poseidon::Uuid &fetchUuid)
-			: Poseidon::TcpClientBase(addr, useSsl)
-			, m_session(session), m_fetchUuid(fetchUuid)
+		Client(const Poseidon::SockAddr &addr, bool use_ssl,
+			const boost::shared_ptr<FetchSession> &session, const Poseidon::Uuid &fetch_uuid)
+			: Poseidon::TcpClientBase(addr, use_ssl)
+			, m_session(session), m_fetch_uuid(fetch_uuid)
 		{
-			LOG_MEDUSA_DEBUG("Constructor of remote client: remote = ", Poseidon::getIpPortFromSockAddr(addr));
+			LOG_MEDUSA_DEBUG("Constructor of remote client: remote = ", Poseidon::get_ip_port_from_sock_addr(addr));
 		}
 		~Client(){
 			try {
-				LOG_MEDUSA_DEBUG("Destructor of remote client: remote = ", getRemoteInfo());
+				LOG_MEDUSA_DEBUG("Destructor of remote client: remote = ", get_remote_info());
 			} catch(...){
 				LOG_MEDUSA_DEBUG("Destructor of remote client: remote is not connected");
 			}
 		}
 
 	protected:
-		void onConnect() OVERRIDE {
+		void on_connect() OVERRIDE {
 			PROFILE_ME;
 
 			const AUTO(session, m_session.lock());
 			if(session){
-				Poseidon::enqueueJob(boost::make_shared<ClientConnectJob>(
-					session, m_fetchUuid));
+				Poseidon::enqueue_job(boost::make_shared<ClientConnectJob>(
+					session, m_fetch_uuid));
 			}
 
-			Poseidon::TcpClientBase::onConnect();
+			Poseidon::TcpClientBase::on_connect();
 		}
-		void onClose(int errCode) NOEXCEPT OVERRIDE {
+		void on_close(int err_code) NOEXCEPT OVERRIDE {
 			PROFILE_ME;
 
 			const AUTO(session, m_session.lock());
 			if(session){
 				try {
-					Poseidon::enqueueJob(boost::make_shared<ClientCloseJob>(
-						session, m_fetchUuid, errCode));
+					Poseidon::enqueue_job(boost::make_shared<ClientCloseJob>(
+						session, m_fetch_uuid, err_code));
 				} catch(std::exception &e){
 					LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
-					session->forceShutdown();
+					session->force_shutdown();
 				}
 			}
 
-			Poseidon::TcpClientBase::onClose(errCode);
+			Poseidon::TcpClientBase::on_close(err_code);
 		}
 
-		void onReadAvail(Poseidon::StreamBuffer data) OVERRIDE {
+		void on_read_avail(Poseidon::StreamBuffer data) OVERRIDE {
 			PROFILE_ME;
 
 			const AUTO(session, m_session.lock());
 			if(!session){
-				LOG_MEDUSA_DEBUG("Lost connection to remote client: fetchUuid = ", m_fetchUuid);
-				forceShutdown();
+				LOG_MEDUSA_DEBUG("Lost connection to remote client: fetch_uuid = ", m_fetch_uuid);
+				force_shutdown();
 				return;
 			}
 
 			try {
-				Poseidon::enqueueJob(boost::make_shared<ClientReadAvailJob>(
-					session, m_fetchUuid, STD_MOVE(data)));
-				setTimeout(0);
+				Poseidon::enqueue_job(boost::make_shared<ClientReadAvailJob>(
+					session, m_fetch_uuid, STD_MOVE(data)));
+				set_timeout(0);
 			} catch(std::exception &e){
 				LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
-				forceShutdown();
-				session->forceShutdown();
+				force_shutdown();
+				session->force_shutdown();
 			}
 		}
 
 	public:
-		void goResident(){
+		void go_resident(){
 			PROFILE_ME;
 
-			const AUTO(connectTimeout, getConfig<boost::uint64_t>("remote_client_connect_timeout", 10000));
-			Poseidon::TcpClientBase::setTimeout(connectTimeout);
+			const AUTO(connect_timeout, get_config<boost::uint64_t>("remote_client_connect_timeout", 10000));
+			Poseidon::TcpClientBase::set_timeout(connect_timeout);
 
-			Poseidon::TcpClientBase::goResident();
+			Poseidon::TcpClientBase::go_resident();
 		}
 	};
 
 private:
 	const boost::weak_ptr<FetchSession> m_session;
-	const Poseidon::Uuid m_fetchUuid;
+	const Poseidon::Uuid m_fetch_uuid;
 
-	std::deque<ConnectElement> m_connectQueue;
+	std::deque<ConnectElement> m_connect_queue;
 	boost::weak_ptr<Client> m_client;
-	boost::uint64_t m_updatedTime;
+	boost::uint64_t m_updated_time;
 
 public:
-	Channel(const boost::shared_ptr<FetchSession> &session, const Poseidon::Uuid &fetchUuid)
-		: m_session(session), m_fetchUuid(fetchUuid)
-		, m_updatedTime(0)
+	Channel(const boost::shared_ptr<FetchSession> &session, const Poseidon::Uuid &fetch_uuid)
+		: m_session(session), m_fetch_uuid(fetch_uuid)
+		, m_updated_time(0)
 	{
 	}
 	~Channel(){
-		killClient(true);
+		kill_client(true);
 	}
 
 private:
-	void createClient(){
+	void create_client(){
 		PROFILE_ME;
 
-		assert(!m_connectQueue.empty());
+		assert(!m_connect_queue.empty());
 
-		const AUTO_REF(elem, m_connectQueue.front());
+		const AUTO_REF(elem, m_connect_queue.front());
 		LOG_MEDUSA_DEBUG("Next fetch request: host:port = ", elem.host, ':', elem.port,
-			", useSsl = ", elem.useSsl, ", keepAlive = ", elem.keepAlive);
+			", use_ssl = ", elem.use_ssl, ", keep_alive = ", elem.keep_alive);
 		try {
 			Poseidon::SockAddr addr;
 			try {
-				DnsDaemon::syncLookUp(addr, elem.host, elem.port);
+				DnsDaemon::sync_look_up(addr, elem.host, elem.port);
 			} catch(std::exception &e){
 				LOG_MEDUSA_DEBUG("DNS failure...");
 				const AUTO(session, m_session.lock());
 				if(session){
-					session->send(m_fetchUuid, Msg::SC_FetchClosed(Msg::ERR_DNS_FAILURE, -1, e.what()));
-					session->m_channels.erase(m_fetchUuid);
+					session->send(m_fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_DNS_FAILURE, -1, e.what()));
+					session->m_channels.erase(m_fetch_uuid);
 				}
 				return;
 			}
-			LOG_MEDUSA_DEBUG("DNS lookup succeeded: fetchUuid = ", m_fetchUuid, ", host:port = ", elem.host, ':', elem.port);
+			LOG_MEDUSA_DEBUG("DNS lookup succeeded: fetch_uuid = ", m_fetch_uuid, ", host:port = ", elem.host, ':', elem.port);
 
-			if(addr.isPrivate()){
+			if(addr.is_private()){
 				LOG_MEDUSA_DEBUG("Connection to private address requested. Abort.");
 				const AUTO(session, m_session.lock());
 				if(session){
-					session->send(m_fetchUuid, Msg::SC_FetchClosed(Msg::ERR_ACCESS_DENIED, ECONNREFUSED, STR_PRIVATE_ADDR_REQUESTED));
-					session->m_channels.erase(m_fetchUuid);
+					session->send(m_fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_ACCESS_DENIED, ECONNREFUSED, STR_PRIVATE_ADDR_REQUESTED));
+					session->m_channels.erase(m_fetch_uuid);
 				}
 				return;
 			}
@@ -331,72 +331,72 @@ private:
 				return;
 			}
 			LOG_MEDUSA_DEBUG("Creating remote client...");
-			const AUTO(client, boost::make_shared<Client>(addr, elem.useSsl, session, m_fetchUuid));
-			client->goResident();
+			const AUTO(client, boost::make_shared<Client>(addr, elem.use_ssl, session, m_fetch_uuid));
+			client->go_resident();
 			m_client = client;
-			m_updatedTime = Poseidon::getFastMonoClock();
+			m_updated_time = Poseidon::get_fast_mono_clock();
 		} catch(std::exception &e){
 			LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
 			const AUTO(session, m_session.lock());
 			if(session){
-				session->forceShutdown();
+				session->force_shutdown();
 			}
 		}
 	}
-	void killClient(bool force){
+	void kill_client(bool force){
 		PROFILE_ME;
 
 		const AUTO(client, m_client.lock());
 		if(client){
 			if(force){
-				client->forceShutdown();
+				client->force_shutdown();
 			} else {
-				client->shutdownRead();
-				client->shutdownWrite();
+				client->shutdown_read();
+				client->shutdown_write();
 			}
 		}
 
-		m_connectQueue.clear();
+		m_connect_queue.clear();
 		m_client.reset();
 	}
 
 public:
-	const Poseidon::Uuid &getFetchUuid() const {
-		return m_fetchUuid;
+	const Poseidon::Uuid &get_fetch_uuid() const {
+		return m_fetch_uuid;
 	}
 
-	boost::uint64_t getUpdatedTime() const {
-		return m_updatedTime;
+	boost::uint64_t get_updated_time() const {
+		return m_updated_time;
 	}
 
-	void connect(std::string host, unsigned port, bool useSsl, bool keepAlive){
+	void connect(std::string host, unsigned port, bool use_ssl, bool keep_alive){
 		PROFILE_ME;
-		LOG_MEDUSA_INFO("Fetch connect: fetchUuid = ", m_fetchUuid,
-			", host:port = ", host, ':', port, ", useSsl = ", useSsl, ", keepAlive = ", keepAlive);
+		LOG_MEDUSA_INFO("Fetch connect: fetch_uuid = ", m_fetch_uuid,
+			", host:port = ", host, ':', port, ", use_ssl = ", use_ssl, ", keep_alive = ", keep_alive);
 
-		const AUTO(maxPipeliningSize, getConfig<std::size_t>("fetch_max_pipelining_size", 16));
-		if(m_connectQueue.size() + 1 > maxPipeliningSize){
-			LOG_MEDUSA_WARNING("Max pipelining size exceeded: maxPipeliningSize = ", maxPipeliningSize);
+		const AUTO(max_pipelining_size, get_config<std::size_t>("fetch_max_pipelining_size", 16));
+		if(m_connect_queue.size() + 1 > max_pipelining_size){
+			LOG_MEDUSA_WARNING("Max pipelining size exceeded: max_pipelining_size = ", max_pipelining_size);
 			DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_MAX_PIPELINING_SIZE);
 		}
 
-		m_connectQueue.push_back(ConnectElement(STD_MOVE(host), port, useSsl, keepAlive));
+		m_connect_queue.push_back(ConnectElement(STD_MOVE(host), port, use_ssl, keep_alive));
 
-		if(m_connectQueue.size() == 1){
-			createClient();
+		if(m_connect_queue.size() == 1){
+			create_client();
 		}
 
-		m_updatedTime = Poseidon::getFastMonoClock();
+		m_updated_time = Poseidon::get_fast_mono_clock();
 	}
 	bool send(Poseidon::StreamBuffer data){
 		PROFILE_ME;
 
-		if(m_connectQueue.empty()){
-			LOG_MEDUSA_DEBUG("No connection in progress or connection lost: fetchUuid = ", m_fetchUuid);
+		if(m_connect_queue.empty()){
+			LOG_MEDUSA_DEBUG("No connection in progress or connection lost: fetch_uuid = ", m_fetch_uuid);
 			return false;
 		}
 
-		if((m_connectQueue.size() == 1) && m_connectQueue.front().connected){
+		if((m_connect_queue.size() == 1) && m_connect_queue.front().connected){
 			const AUTO(client, m_client.lock());
 			if(!client){
 				return false;
@@ -405,32 +405,32 @@ public:
 				return false;
 			}
 		} else {
-			const AUTO(maxPendingBufferSize, getConfig<std::size_t>("fetch_max_pending_buffer_size", 65536));
-			std::size_t pendingSize = 0;
-			for(AUTO(it, m_connectQueue.begin()); it != m_connectQueue.end(); ++it){
-				pendingSize += it->pending.size();
+			const AUTO(max_pending_buffer_size, get_config<std::size_t>("fetch_max_pending_buffer_size", 65536));
+			std::size_t pending_size = 0;
+			for(AUTO(it, m_connect_queue.begin()); it != m_connect_queue.end(); ++it){
+				pending_size += it->pending.size();
 			}
-			if(pendingSize + data.size() > maxPendingBufferSize){
-				LOG_MEDUSA_WARNING("Max pending buffer size exceeded: maxPendingBufferSize = ", maxPendingBufferSize);
+			if(pending_size + data.size() > max_pending_buffer_size){
+				LOG_MEDUSA_WARNING("Max pending buffer size exceeded: max_pending_buffer_size = ", max_pending_buffer_size);
 				DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_MAX_PENDING_BUFFER_SIZE);
 			}
-			m_connectQueue.back().pending.splice(data);
+			m_connect_queue.back().pending.splice(data);
 		}
 
-		m_updatedTime = Poseidon::getFastMonoClock();
+		m_updated_time = Poseidon::get_fast_mono_clock();
 		return true;
 	}
-	void close(int errCode) NOEXCEPT {
+	void close(int err_code) NOEXCEPT {
 		PROFILE_ME;
-		LOG_MEDUSA_INFO("Fetch close: fetchUuid = ", m_fetchUuid, ", errCode = ", errCode);
+		LOG_MEDUSA_INFO("Fetch close: fetch_uuid = ", m_fetch_uuid, ", err_code = ", err_code);
 
-		killClient(errCode != 0);
+		kill_client(err_code != 0);
 
-		m_updatedTime = Poseidon::getFastMonoClock();
+		m_updated_time = Poseidon::get_fast_mono_clock();
 	}
 };
 
-void FetchSession::syncGcTimerProc(const boost::weak_ptr<FetchSession> &weak, boost::uint64_t now) NOEXCEPT {
+void FetchSession::sync_gc_timer_proc(const boost::weak_ptr<FetchSession> &weak, boost::uint64_t now) NOEXCEPT {
 	PROFILE_ME;
 
 	const AUTO(session, weak.lock());
@@ -439,15 +439,15 @@ void FetchSession::syncGcTimerProc(const boost::weak_ptr<FetchSession> &weak, bo
 	}
 
 	try {
-		session->onSyncGcTimer(now);
+		session->on_sync_gc_timer(now);
 	} catch(std::exception &e){
 		LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
 		try {
-			session->sendError(0, Msg::ST_INTERNAL_ERROR, e.what());
-			session->shutdownRead();
-			session->shutdownWrite();
+			session->send_error(0, Msg::ST_INTERNAL_ERROR, e.what());
+			session->shutdown_read();
+			session->shutdown_write();
 		} catch(...){
-			session->forceShutdown();
+			session->force_shutdown();
 		}
 	}
 }
@@ -456,55 +456,55 @@ FetchSession::FetchSession(Poseidon::UniqueFile socket, std::string password)
 	: Poseidon::Cbpp::Session(STD_MOVE(socket))
 	, m_password(STD_MOVE(password))
 {
-	LOG_MEDUSA_DEBUG("Fetch session constructor: remote = ", getRemoteInfo());
+	LOG_MEDUSA_DEBUG("Fetch session constructor: remote = ", get_remote_info());
 }
 FetchSession::~FetchSession(){
 	try {
-		LOG_MEDUSA_DEBUG("Fetch session destructor: remote = ", getRemoteInfo());
+		LOG_MEDUSA_DEBUG("Fetch session destructor: remote = ", get_remote_info());
 	} catch(...){
 		LOG_MEDUSA_DEBUG("Fetch session destructor: remote is not connected");
 	}
 }
 
-void FetchSession::onSyncGcTimer(boost::uint64_t now){
+void FetchSession::on_sync_gc_timer(boost::uint64_t now){
 	PROFILE_ME;
 
-	const AUTO(gcTimeout, getConfig<boost::uint64_t>("fetch_channel_gc_timeout", 30000));
+	const AUTO(gc_timeout, get_config<boost::uint64_t>("fetch_channel_gc_timeout", 30000));
 
 	for(AUTO(next, m_channels.begin()), it = next; (next != m_channels.end()) && (++next, true); it = next){
 		const AUTO_REF(channel, it->second);
-		if(now < channel->getUpdatedTime() + gcTimeout){
+		if(now < channel->get_updated_time() + gc_timeout){
 			continue;
 		}
-		LOG_MEDUSA_DEBUG("Remote client shutdown due to inactivity: fetchUuid = ", it->first);
+		LOG_MEDUSA_DEBUG("Remote client shutdown due to inactivity: fetch_uuid = ", it->first);
 		m_channels.erase(it);
 	}
 }
 
-void FetchSession::onSyncDataMessage(boost::uint16_t messageId, Poseidon::StreamBuffer payload){
+void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::StreamBuffer payload){
 	PROFILE_ME;
 
-	if(!m_gcTimer){
-		m_gcTimer = Poseidon::TimerDaemon::registerTimer(5000, 5000,
-			boost::bind(&syncGcTimerProc, virtualWeakFromThis<FetchSession>(), _2));
+	if(!m_gc_timer){
+		m_gc_timer = Poseidon::TimerDaemon::register_timer(5000, 5000,
+			boost::bind(&sync_gc_timer_proc, virtual_weak_from_this<FetchSession>(), _2));
 	}
 
-	const AUTO(headerSize, getEncryptedHeaderSize());
-	if(payload.size() < headerSize){
-		LOG_MEDUSA_WARNING("Frame from remote client is too small, expecting ", headerSize);
+	const AUTO(header_size, get_encrypted_header_size());
+	if(payload.size() < header_size){
+		LOG_MEDUSA_WARNING("Frame from remote client is too small, expecting ", header_size);
 		DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ST_END_OF_STREAM);
 	}
-	const AUTO(context, tryDecryptHeader(payload, m_password));
+	const AUTO(context, try_decrypt_header(payload, m_password));
 	if(!context){
 		LOG_MEDUSA_WARNING("Unexpected checksum. Maybe you provided a wrong password?");
 		DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ST_FORBIDDEN);
 	}
-	payload.discard(headerSize);
-	AUTO(plain, decryptPayload(context, STD_MOVE(payload)));
+	payload.discard(header_size);
+	AUTO(plain, decrypt_payload(context, STD_MOVE(payload)));
 
-	const AUTO_REF(fetchUuid, context->uuid);
-	LOG_MEDUSA_DEBUG("Fetch request: fetchUuid = ", fetchUuid, ", messageId = ", messageId);
-	switch(messageId){
+	const AUTO_REF(fetch_uuid, context->uuid);
+	LOG_MEDUSA_DEBUG("Fetch request: fetch_uuid = ", fetch_uuid, ", message_id = ", message_id);
+	switch(message_id){
 		{{
 #define ON_MESSAGE(Msg_, req_)	\
 		}}	\
@@ -520,53 +520,53 @@ void FetchSession::onSyncDataMessage(boost::uint16_t messageId, Poseidon::Stream
 		{ //
 //=============================================================================
 	ON_MESSAGE(Msg::CS_FetchConnect, req){
-		AUTO(it, m_channels.find(fetchUuid));
+		AUTO(it, m_channels.find(fetch_uuid));
 		if(it == m_channels.end()){
-			it = m_channels.insert(std::make_pair(fetchUuid,
-				boost::make_shared<Channel>(virtualSharedFromThis<FetchSession>(), fetchUuid))).first;
+			it = m_channels.insert(std::make_pair(fetch_uuid,
+				boost::make_shared<Channel>(virtual_shared_from_this<FetchSession>(), fetch_uuid))).first;
 		}
 		const AUTO(channel, it->second);
-		channel->connect(STD_MOVE(req.host), req.port, req.useSsl, req.keepAlive);
+		channel->connect(STD_MOVE(req.host), req.port, req.use_ssl, req.keep_alive);
 	}
 	ON_RAW_MESSAGE(Msg::CS_FetchSend, req){
-		const AUTO(it, m_channels.find(fetchUuid));
+		const AUTO(it, m_channels.find(fetch_uuid));
 		if(it == m_channels.end()){
-			send(fetchUuid, Msg::SC_FetchClosed(Msg::ERR_NOT_CONNECTED, ENOTCONN, STR_NO_CONNECTION_ESTABLISHED));
+			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_NOT_CONNECTED, ENOTCONN, STR_NO_CONNECTION_ESTABLISHED));
 			break;
 		}
 		const AUTO(channel, it->second);
 		if(!channel->send(STD_MOVE(req))){
-			send(fetchUuid, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, EPIPE, STR_COULD_NOT_SEND_TO_REMOTE));
+			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, EPIPE, STR_COULD_NOT_SEND_TO_REMOTE));
 			m_channels.erase(it);
 			break;
 		}
 	}
 	ON_MESSAGE(Msg::CS_FetchClose, req){
-		const AUTO(it, m_channels.find(fetchUuid));
+		const AUTO(it, m_channels.find(fetch_uuid));
 		if(it == m_channels.end()){
-			send(fetchUuid, Msg::SC_FetchClosed(Msg::ERR_NOT_CONNECTED, ENOTCONN, STR_NO_CONNECTION_ESTABLISHED));
+			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_NOT_CONNECTED, ENOTCONN, STR_NO_CONNECTION_ESTABLISHED));
 			break;
 		}
 		const AUTO(channel, it->second);
-		channel->close(req.errCode);
+		channel->close(req.err_code);
 		m_channels.erase(it);
 	}
 //=============================================================================
 		}}
 		break;
 	default:
-		LOG_MEDUSA_ERROR("Unknown fetch message from client: messageId = ", messageId, ", size = ", plain.size());
+		LOG_MEDUSA_ERROR("Unknown fetch message from client: message_id = ", message_id, ", size = ", plain.size());
 		DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ST_NOT_FOUND);
 	}
 }
 
-bool FetchSession::send(const Poseidon::Uuid &fetchUuid, boost::uint16_t messageId, Poseidon::StreamBuffer plain){
+bool FetchSession::send(const Poseidon::Uuid &fetch_uuid, boost::uint16_t message_id, Poseidon::StreamBuffer plain){
 	PROFILE_ME;
 
-	AUTO(pair, encryptHeader(fetchUuid, m_password));
-	AUTO(payload, encryptPayload(pair.first, STD_MOVE(plain)));
+	AUTO(pair, encrypt_header(fetch_uuid, m_password));
+	AUTO(payload, encrypt_payload(pair.first, STD_MOVE(plain)));
 	pair.second.splice(payload);
-	return Poseidon::Cbpp::Session::send(messageId, STD_MOVE(pair.second));
+	return Poseidon::Cbpp::Session::send(message_id, STD_MOVE(pair.second));
 }
 
 }
