@@ -193,6 +193,8 @@ private:
 	};
 
 	class Client : public Poseidon::TcpClientBase {
+		friend Channel;
+
 	private:
 		const boost::weak_ptr<FetchSession> m_session;
 		const Poseidon::Uuid m_fetch_uuid;
