@@ -19,7 +19,6 @@ lib_libposeidon_medusa_la_SOURCES = \
 	src/singletons/proxy_server.cpp	\
 	src/singletons/fetch_client.cpp	\
 	src/singletons/fetch_server.cpp	\
-	src/singletons/dns_daemon.cpp	\
 	src/proxy_session.cpp	\
 	src/fetch_session.cpp	\
 	src/encryption.cpp	\

@@ -1,13 +1,15 @@
 #include "precompiled.hpp"
 #include "fetch_session.hpp"
 #include <poseidon/singletons/timer_daemon.hpp>
+#include <poseidon/singletons/job_dispatcher.hpp>
+#include <poseidon/singletons/dns_daemon.hpp>
 #include <poseidon/job_base.hpp>
+#include <poseidon/job_promise.hpp>
 #include <poseidon/sock_addr.hpp>
 #include <poseidon/tcp_client_base.hpp>
 #include "encryption.hpp"
 #include "msg/cs_fetch.hpp"
 #include "msg/sc_fetch.hpp"
-#include "singletons/dns_daemon.hpp"
 #include "msg/error_codes.hpp"
 
 namespace Medusa {
@@ -304,9 +306,11 @@ private:
 		LOG_MEDUSA_DEBUG("Next fetch request: host:port = ", elem.host, ':', elem.port,
 			", use_ssl = ", elem.use_ssl, ", keep_alive = ", elem.keep_alive);
 		try {
-			Poseidon::SockAddr addr;
+			const AUTO(addr, boost::make_shared<Poseidon::SockAddr>());
 			try {
-				DnsDaemon::sync_look_up(addr, elem.host, elem.port);
+				const AUTO(promise, Poseidon::DnsDaemon::async_lookup(addr, elem.host, elem.port));
+				Poseidon::JobDispatcher::yield(promise);
+				promise->check_and_rethrow();
 			} catch(std::exception &e){
 				LOG_MEDUSA_DEBUG("DNS failure...");
 				const AUTO(session, m_session.lock());
@@ -318,7 +322,7 @@ private:
 			}
 			LOG_MEDUSA_DEBUG("DNS lookup succeeded: fetch_uuid = ", m_fetch_uuid, ", host:port = ", elem.host, ':', elem.port);
 
-			if(addr.is_private()){
+			if(addr->is_private()){
 				LOG_MEDUSA_DEBUG("Connection to private address requested. Abort.");
 				const AUTO(session, m_session.lock());
 				if(session){
@@ -333,7 +337,7 @@ private:
 				return;
 			}
 			LOG_MEDUSA_DEBUG("Creating remote client...");
-			const AUTO(client, boost::make_shared<Client>(addr, elem.use_ssl, session, m_fetch_uuid));
+			const AUTO(client, boost::make_shared<Client>(*addr, elem.use_ssl, session, m_fetch_uuid));
 			client->go_resident();
 			m_client = client;
 			m_updated_time = Poseidon::get_fast_mono_clock();
