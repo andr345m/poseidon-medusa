@@ -15,7 +15,9 @@ namespace {
 		Poseidon::Md5 auth_md5;
 	};
 
-	BOOST_STATIC_ASSERT_MSG(std::is_standard_layout<EncryptedHeader>::value, "EncryptedHeader is not a standard-layout struct?");
+#ifdef POSEIDON_CXX11
+	static_assert(std::is_standard_layout<EncryptedHeader>::value, "EncryptedHeader is not a standard-layout struct?");
+#endif
 	BOOST_STATIC_ASSERT_MSG(sizeof(EncryptedHeader) == 48, "Incompatible layout detected");
 
 	struct NoncedKey {
