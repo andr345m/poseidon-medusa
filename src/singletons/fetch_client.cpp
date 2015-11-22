@@ -186,17 +186,17 @@ void FetchClient::on_sync_data_message_end(boost::uint64_t payload_size){
 	}
 	switch(m_message_id){
 		{{
-#define ON_MESSAGE(Msg_, req_)	\
-		}}	\
-		break;	\
-	case Msg_::ID: {	\
-		Msg_ (req_)(plain);	\
+#define ON_MESSAGE(Msg_, req_)  \
+		}}  \
+		break;  \
+	case Msg_::ID: {    \
+		Msg_ (req_)(plain); \
 		{ //
-#define ON_RAW_MESSAGE(Msg_, req_)	\
-		}}	\
-		break;	\
-	case Msg_::ID: {	\
-		::Poseidon::StreamBuffer & (req_) = plain;	\
+#define ON_RAW_MESSAGE(Msg_, req_)  \
+		}}  \
+		break;  \
+	case Msg_::ID: {    \
+		::Poseidon::StreamBuffer & (req_) = plain;  \
 		{ //
 //=============================================================================
 	ON_MESSAGE(Msg::SC_FetchConnected, req){

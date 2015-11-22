@@ -50,11 +50,11 @@ namespace {
 		while(i < 256){
 			unsigned tmp;
 
-#define GEN_S(k_)	\
-			tmp = ret->s[i];	\
-			j = (j + tmp + (k_)) & 0xFF;	\
-			ret->s[i] = ret->s[j];	\
-			ret->s[j] = tmp;	\
+#define GEN_S(k_)   \
+			tmp = ret->s[i];    \
+			j = (j + tmp + (k_)) & 0xFF;    \
+			ret->s[i] = ret->s[j];  \
+			ret->s[j] = tmp;    \
 			++i;
 
 			for(unsigned r = 0; r < 16; ++r){

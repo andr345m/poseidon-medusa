@@ -48,14 +48,14 @@ private:
 
 private:
 	enum State {
-		S_HTTP_HEADERS			= 0,
-		S_HTTP_ENTITY			= 1,
-		S_TUNNEL_CONNECTING		= 2,
-		S_TUNNEL_ESTABLISHED	= 3,
+		S_HTTP_HEADERS          = 0,
+		S_HTTP_ENTITY           = 1,
+		S_TUNNEL_CONNECTING     = 2,
+		S_TUNNEL_ESTABLISHED    = 3,
 	};
 
 	enum {
-		WAITING_FOR_HEADERS		= (boost::uint64_t)-128,
+		WAITING_FOR_HEADERS     = (boost::uint64_t)-128,
 	};
 
 private:

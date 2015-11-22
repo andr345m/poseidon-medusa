@@ -15,10 +15,10 @@
 namespace Medusa {
 
 namespace {
-	const std::string STR_PRIVATE_ADDR_REQUESTED		("Connection to private address requested");
-	const std::string STR_CONNECTION_IS_NOT_PERSISTENT	("Connection is not persistent");
-	const std::string STR_NO_CONNECTION_ESTABLISHED		("No connection established");
-	const std::string STR_COULD_NOT_SEND_TO_REMOTE		("Could not send data to remote server");
+	const std::string STR_PRIVATE_ADDR_REQUESTED        ("Connection to private address requested");
+	const std::string STR_CONNECTION_IS_NOT_PERSISTENT  ("Connection is not persistent");
+	const std::string STR_NO_CONNECTION_ESTABLISHED     ("No connection established");
+	const std::string STR_COULD_NOT_SEND_TO_REMOTE      ("Could not send data to remote server");
 }
 
 class FetchSession::Channel {
@@ -512,17 +512,17 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 	LOG_MEDUSA_DEBUG("Fetch request: fetch_uuid = ", fetch_uuid, ", message_id = ", message_id);
 	switch(message_id){
 		{{
-#define ON_MESSAGE(Msg_, req_)	\
-		}}	\
-		break;	\
-	case Msg_::ID: {	\
-		Msg_ (req_)(plain);	\
+#define ON_MESSAGE(Msg_, req_)  \
+		}}  \
+		break;  \
+	case Msg_::ID: {    \
+		Msg_ (req_)(plain); \
 		{ //
-#define ON_RAW_MESSAGE(Msg_, req_)	\
-		}}	\
-		break;	\
-	case Msg_::ID: {	\
-		::Poseidon::StreamBuffer & (req_) = plain;	\
+#define ON_RAW_MESSAGE(Msg_, req_)  \
+		}}  \
+		break;  \
+	case Msg_::ID: {    \
+		::Poseidon::StreamBuffer & (req_) = plain;  \
 		{ //
 //=============================================================================
 	ON_MESSAGE(Msg::CS_FetchConnect, req){

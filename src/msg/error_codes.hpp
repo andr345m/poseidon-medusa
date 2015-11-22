@@ -9,13 +9,13 @@ namespace Msg {
 	using namespace Poseidon::Cbpp::StatusCodes;
 
 	enum {
-		ERR_NOT_CONNECTED				= 9501,
-		ERR_CONNECTION_LOST				= 9502,
-		ERR_DNS_FAILURE					= 9503,
-		ERR_MAX_PIPELINING_SIZE			= 9504,
-		ERR_MAX_PENDING_BUFFER_SIZE		= 9505,
-		ERR_ACCESS_DENIED				= 9506,
-		ERR_CONNECTION_REFUSED			= 9507,
+		ERR_NOT_CONNECTED               = 9501,
+		ERR_CONNECTION_LOST             = 9502,
+		ERR_DNS_FAILURE                 = 9503,
+		ERR_MAX_PIPELINING_SIZE         = 9504,
+		ERR_MAX_PENDING_BUFFER_SIZE     = 9505,
+		ERR_ACCESS_DENIED               = 9506,
+		ERR_CONNECTION_REFUSED          = 9507,
 	};
 }
 
