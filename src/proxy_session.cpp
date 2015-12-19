@@ -209,8 +209,8 @@ void ProxySession::shutdown(Poseidon::Http::StatusCode status_code, Poseidon::Op
 	}
 
 	try {
-		headers.set(sslit("Connection"), "Close");
-		headers.set(sslit("Proxy-Connection"), "Close");
+		headers.set(sslit("Connection"), STR_CLOSE);
+		headers.set(sslit("Proxy-Connection"), STR_CLOSE);
 
 		Poseidon::Http::ResponseHeaders response_headers;
 		response_headers.version = 10001;
@@ -328,7 +328,7 @@ void ProxySession::on_sync_server_request_headers(
 		headers.erase("Proxy-Connection");
 		headers.erase("Upgrade");
 
-		headers.set(sslit("Connection"), "Close");
+		headers.set(sslit("Connection"), STR_CLOSE);
 		headers.set(sslit("X-Forwarded-For"), get_remote_info().ip.get());
 
 		bool succeeded;
