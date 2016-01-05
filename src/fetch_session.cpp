@@ -308,7 +308,7 @@ private:
 		try {
 			const AUTO(addr, boost::make_shared<Poseidon::SockAddr>());
 			try {
-				const AUTO(promise, Poseidon::DnsDaemon::async_lookup(addr, elem.host, elem.port));
+				const AUTO(promise, Poseidon::DnsDaemon::enqueue_for_looking_up(addr, elem.host, elem.port));
 				Poseidon::JobDispatcher::yield(promise);
 				promise->check_and_rethrow();
 			} catch(std::exception &e){
