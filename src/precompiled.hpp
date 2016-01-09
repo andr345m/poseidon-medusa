@@ -11,7 +11,7 @@
 #include <poseidon/time.hpp>
 #include <poseidon/random.hpp>
 #include <poseidon/flags.hpp>
-#include <poseidon/module_config.hpp>
+#include <poseidon/module_raii.hpp>
 #include <poseidon/uuid.hpp>
 #include <poseidon/mutex.hpp>
 #include <poseidon/condition_variable.hpp>
@@ -22,8 +22,6 @@ namespace Medusa {
 
 typedef Poseidon::Exception     Exception;
 typedef Poseidon::SharedNts     SharedNts;
-
-DECLARE_MODULE_CONFIG(get_config, get_config_v)
 
 using Poseidon::sslit;
 

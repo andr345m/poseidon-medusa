@@ -1,5 +1,6 @@
 #include "precompiled.hpp"
 #include "fetch_session.hpp"
+#include "mmain.hpp"
 #include <poseidon/singletons/timer_daemon.hpp>
 #include <poseidon/singletons/job_dispatcher.hpp>
 #include <poseidon/singletons/dns_daemon.hpp>

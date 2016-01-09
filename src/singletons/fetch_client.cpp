@@ -1,5 +1,6 @@
 #include "../precompiled.hpp"
 #include "fetch_client.hpp"
+#include "../mmain.hpp"
 #include <poseidon/job_base.hpp>
 #include <poseidon/singletons/timer_daemon.hpp>
 #include <poseidon/cbpp/control_message.hpp>

@@ -1,5 +1,6 @@
 #include "precompiled.hpp"
 #include "proxy_session.hpp"
+#include "mmain.hpp"
 #include <poseidon/string.hpp>
 #include <poseidon/job_base.hpp>
 #include <poseidon/http/exception.hpp>

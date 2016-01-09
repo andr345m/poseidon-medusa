@@ -1,4 +1,5 @@
 #include "../precompiled.hpp"
+#include "../mmain.hpp"
 #include <poseidon/tcp_server_base.hpp>
 #include <poseidon/singletons/epoll_daemon.hpp>
 #include "../fetch_session.hpp"
