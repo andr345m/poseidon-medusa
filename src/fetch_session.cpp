@@ -311,7 +311,6 @@ private:
 			try {
 				const AUTO(promise, Poseidon::DnsDaemon::enqueue_for_looking_up(addr, elem.host, elem.port));
 				Poseidon::JobDispatcher::yield(promise);
-				promise->check_and_rethrow();
 			} catch(std::exception &e){
 				LOG_MEDUSA_DEBUG("DNS failure...");
 				const AUTO(session, m_session.lock());
