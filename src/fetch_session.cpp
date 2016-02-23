@@ -224,8 +224,10 @@ private:
 
 			const AUTO(session, m_session.lock());
 			if(session){
-				Poseidon::enqueue_job(boost::make_shared<ClientConnectJob>(
-					session, m_fetch_uuid));
+				Poseidon::JobDispatcher::enqueue(
+					boost::make_shared<ClientConnectJob>(
+						session, m_fetch_uuid),
+					VAL_INIT);
 			}
 
 			Poseidon::TcpClientBase::on_connect();
@@ -236,8 +238,10 @@ private:
 			const AUTO(session, m_session.lock());
 			if(session){
 				try {
-					Poseidon::enqueue_job(boost::make_shared<ClientCloseJob>(
-						session, m_fetch_uuid, err_code));
+					Poseidon::JobDispatcher::enqueue(
+						boost::make_shared<ClientCloseJob>(
+							session, m_fetch_uuid, err_code),
+						VAL_INIT);
 				} catch(std::exception &e){
 					LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
 					session->force_shutdown();
@@ -258,8 +262,10 @@ private:
 			}
 
 			try {
-				Poseidon::enqueue_job(boost::make_shared<ClientReadAvailJob>(
-					session, m_fetch_uuid, STD_MOVE(data)));
+				Poseidon::JobDispatcher::enqueue(
+					boost::make_shared<ClientReadAvailJob>(
+						session, m_fetch_uuid, STD_MOVE(data)),
+					VAL_INIT);
 				set_timeout(0);
 			} catch(std::exception &e){
 				LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
@@ -310,7 +316,7 @@ private:
 			const AUTO(addr, boost::make_shared<Poseidon::SockAddr>());
 			try {
 				const AUTO(promise, Poseidon::DnsDaemon::enqueue_for_looking_up(addr, elem.host, elem.port));
-				Poseidon::JobDispatcher::yield(promise);
+				Poseidon::JobDispatcher::yield(promise, true);
 			} catch(std::exception &e){
 				LOG_MEDUSA_DEBUG("DNS failure...");
 				const AUTO(session, m_session.lock());

@@ -4,6 +4,7 @@
 #include <poseidon/string.hpp>
 #include <poseidon/job_base.hpp>
 #include <poseidon/http/exception.hpp>
+#include <poseidon/singletons/job_dispatcher.hpp>
 #include "singletons/fetch_client.hpp"
 #include "msg/error_codes.hpp"
 
@@ -447,8 +448,10 @@ void ProxySession::on_close(int err_code) NOEXCEPT {
 	const AUTO(fetch_client, m_fetch_client.lock());
 	if(fetch_client){
 		try {
-			Poseidon::enqueue_job(boost::make_shared<CloseJob>(
-				virtual_shared_from_this<ProxySession>(), err_code));
+			Poseidon::JobDispatcher::enqueue(
+				boost::make_shared<CloseJob>(
+					virtual_shared_from_this<ProxySession>(), err_code),
+				VAL_INIT);
 		} catch(std::exception &e){
 			LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
 			fetch_client->force_shutdown();
@@ -461,8 +464,10 @@ void ProxySession::on_close(int err_code) NOEXCEPT {
 void ProxySession::on_read_avail(Poseidon::StreamBuffer data){
 	PROFILE_ME;
 
-	Poseidon::enqueue_job(boost::make_shared<ReadAvailJob>(
-		virtual_shared_from_this<ProxySession>(), STD_MOVE(data)));
+	Poseidon::JobDispatcher::enqueue(
+		boost::make_shared<ReadAvailJob>(
+			virtual_shared_from_this<ProxySession>(), STD_MOVE(data)),
+		VAL_INIT);
 }
 
 bool ProxySession::send(Poseidon::StreamBuffer data){

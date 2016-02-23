@@ -3,6 +3,7 @@
 #include "../mmain.hpp"
 #include <poseidon/job_base.hpp>
 #include <poseidon/singletons/timer_daemon.hpp>
+#include <poseidon/singletons/job_dispatcher.hpp>
 #include <poseidon/cbpp/control_message.hpp>
 #include <poseidon/cbpp/control_codes.hpp>
 #include "../proxy_session.hpp"
@@ -109,7 +110,9 @@ void FetchClient::on_close(int err_code) NOEXCEPT {
 	PROFILE_ME;
 
 	try {
-		Poseidon::enqueue_job(boost::make_shared<CloseJob>(virtual_shared_from_this<FetchClient>(), err_code));
+		Poseidon::JobDispatcher::enqueue(
+			boost::make_shared<CloseJob>(virtual_shared_from_this<FetchClient>(), err_code),
+			VAL_INIT);
 	} catch(std::exception &e){
 		LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
 	}
