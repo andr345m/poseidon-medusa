@@ -21,9 +21,6 @@ public:
 private:
 	const std::string m_password;
 
-	unsigned m_message_id;
-	Poseidon::StreamBuffer m_payload;
-
 	std::map<Poseidon::Uuid, boost::weak_ptr<ProxySession> > m_sessions;
 
 private:
@@ -44,10 +41,7 @@ private:
 protected:
 	void on_close(int err_code) NOEXCEPT OVERRIDE;
 
-	void on_sync_data_message_header(boost::uint16_t message_id, boost::uint64_t payload_size) OVERRIDE;
-	void on_sync_data_message_payload(boost::uint64_t payload_offset, Poseidon::StreamBuffer payload) OVERRIDE;
-	void on_sync_data_message_end(boost::uint64_t payload_size) OVERRIDE;
-
+	void on_sync_data_message(boost::uint16_t message_id, Poseidon::StreamBuffer payload) OVERRIDE;
 	void on_sync_error_message(boost::uint16_t message_id, Poseidon::Cbpp::StatusCode status_code, std::string reason) OVERRIDE;
 
 public:

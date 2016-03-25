@@ -134,48 +134,26 @@ bool FetchClient::send_control(Poseidon::Cbpp::ControlCode control_code, boost::
 	return Poseidon::Cbpp::Client::send_control(control_code, vint_param, STD_MOVE(string_param));
 }
 
-void FetchClient::on_sync_data_message_header(boost::uint16_t message_id, boost::uint64_t payload_size){
+void FetchClient::on_sync_data_message(boost::uint16_t message_id, Poseidon::StreamBuffer payload){
 	PROFILE_ME;
-	LOG_MEDUSA_DEBUG("Fetch data message header: message_id = ", message_id, ", payload_size = ", payload_size);
+	LOG_MEDUSA_DEBUG("Fetch data message: message_id = ", message_id, ", payload_size = ", payload.size());
 
+	const AUTO(payload_size, payload.size());
 	const AUTO(header_size, get_encrypted_header_size());
 	if(payload_size < header_size){
 		LOG_MEDUSA_ERROR("Frame from fetch server is too small: expecting ", header_size, ", got ", payload_size);
-		force_shutdown();
-		return;
+		DEBUG_THROW(Poseidon::Cbpp::Exception, Poseidon::Cbpp::ST_END_OF_STREAM, sslit("Frame from fetch server is too small"));
 	}
-
-	m_message_id = message_id;
-	m_payload.clear();
-}
-void FetchClient::on_sync_data_message_payload(boost::uint64_t payload_offset, Poseidon::StreamBuffer payload){
-	PROFILE_ME;
-	LOG_MEDUSA_DEBUG("Fetch data message fragment: payload_offset = ", payload_offset, ", fragment_size = ", payload.size());
-
-	m_payload.splice(payload);
-}
-void FetchClient::on_sync_data_message_end(boost::uint64_t payload_size){
-	PROFILE_ME;
-	LOG_MEDUSA_DEBUG("Fetch data message end: payload_size = ", payload_size);
-
-	const AUTO(header_size, get_encrypted_header_size());
-	if(m_payload.size() < header_size){
-		LOG_MEDUSA_ERROR("Frame from fetch server is too small, expecting ", header_size);
-		force_shutdown();
-		return;
-	}
-
-	const AUTO(context, try_decrypt_header(m_payload, m_password));
+	const AUTO(context, try_decrypt_header(payload, m_password));
 	if(!context){
-		LOG_MEDUSA_ERROR("Checksums mismatch. Maybe you provided a wrong password?");
-		force_shutdown();
-		return;
+		LOG_MEDUSA_ERROR("Checksum mismatch. Maybe you provided a wrong password?");
+		DEBUG_THROW(Poseidon::Cbpp::Exception, Poseidon::Cbpp::ST_FORBIDDEN, sslit("Checksum mismatch"));
 	}
-	m_payload.discard(header_size);
-	AUTO(plain, decrypt_payload(context, STD_MOVE(m_payload)));
+	payload.discard(header_size);
+	AUTO(plain, decrypt_payload(context, STD_MOVE(payload)));
 
 	const AUTO_REF(fetch_uuid, context->uuid);
-	LOG_MEDUSA_DEBUG("Fetch response: fetch_uuid = ", fetch_uuid, ", message_id = ", m_message_id);
+	LOG_MEDUSA_DEBUG("Fetch response: fetch_uuid = ", fetch_uuid, ", message_id = ", message_id);
 	const AUTO(it, m_sessions.find(fetch_uuid));
 	if(it == m_sessions.end()){
 		LOG_MEDUSA_DEBUG("Proxy session has gone away: fetch_uuid = ", fetch_uuid);
@@ -188,7 +166,7 @@ void FetchClient::on_sync_data_message_end(boost::uint64_t payload_size){
 		send_data(fetch_uuid, Msg::CS_FetchClose(EPIPE));
 		return;
 	}
-	switch(m_message_id){
+	switch(message_id){
 		{{
 #define ON_MESSAGE(Msg_, req_)  \
 		}}  \
@@ -232,11 +210,10 @@ void FetchClient::on_sync_data_message_end(boost::uint64_t payload_size){
 		}}
 		break;
 	default:
-		LOG_MEDUSA_ERROR("Unknown fetch response from server: message_id = ", m_message_id, ", size = ", plain.size());
+		LOG_MEDUSA_ERROR("Unknown fetch response from server: message_id = ", message_id, ", size = ", plain.size());
 		return;
 	}
 }
-
 void FetchClient::on_sync_error_message(boost::uint16_t message_id, Poseidon::Cbpp::StatusCode status_code, std::string reason){
 	PROFILE_ME;
 
