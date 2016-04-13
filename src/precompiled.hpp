@@ -14,6 +14,7 @@
 #include <poseidon/module_raii.hpp>
 #include <poseidon/uuid.hpp>
 #include <poseidon/mutex.hpp>
+#include <poseidon/recursive_mutex.hpp>
 #include <poseidon/condition_variable.hpp>
 
 #include "log.hpp"
