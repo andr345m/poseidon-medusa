@@ -186,12 +186,20 @@ private:
 	protected:
 		void really_perform(const boost::shared_ptr<FetchSession> &session, ChannelIterator it) OVERRIDE {
 			PROFILE_ME;
-			LOG_MEDUSA_DEBUG("Remote client read avail: fetch_uuid = ", it->first, ", size = ", m_data.size());
+
+			const AUTO(size, m_data.size());
+			LOG_MEDUSA_DEBUG("Remote client read avail: fetch_uuid = ", it->first, ", size = ", size);
 
 			const AUTO(channel, it->second);
 
 			session->send(it->first, Msg::SC_FetchReceived::ID, STD_MOVE(m_data));
 			channel->m_updated_time = Poseidon::get_fast_mono_clock();
+
+			channel->throttle_consume(size);
+			if(channel->should_throttle()){
+				LOG_MEDUSA_DEBUG("Throttle the session!");
+				session->set_throttled(true);
+			}
 		}
 	};
 
@@ -292,11 +300,12 @@ private:
 	std::deque<ConnectElement> m_connect_queue;
 	boost::weak_ptr<Client> m_client;
 	boost::uint64_t m_updated_time;
+	boost::uint64_t m_throttle_threshold;
 
 public:
 	Channel(const boost::shared_ptr<FetchSession> &session, const Poseidon::Uuid &fetch_uuid)
 		: m_session(session), m_fetch_uuid(fetch_uuid)
-		, m_updated_time(0)
+		, m_updated_time(0), m_throttle_threshold(get_config<boost::uint64_t>("fetch_max_single_pipeline_size", 65536))
 	{
 	}
 	~Channel(){
@@ -379,6 +388,16 @@ public:
 
 	boost::uint64_t get_updated_time() const {
 		return m_updated_time;
+	}
+
+	bool should_throttle() const {
+		return static_cast<boost::int64_t>(m_throttle_threshold) <= 0;
+	}
+	void throttle_consume(boost::uint64_t size){
+		m_throttle_threshold -= size;
+	}
+	void throttle_produce(boost::uint64_t size){
+		m_throttle_threshold += size;
 	}
 
 	void connect(std::string host, unsigned port, bool use_ssl, bool keep_alive){
@@ -562,6 +581,19 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 		const AUTO(channel, it->second);
 		channel->close(req.err_code);
 		m_channels.erase(it);
+	}
+	ON_MESSAGE(Msg::CS_FetchDataAcknowledgment, req){
+		const AUTO(it, m_channels.find(fetch_uuid));
+		if(it == m_channels.end()){
+			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_NOT_CONNECTED, ENOTCONN, STR_NO_CONNECTION_ESTABLISHED));
+			break;
+		}
+		const AUTO(channel, it->second);
+		channel->throttle_produce(req.size);
+		if(!channel->should_throttle()){
+			LOG_MEDUSA_DEBUG("Unthrottle the session!");
+			set_throttled(false);
+		}
 	}
 //=============================================================================
 		}}

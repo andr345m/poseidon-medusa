@@ -186,8 +186,10 @@ void FetchClient::on_sync_data_message(boost::uint16_t message_id, Poseidon::Str
 		session->on_fetch_connected(req.keep_alive);
 	}
 	ON_RAW_MESSAGE(Msg::SC_FetchReceived, req){
-		LOG_MEDUSA_DEBUG("Fetch received: fetch_uuid = ", fetch_uuid, ", size = ", req.size());
+		const AUTO(size, req.size());
+		LOG_MEDUSA_DEBUG("Fetch received: fetch_uuid = ", fetch_uuid, ", size = ", size);
 		session->on_fetch_received(STD_MOVE(req));
+		send_data(fetch_uuid, Msg::CS_FetchDataAcknowledgment(size));
 	}
 	ON_MESSAGE(Msg::SC_FetchEnded, req){
 		LOG_MEDUSA_DEBUG("Fetch ended: fetch_uuid = ", fetch_uuid);
