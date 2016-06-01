@@ -196,10 +196,6 @@ private:
 			channel->m_updated_time = Poseidon::get_fast_mono_clock();
 
 			channel->throttle_consume(size);
-			if(channel->should_throttle()){
-				LOG_MEDUSA_DEBUG("Throttle the session!");
-				session->set_throttled(true);
-			}
 		}
 	};
 
@@ -390,14 +386,27 @@ public:
 		return m_updated_time;
 	}
 
-	bool should_throttle() const {
-		return static_cast<boost::int64_t>(m_throttle_threshold) <= 0;
-	}
 	void throttle_consume(boost::uint64_t size){
 		m_throttle_threshold -= size;
+
+		if(static_cast<boost::int64_t>(m_throttle_threshold) <= 0){
+			LOG_MEDUSA_DEBUG("Throttle the client!");
+			const AUTO(client, m_client.lock());
+			if(client){
+				client->set_throttled(true);
+			}
+		}
 	}
 	void throttle_produce(boost::uint64_t size){
 		m_throttle_threshold += size;
+
+		if(static_cast<boost::int64_t>(m_throttle_threshold) > 0){
+			LOG_MEDUSA_DEBUG("Unthrottle the client!");
+			const AUTO(client, m_client.lock());
+			if(client){
+				client->set_throttled(false);
+			}
+		}
 	}
 
 	void connect(std::string host, unsigned port, bool use_ssl, bool keep_alive){
@@ -590,10 +599,6 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 		}
 		const AUTO(channel, it->second);
 		channel->throttle_produce(req.size);
-		if(!channel->should_throttle()){
-			LOG_MEDUSA_DEBUG("Unthrottle the session!");
-			set_throttled(false);
-		}
 	}
 //=============================================================================
 		}}
