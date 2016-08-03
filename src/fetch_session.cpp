@@ -18,7 +18,7 @@ namespace Medusa {
 namespace {
 	const std::string STR_PRIVATE_ADDR_REQUESTED        ("Connection to private address requested");
 	const std::string STR_CONNECTION_IS_NOT_PERSISTENT  ("Connection is not persistent");
-	const std::string STR_NO_CONNECTION_ESTABLISHED     ("No connection established");
+	const std::string STR_CONNECTION_NOT_ESTABLISHED    ("Lost connection to remote server");
 	const std::string STR_COULD_NOT_SEND_TO_REMOTE      ("Could not send data to remote server");
 }
 
@@ -301,7 +301,8 @@ private:
 public:
 	Channel(const boost::shared_ptr<FetchSession> &session, const Poseidon::Uuid &fetch_uuid)
 		: m_session(session), m_fetch_uuid(fetch_uuid)
-		, m_updated_time(0), m_throttle_threshold(get_config<boost::uint64_t>("fetch_max_single_pipeline_size", 65536))
+		, m_updated_time(Poseidon::get_fast_mono_clock())
+		, m_throttle_threshold(get_config<boost::uint64_t>("fetch_max_single_pipeline_size", 65536))
 	{
 	}
 	~Channel(){
@@ -512,11 +513,12 @@ void FetchSession::on_sync_gc_timer(boost::uint64_t now){
 	const AUTO(gc_timeout, get_config<boost::uint64_t>("fetch_channel_gc_timeout", 30000));
 
 	for(AUTO(next, m_channels.begin()), it = next; (next != m_channels.end()) && (++next, true); it = next){
+		const AUTO(fetch_uuid, it->first);
 		const AUTO_REF(channel, it->second);
 		if(now < channel->get_updated_time() + gc_timeout){
 			continue;
 		}
-		LOG_MEDUSA_DEBUG("Remote client shutdown due to inactivity: fetch_uuid = ", it->first);
+		LOG_MEDUSA_DEBUG("Remote client shutdown due to inactivity: fetch_uuid = ", fetch_uuid);
 		m_channels.erase(it);
 	}
 }
@@ -571,7 +573,7 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 	ON_RAW_MESSAGE(Msg::CS_FetchSend, req){
 		const AUTO(it, m_channels.find(fetch_uuid));
 		if(it == m_channels.end()){
-			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_NOT_CONNECTED, ENOTCONN, STR_NO_CONNECTION_ESTABLISHED));
+			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_NOT_CONNECTED, ENOTCONN, STR_CONNECTION_NOT_ESTABLISHED));
 			break;
 		}
 		const AUTO(channel, it->second);
@@ -584,7 +586,7 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 	ON_MESSAGE(Msg::CS_FetchClose, req){
 		const AUTO(it, m_channels.find(fetch_uuid));
 		if(it == m_channels.end()){
-			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_NOT_CONNECTED, ENOTCONN, STR_NO_CONNECTION_ESTABLISHED));
+			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_NOT_CONNECTED, ENOTCONN, STR_CONNECTION_NOT_ESTABLISHED));
 			break;
 		}
 		const AUTO(channel, it->second);
@@ -594,7 +596,7 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 	ON_MESSAGE(Msg::CS_FetchDataAcknowledgment, req){
 		const AUTO(it, m_channels.find(fetch_uuid));
 		if(it == m_channels.end()){
-			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_NOT_CONNECTED, ENOTCONN, STR_NO_CONNECTION_ESTABLISHED));
+			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_NOT_CONNECTED, ENOTCONN, STR_CONNECTION_NOT_ESTABLISHED));
 			break;
 		}
 		const AUTO(channel, it->second);
