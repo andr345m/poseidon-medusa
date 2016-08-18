@@ -130,8 +130,8 @@ protected:
 		try {
 			session->on_sync_read_avail(STD_MOVE(m_data));
 		} catch(Poseidon::Http::Exception &e){
-			LOG_MEDUSA_INFO("Http::Exception thrown: status_code = ", e.status_code(), ", what = ", e.what());
-			session->shutdown(e.status_code(), e.headers(), e.what());
+			LOG_MEDUSA_INFO("Http::Exception thrown: status_code = ", e.get_status_code(), ", what = ", e.what());
+			session->shutdown(e.get_status_code(), e.get_headers(), e.what());
 		} catch(std::exception &e){
 			LOG_MEDUSA_INFO("std::exception thrown: what = ", e.what());
 			session->shutdown(Poseidon::Http::ST_BAD_GATEWAY, VAL_INIT, e.what());
@@ -194,8 +194,8 @@ void ProxySession::on_sync_read_avail(Poseidon::StreamBuffer data){
 			}
 		}
 	} catch(Poseidon::Http::Exception &e){
-		LOG_MEDUSA_INFO("Http::Exception thrown: status_code = ", e.status_code(), ", what = ", e.what());
-		shutdown(e.status_code(), e.headers(), e.what());
+		LOG_MEDUSA_INFO("Http::Exception thrown: status_code = ", e.get_status_code(), ", what = ", e.what());
+		shutdown(e.get_status_code(), e.get_headers(), e.what());
 	} catch(std::exception &e){
 		LOG_MEDUSA_INFO("std::exception thrown: what = ", e.what());
 		shutdown(Poseidon::Http::ST_BAD_GATEWAY, VAL_INIT, e.what());
