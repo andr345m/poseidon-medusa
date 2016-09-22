@@ -24,8 +24,6 @@ namespace {
 
 class FetchSession::Channel {
 private:
-	class Client;
-
 	struct ConnectElement {
 		std::string host;
 		unsigned port;
@@ -209,7 +207,7 @@ private:
 	public:
 		Client(const Poseidon::SockAddr &addr, bool use_ssl,
 			const boost::shared_ptr<FetchSession> &session, const Poseidon::Uuid &fetch_uuid)
-			: Poseidon::TcpClientBase(addr, use_ssl)
+			: Poseidon::TcpClientBase(addr, use_ssl, false)
 			, m_session(session), m_fetch_uuid(fetch_uuid)
 		{
 			LOG_MEDUSA_DEBUG("Constructor of remote client: remote = ", Poseidon::get_ip_port_from_sock_addr(addr));
