@@ -97,11 +97,7 @@ FetchClient::FetchClient(const Poseidon::IpPort &addr, bool use_ssl, boost::uint
 	LOG_MEDUSA_INFO("Creating fetch client: addr = ", addr);
 }
 FetchClient::~FetchClient(){
-	try {
-		LOG_MEDUSA_INFO("Shutting down fetch client: addr = ", get_remote_info());
-	} catch(...){
-		LOG_MEDUSA_INFO("Shutting down fetch client: remote is not connected.");
-	}
+	LOG_MEDUSA_INFO("Shutting down fetch client: addr = ", get_remote_info_nothrow());
 
 	clear(Msg::ERR_CONNECTION_LOST, ECONNRESET, "Lost connection to fetch server");
 }

@@ -213,11 +213,7 @@ private:
 			LOG_MEDUSA_DEBUG("Constructor of remote client: remote = ", Poseidon::get_ip_port_from_sock_addr(addr));
 		}
 		~Client(){
-			try {
-				LOG_MEDUSA_DEBUG("Destructor of remote client: remote = ", get_remote_info());
-			} catch(...){
-				LOG_MEDUSA_DEBUG("Destructor of remote client: remote is not connected");
-			}
+			LOG_MEDUSA_DEBUG("Destructor of remote client: remote = ", get_remote_info_nothrow());
 		}
 
 	protected:
@@ -498,11 +494,7 @@ FetchSession::FetchSession(Poseidon::UniqueFile socket, std::string password)
 	LOG_MEDUSA_DEBUG("Fetch session constructor: remote = ", get_remote_info());
 }
 FetchSession::~FetchSession(){
-	try {
-		LOG_MEDUSA_DEBUG("Fetch session destructor: remote = ", get_remote_info());
-	} catch(...){
-		LOG_MEDUSA_DEBUG("Fetch session destructor: remote is not connected");
-	}
+	LOG_MEDUSA_DEBUG("Fetch session destructor: remote = ", get_remote_info_nothrow());
 }
 
 void FetchSession::on_sync_gc_timer(boost::uint64_t now){
