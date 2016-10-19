@@ -13,18 +13,33 @@
 #include <poseidon/flags.hpp>
 #include <poseidon/module_raii.hpp>
 #include <poseidon/uuid.hpp>
-#include <poseidon/mutex.hpp>
-#include <poseidon/recursive_mutex.hpp>
-#include <poseidon/condition_variable.hpp>
+#include <poseidon/endian.hpp>
+#include <poseidon/string.hpp>
+#include <poseidon/checked_arithmetic.hpp>
 
 #include "log.hpp"
 
+#include <cstdint>
+#include <array>
+#include <type_traits>
+#include <typeinfo>
+
+#include <boost/container/flat_map.hpp>
+#include <boost/container/flat_set.hpp>
+
 namespace Medusa {
 
-typedef Poseidon::Exception     Exception;
-typedef Poseidon::SharedNts     SharedNts;
+using Poseidon::Exception;
+using Poseidon::SharedNts;
 
 using Poseidon::sslit;
+
+using Poseidon::checked_add;
+using Poseidon::saturated_add;
+using Poseidon::checked_sub;
+using Poseidon::saturated_sub;
+using Poseidon::checked_mul;
+using Poseidon::saturated_mul;
 
 }
 
