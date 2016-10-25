@@ -74,9 +74,7 @@ private:
 			} catch(std::exception &e){
 				LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
 				try {
-					session->send_error(0, Msg::ST_INTERNAL_ERROR, e.what());
-					session->shutdown_read();
-					session->shutdown_write();
+					session->shutdown(Msg::ST_INTERNAL_ERROR, e.what());
 				} catch(...){
 					session->force_shutdown();
 				}
@@ -478,9 +476,7 @@ void FetchSession::sync_gc_timer_proc(const boost::weak_ptr<FetchSession> &weak,
 	} catch(std::exception &e){
 		LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
 		try {
-			session->send_error(0, Msg::ST_INTERNAL_ERROR, e.what());
-			session->shutdown_read();
-			session->shutdown_write();
+			session->shutdown(Msg::ST_INTERNAL_ERROR, e.what());
 		} catch(...){
 			session->force_shutdown();
 		}
