@@ -102,7 +102,7 @@ public:
 	void on_fetch_connected(bool keep_alive);
 	void on_fetch_received(Poseidon::StreamBuffer data);
 	void on_fetch_ended();
-	void on_fetch_closed(int cbpp_err_code, int sys_err_code, std::string err_msg);
+	void on_fetch_closed(int cbpp_err_code, int sys_err_code, const char *err_msg) NOEXCEPT;
 };
 
 }

@@ -4,7 +4,6 @@
 #include <poseidon/job_base.hpp>
 #include <poseidon/singletons/timer_daemon.hpp>
 #include <poseidon/singletons/job_dispatcher.hpp>
-#include <poseidon/cbpp/control_message.hpp>
 #include <poseidon/cbpp/control_codes.hpp>
 #include "../proxy_session.hpp"
 #include "../encryption.hpp"
@@ -124,10 +123,10 @@ bool FetchClient::send_data(const Poseidon::Uuid &fetch_uuid, boost::uint16_t me
 	pair.second.splice(payload);
 	return Poseidon::Cbpp::Client::send(message_id, STD_MOVE(pair.second));
 }
-bool FetchClient::send_control(Poseidon::Cbpp::ControlCode control_code, boost::int64_t vint_param, std::string string_param){
+bool FetchClient::send_control(Poseidon::Cbpp::ControlCode control_code, boost::int64_t vint_param, const char *string_param){
 	PROFILE_ME;
 
-	return Poseidon::Cbpp::Client::send_control(control_code, vint_param, STD_MOVE(string_param));
+	return Poseidon::Cbpp::Client::send_control(control_code, vint_param, string_param);
 }
 
 void FetchClient::on_sync_data_message(boost::uint16_t message_id, Poseidon::StreamBuffer payload){
@@ -194,14 +193,7 @@ void FetchClient::on_sync_data_message(boost::uint16_t message_id, Poseidon::Str
 	ON_MESSAGE(Msg::SC_FetchClosed, req){
 		LOG_MEDUSA_DEBUG("Fetch closed: fetch_uuid = ", fetch_uuid,
 			", cbpp_err_code = ", req.cbpp_err_code, ", sys_err_code = ", req.sys_err_code, ", err_msg = ", req.err_msg);
-		try {
-			session->on_fetch_closed(req.cbpp_err_code, req.sys_err_code, STD_MOVE(req.err_msg));
-			session->shutdown_read();
-			session->shutdown_write();
-		} catch(std::exception &e){
-			LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
-			session->force_shutdown();
-		}
+		session->on_fetch_closed(req.cbpp_err_code, req.sys_err_code, req.err_msg.c_str());
 		m_sessions.erase(it);
 	}
 //=============================================================================
@@ -215,7 +207,7 @@ void FetchClient::on_sync_data_message(boost::uint16_t message_id, Poseidon::Str
 void FetchClient::on_sync_error_message(boost::uint16_t message_id, Poseidon::Cbpp::StatusCode status_code, std::string reason){
 	PROFILE_ME;
 
-	if((message_id != Poseidon::Cbpp::ControlMessage::ID) && (status_code != Msg::ST_OK)){
+	if((message_id != 0) && (status_code != Msg::ST_OK)){
 		LOG_MEDUSA_ERROR("Fetch error: message_id = ", message_id, ", status_code = ", status_code, ", reason = ", reason);
 		force_shutdown();
 	}
@@ -249,14 +241,7 @@ void FetchClient::close(const Poseidon::Uuid &fetch_uuid, int cbpp_err_code, int
 
 	const AUTO(session, it->second.lock());
 	if(session){
-		try {
-			session->on_fetch_closed(cbpp_err_code, sys_err_code, err_msg);
-			session->shutdown_read();
-			session->shutdown_write();
-		} catch(std::exception &e){
-			LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
-			session->force_shutdown();
-		}
+		session->on_fetch_closed(cbpp_err_code, sys_err_code, err_msg);
 	}
 	try {
 		send_data(fetch_uuid, Msg::CS_FetchClose(sys_err_code));
@@ -272,14 +257,7 @@ void FetchClient::clear(int cbpp_err_code, int sys_err_code, const char *err_msg
 	for(AUTO(it, m_sessions.begin()); it != m_sessions.end(); ++it){
 		const AUTO(session, it->second.lock());
 		if(session){
-			try {
-				session->on_fetch_closed(cbpp_err_code, sys_err_code, err_msg);
-				session->shutdown_read();
-				session->shutdown_write();
-			} catch(std::exception &e){
-				LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
-				session->force_shutdown();
-			}
+			session->on_fetch_closed(cbpp_err_code, sys_err_code, err_msg);
 		}
 
 		try {

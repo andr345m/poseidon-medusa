@@ -31,7 +31,7 @@ public:
 
 private:
 	bool send_data(const Poseidon::Uuid &fetch_uuid, boost::uint16_t message_id, Poseidon::StreamBuffer plain);
-	bool send_control(Poseidon::Cbpp::ControlCode control_code, boost::int64_t vint_param, std::string string_param);
+	bool send_control(Poseidon::Cbpp::ControlCode control_code, boost::int64_t vint_param, const char *string_param);
 
 	template<typename MsgT>
 	bool send_data(const Poseidon::Uuid &fetch_uuid, const MsgT &msg){

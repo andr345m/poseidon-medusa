@@ -147,11 +147,7 @@ ProxySession::ProxySession(Poseidon::UniqueFile socket)
 	LOG_MEDUSA_INFO("Accepted proxy request from ", get_remote_info(), ": fetch_uuid = ", m_fetch_uuid);
 }
 ProxySession::~ProxySession(){
-	try {
-		LOG_MEDUSA_INFO("Shut down proxy request from ", get_remote_info(), ": fetch_uuid = ", m_fetch_uuid);
-	} catch(...){
-		LOG_MEDUSA_WARNING("Unknown proxy request remote address? fetch_uuid = ", m_fetch_uuid);
-	}
+	LOG_MEDUSA_INFO("Shut down proxy request from ", get_remote_info_nothrow(), ": fetch_uuid = ", m_fetch_uuid);
 }
 
 void ProxySession::on_sync_read_avail(Poseidon::StreamBuffer data){
@@ -206,7 +202,8 @@ void ProxySession::shutdown(Poseidon::Http::StatusCode status_code, Poseidon::Op
 
 	if(m_state == S_TUNNEL_ESTABLISHED){
 		LOG_MEDUSA_DEBUG("Don't send HTTP response to a tunnel session. Shut it down immediately.");
-		force_shutdown();
+		shutdown_read();
+		shutdown_write();
 		return;
 	}
 
@@ -560,21 +557,26 @@ void ProxySession::on_fetch_ended(){
 		return;
 	}
 }
-void ProxySession::on_fetch_closed(int cbpp_err_code, int sys_err_code, std::string err_msg){
+void ProxySession::on_fetch_closed(int cbpp_err_code, int sys_err_code, const char *err_msg) NOEXCEPT {
 	PROFILE_ME;
 	LOG_MEDUSA_DEBUG("Received close response from fetch server: fetch_uuid = ", m_fetch_uuid,
 		", cbpp_err_code = ", cbpp_err_code, ", sys_err_code = ", sys_err_code, ", err_msg = ", err_msg);
 
-	if(cbpp_err_code == Msg::ST_OK){
-		shutdown_read();
-		shutdown_write();
-		return;
+	try {
+		if(cbpp_err_code != Msg::ST_OK){
+			std::string temp;
+			temp.reserve(1024);
+			char str[256];
+			unsigned len = (unsigned)std::sprintf(str, "Fetch error %d (sys error %d): ", cbpp_err_code, sys_err_code);
+			temp.append(str, len);
+			temp.append(err_msg);
+			shutdown(Poseidon::Http::ST_BAD_GATEWAY, VAL_INIT, temp.c_str());
+		}
+	} catch(std::exception &e){
+		LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
 	}
-
-	char temp[256];
-	unsigned len = (unsigned)std::sprintf(temp, "Fetch error %d (sys error %d): ", cbpp_err_code, sys_err_code);
-	err_msg.insert(err_msg.begin(), temp, temp + len);
-	shutdown(Poseidon::Http::ST_BAD_GATEWAY, VAL_INIT, err_msg.c_str());
+	shutdown_read();
+	shutdown_write();
 }
 
 }
