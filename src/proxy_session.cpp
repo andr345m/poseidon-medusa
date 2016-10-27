@@ -171,7 +171,7 @@ void ProxySession::on_sync_read_avail(Poseidon::StreamBuffer data){
 				const AUTO(max_header_size, get_config<boost::uint64_t>("proxy_http_header_max_header_size", 16384));
 				if(m_header_size > max_header_size){
 					DEBUG_THROW(Poseidon::Http::Exception,
-						Poseidon::Http::ST_REQUEST_ENTITY_TOO_LARGE, sslit("Max request header size exceeded"));
+						Poseidon::Http::ST_BAD_REQUEST, sslit("Max request header size exceeded"));
 				}
 				m_header_size += data.size();
 			}
