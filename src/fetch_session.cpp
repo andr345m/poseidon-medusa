@@ -44,18 +44,19 @@ private:
 
 	class ClientSyncJobBase : public Poseidon::JobBase {
 	private:
+		const boost::weak_ptr<Poseidon::TcpSessionBase> m_category;
 		const boost::weak_ptr<FetchSession> m_session;
 		const Poseidon::Uuid m_fetch_uuid;
 
 	public:
 		ClientSyncJobBase(const boost::shared_ptr<FetchSession> &session, const Poseidon::Uuid &fetch_uuid)
-			: m_session(session), m_fetch_uuid(fetch_uuid)
+			: m_category(session), m_session(session), m_fetch_uuid(fetch_uuid)
 		{
 		}
 
 	private:
 		boost::weak_ptr<const void> get_category() const FINAL {
-			return m_session;
+			return m_category;
 		}
 		void perform() FINAL {
 			PROFILE_ME;
@@ -223,6 +224,13 @@ private:
 			}
 
 			Poseidon::TcpClientBase::on_connect();
+		}
+		void on_read_hup() NOEXCEPT OVERRIDE {
+			PROFILE_ME;
+
+			shutdown_write();
+
+			Poseidon::TcpClientBase::on_read_hup();
 		}
 		void on_close(int err_code) NOEXCEPT OVERRIDE {
 			PROFILE_ME;

@@ -34,13 +34,6 @@ using Poseidon::SharedNts;
 
 using Poseidon::sslit;
 
-using Poseidon::checked_add;
-using Poseidon::saturated_add;
-using Poseidon::checked_sub;
-using Poseidon::saturated_sub;
-using Poseidon::checked_mul;
-using Poseidon::saturated_mul;
-
 }
 
 #endif

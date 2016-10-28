@@ -76,6 +76,7 @@ namespace Impl {
 
 class ProxySession::CloseJob : public Poseidon::JobBase {
 private:
+	const boost::weak_ptr<Poseidon::TcpSessionBase> m_category;
 	const boost::weak_ptr<ProxySession> m_session;
 	const Poseidon::Uuid m_fetch_uuid;
 	const boost::weak_ptr<FetchClient> m_fetch_client;
@@ -83,14 +84,14 @@ private:
 
 public:
 	CloseJob(const boost::shared_ptr<ProxySession> &session, int err_code)
-		: m_session(session), m_fetch_uuid(session->m_fetch_uuid), m_fetch_client(session->m_fetch_client)
+		: m_category(session), m_session(session), m_fetch_uuid(session->m_fetch_uuid), m_fetch_client(session->m_fetch_client)
 		, m_err_code(err_code)
 	{
 	}
 
 protected:
 	boost::weak_ptr<const void> get_category() const FINAL {
-		return m_session;
+		return m_category;
 	}
 	void perform() FINAL {
 		PROFILE_ME;

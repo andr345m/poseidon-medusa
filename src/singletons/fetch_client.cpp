@@ -38,18 +38,19 @@ namespace {
 
 class FetchClient::CloseJob : public Poseidon::JobBase {
 private:
+	const boost::weak_ptr<Poseidon::TcpSessionBase> m_category;
 	const boost::shared_ptr<FetchClient> m_client;
 	const int m_err_code;
 
 public:
 	CloseJob(const boost::shared_ptr<FetchClient> &client, int err_code)
-		: m_client(client), m_err_code(err_code)
+		: m_category(client), m_client(client), m_err_code(err_code)
 	{
 	}
 
 protected:
 	boost::weak_ptr<const void> get_category() const FINAL {
-		return m_client;
+		return m_category;
 	}
 	void perform() FINAL {
 		PROFILE_ME;
