@@ -116,13 +116,18 @@ void FetchClient::on_close(int err_code) NOEXCEPT {
 	Poseidon::Cbpp::Client::on_close(err_code);
 }
 
-bool FetchClient::send_data(const Poseidon::Uuid &fetch_uuid, boost::uint16_t message_id, Poseidon::StreamBuffer plain){
+bool FetchClient::send_data_explicit(const Poseidon::Uuid &fetch_uuid, boost::uint16_t message_id, Poseidon::StreamBuffer plain){
 	PROFILE_ME;
 
 	AUTO(pair, encrypt_header(fetch_uuid, m_password));
 	AUTO(payload, encrypt_payload(pair.first, STD_MOVE(plain)));
 	pair.second.splice(payload);
 	return Poseidon::Cbpp::Client::send(message_id, STD_MOVE(pair.second));
+}
+bool FetchClient::send_data(const Poseidon::Uuid &fetch_uuid, const Poseidon::Cbpp::MessageBase &msg){
+	PROFILE_ME;
+
+	return send_data_explicit(fetch_uuid, msg.get_message_id(), msg);
 }
 bool FetchClient::send_control(Poseidon::Cbpp::ControlCode control_code, boost::int64_t vint_param, const char *string_param){
 	PROFILE_ME;
@@ -230,7 +235,7 @@ bool FetchClient::send(const Poseidon::Uuid &fetch_uuid, Poseidon::StreamBuffer 
 		LOG_MEDUSA_WARNING("Fetch client not connected? fetch_uuid = ", fetch_uuid);
 		return false;
 	}
-	return send_data(fetch_uuid, Msg::CS_FetchSend::ID, STD_MOVE(data));
+	return send_data_explicit(fetch_uuid, Msg::CS_FetchSend::ID, STD_MOVE(data));
 }
 void FetchClient::close(const Poseidon::Uuid &fetch_uuid, int cbpp_err_code, int sys_err_code, const char *err_msg) NOEXCEPT {
 	PROFILE_ME;

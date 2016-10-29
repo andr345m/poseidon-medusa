@@ -3,6 +3,7 @@
 
 #include <map>
 #include <poseidon/fwd.hpp>
+#include <poseidon/cbpp/fwd.hpp>
 #include <poseidon/cbpp/client.hpp>
 #include <poseidon/uuid.hpp>
 
@@ -30,13 +31,9 @@ public:
 	~FetchClient();
 
 private:
-	bool send_data(const Poseidon::Uuid &fetch_uuid, boost::uint16_t message_id, Poseidon::StreamBuffer plain);
+	bool send_data_explicit(const Poseidon::Uuid &fetch_uuid, boost::uint16_t message_id, Poseidon::StreamBuffer plain);
+	bool send_data(const Poseidon::Uuid &fetch_uuid, const Poseidon::Cbpp::MessageBase &msg);
 	bool send_control(Poseidon::Cbpp::ControlCode control_code, boost::int64_t vint_param, const char *string_param);
-
-	template<typename MsgT>
-	bool send_data(const Poseidon::Uuid &fetch_uuid, const MsgT &msg){
-		return send_data(fetch_uuid, MsgT::ID, Poseidon::StreamBuffer(msg));
-	}
 
 protected:
 	void on_close(int err_code) NOEXCEPT OVERRIDE;

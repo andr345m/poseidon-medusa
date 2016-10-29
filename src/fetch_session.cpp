@@ -8,6 +8,7 @@
 #include <poseidon/job_promise.hpp>
 #include <poseidon/sock_addr.hpp>
 #include <poseidon/tcp_client_base.hpp>
+#include <poseidon/cbpp/message_base.hpp>
 #include "encryption.hpp"
 #include "msg/cs_fetch.hpp"
 #include "msg/sc_fetch.hpp"
@@ -185,7 +186,7 @@ private:
 
 			const AUTO(channel, it->second);
 
-			session->send(it->first, Msg::SC_FetchReceived::ID, STD_MOVE(m_data));
+			session->send_explicit(it->first, Msg::SC_FetchReceived::ID, STD_MOVE(m_data));
 			channel->m_updated_time = Poseidon::get_fast_mono_clock();
 
 			channel->throttle_consume(size);
@@ -597,13 +598,16 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 	}
 }
 
-bool FetchSession::send(const Poseidon::Uuid &fetch_uuid, boost::uint16_t message_id, Poseidon::StreamBuffer plain){
+bool FetchSession::send_explicit(const Poseidon::Uuid &fetch_uuid, boost::uint16_t message_id, Poseidon::StreamBuffer plain){
 	PROFILE_ME;
 
 	AUTO(pair, encrypt_header(fetch_uuid, m_password));
 	AUTO(payload, encrypt_payload(pair.first, STD_MOVE(plain)));
 	pair.second.splice(payload);
 	return Poseidon::Cbpp::Session::send(message_id, STD_MOVE(pair.second));
+}
+bool FetchSession::send(const Poseidon::Uuid &fetch_uuid, const Poseidon::Cbpp::MessageBase &msg){
+	return send_explicit(fetch_uuid, msg.get_message_id(), msg);
 }
 
 }

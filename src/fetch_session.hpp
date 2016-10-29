@@ -4,6 +4,7 @@
 #include <map>
 #include <boost/cstdint.hpp>
 #include <poseidon/fwd.hpp>
+#include <poseidon/cbpp/fwd.hpp>
 #include <poseidon/cbpp/session.hpp>
 
 namespace Medusa {
@@ -33,12 +34,8 @@ protected:
 	void on_sync_data_message(boost::uint16_t message_id, Poseidon::StreamBuffer payload) OVERRIDE;
 
 public:
-	bool send(const Poseidon::Uuid &fetch_uuid, boost::uint16_t message_id, Poseidon::StreamBuffer plain);
-
-	template<typename MsgT>
-	bool send(const Poseidon::Uuid &fetch_uuid, const MsgT &msg){
-		return send(fetch_uuid, MsgT::ID, Poseidon::StreamBuffer(msg));
-	}
+	bool send_explicit(const Poseidon::Uuid &fetch_uuid, boost::uint16_t message_id, Poseidon::StreamBuffer plain);
+	bool send(const Poseidon::Uuid &fetch_uuid, const Poseidon::Cbpp::MessageBase &msg);
 };
 
 }
