@@ -117,7 +117,7 @@ std::pair<boost::shared_ptr<EncryptionContext>, Poseidon::StreamBuffer> encrypt_
 
 	Nonce nonce;
 	for(AUTO(it, nonce.begin()); it != nonce.end(); ++it){
-		*it = Poseidon::rand32();
+		*it = Poseidon::random_uint32();
 	}
 	const NoncedKey nonced_key(nonce, key);
 	AUTO(context, create_context(uuid, nonced_key));
