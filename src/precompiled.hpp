@@ -19,14 +19,6 @@
 
 #include "log.hpp"
 
-#include <cstdint>
-#include <array>
-#include <type_traits>
-#include <typeinfo>
-
-#include <boost/container/flat_map.hpp>
-#include <boost/container/flat_set.hpp>
-
 namespace Medusa {
 
 using Poseidon::Exception;
