@@ -2,7 +2,7 @@
 #include "encryption.hpp"
 #include <poseidon/hash.hpp>
 #include <poseidon/random.hpp>
-#include <poseidon/string.hpp>
+#include <poseidon/http/utilities.hpp>
 
 namespace Medusa {
 
@@ -155,8 +155,8 @@ boost::shared_ptr<EncryptionContext> try_decrypt_header(const Poseidon::StreamBu
 	const NoncedKey nonced_key(header.nonce, key);
 	const AUTO(expected_md5, Poseidon::md5_hash(&nonced_key, sizeof(nonced_key)));
 	if(expected_md5 != header.auth_md5){
-		LOG_MEDUSA_DEBUG("Unexpected MD5: expecting ", Poseidon::HexDumper(expected_md5.data(), expected_md5.size()),
-			", got ", Poseidon::HexDumper(header.auth_md5.data(), header.auth_md5.size()));
+		LOG_MEDUSA_DEBUG("Unexpected MD5: expecting ", Poseidon::Http::hex_encode(expected_md5.data(), expected_md5.size()),
+			", got ", Poseidon::Http::hex_encode(header.auth_md5.data(), header.auth_md5.size()));
 		return VAL_INIT;
 	}
 	return create_context(header.uuid, nonced_key);
