@@ -312,19 +312,24 @@ void ProxySession::on_sync_server_request_headers(Poseidon::Http::RequestHeaders
 		}
 		if(m_has_request_entity){
 			AUTO(transfer_encoding, headers.get("Transfer-Encoding"));
-			if(transfer_encoding.empty()){
-				transfer_encoding = "chunked";
-			} else {
-				transfer_encoding += ", chunked";
+			if(!transfer_encoding.empty()){
+				transfer_encoding += ", ";
 			}
+			transfer_encoding += "chunked";
 			headers.set(sslit("Transfer-Encoding"), STD_MOVE(transfer_encoding));
 		} else {
 			headers.erase("Content-Length");
 			headers.erase("Transfer-Encoding");
 		}
 
+		AUTO(x_forwarded_for, headers.get("X-Forwarded-For"));
+		if(!x_forwarded_for.empty()){
+			x_forwarded_for += ", ";
+		}
+		x_forwarded_for += get_remote_info().ip.get();
+		headers.set(sslit("X-Forwarded-For"), STD_MOVE(x_forwarded_for));
+
 		headers.set(sslit("Connection"), "Close");
-		headers.set(sslit("X-Forwarded-For"), get_remote_info().ip.get());
 
 		if(!Poseidon::Http::ClientWriter::put_chunked_header(STD_MOVE(request_headers))){
 			LOG_MEDUSA_DEBUG("Lost connection to fetch server");
