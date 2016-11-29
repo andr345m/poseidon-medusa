@@ -16,10 +16,9 @@ namespace Impl {
 	class ProxySessionServerAdaptor : public Poseidon::Http::ServerReader, public Poseidon::Http::ServerWriter {
 	protected:
 		// ServerReader
-		void on_request_headers(Poseidon::Http::RequestHeaders request_headers,
-			std::string transfer_encoding, boost::uint64_t content_length) OVERRIDE;
-		void on_request_entity(boost::uint64_t entity_offset, bool is_chunked, Poseidon::StreamBuffer entity) OVERRIDE;
-		bool on_request_end(boost::uint64_t content_length, bool is_chunked, Poseidon::OptionalMap headers) OVERRIDE;
+		void on_request_headers(Poseidon::Http::RequestHeaders request_headers, boost::uint64_t content_length) OVERRIDE;
+		void on_request_entity(boost::uint64_t entity_offset, Poseidon::StreamBuffer entity) OVERRIDE;
+		bool on_request_end(boost::uint64_t content_length, Poseidon::OptionalMap headers) OVERRIDE;
 
 		// ServerWriter
 		long on_encoded_data_avail(Poseidon::StreamBuffer encoded) OVERRIDE;
@@ -28,10 +27,9 @@ namespace Impl {
 	class ProxySessionClientAdaptor : public Poseidon::Http::ClientReader, public Poseidon::Http::ClientWriter {
 	protected:
 		// ClientReader
-		void on_response_headers(Poseidon::Http::ResponseHeaders response_headers,
-			std::string transfer_encoding, boost::uint64_t content_length) OVERRIDE;
-		void on_response_entity(boost::uint64_t entity_offset, bool is_chunked, Poseidon::StreamBuffer entity) OVERRIDE;
-		bool on_response_end(boost::uint64_t content_length, bool is_chunked, Poseidon::OptionalMap headers) OVERRIDE;
+		void on_response_headers(Poseidon::Http::ResponseHeaders response_headers, boost::uint64_t content_length) OVERRIDE;
+		void on_response_entity(boost::uint64_t entity_offset, Poseidon::StreamBuffer entity) OVERRIDE;
+		bool on_response_end(boost::uint64_t content_length, Poseidon::OptionalMap headers) OVERRIDE;
 
 		// ClientWriter
 		long on_encoded_data_avail(Poseidon::StreamBuffer encoded) OVERRIDE;
@@ -62,6 +60,8 @@ private:
 	const Poseidon::Uuid m_fetch_uuid;
 	const boost::weak_ptr<FetchClient> m_fetch_client;
 
+	bool m_has_request_entity;
+
 	State m_state;
 	boost::uint64_t m_header_size;
 
@@ -77,15 +77,13 @@ private:
 	void on_sync_read_avail(Poseidon::StreamBuffer data);
 	void shutdown(Poseidon::Http::StatusCode status_code, Poseidon::OptionalMap headers, const char *what) NOEXCEPT;
 
-	void on_sync_server_request_headers(Poseidon::Http::RequestHeaders request_headers,
-		std::string transfer_encoding, boost::uint64_t content_length);
-	void on_sync_server_request_entity(boost::uint64_t entity_offset, bool is_chunked, Poseidon::StreamBuffer entity);
-	bool on_sync_server_request_end(boost::uint64_t content_length, bool is_chunked, Poseidon::OptionalMap headers);
+	void on_sync_server_request_headers(Poseidon::Http::RequestHeaders request_headers, boost::uint64_t);
+	void on_sync_server_request_entity(boost::uint64_t entity_offset, Poseidon::StreamBuffer entity);
+	bool on_sync_server_request_end(boost::uint64_t content_length, Poseidon::OptionalMap headers);
 
-	void on_sync_client_response_headers(Poseidon::Http::ResponseHeaders response_headers,
-		std::string transfer_encoding, boost::uint64_t content_length);
-	void on_sync_client_response_entity(boost::uint64_t entity_offset, bool is_chunked, Poseidon::StreamBuffer entity);
-	bool on_sync_client_response_end(boost::uint64_t content_length, bool is_chunked, Poseidon::OptionalMap headers);
+	void on_sync_client_response_headers(Poseidon::Http::ResponseHeaders response_headers, boost::uint64_t content_length);
+	void on_sync_client_response_entity(boost::uint64_t entity_offset, Poseidon::StreamBuffer entity);
+	bool on_sync_client_response_end(boost::uint64_t content_length, Poseidon::OptionalMap headers);
 
 protected:
 	void on_close(int err_code) NOEXCEPT OVERRIDE;
