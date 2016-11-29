@@ -305,6 +305,7 @@ void ProxySession::on_sync_server_request_headers(Poseidon::Http::RequestHeaders
 		headers.erase("Proxy-Connection");
 		headers.erase("Upgrade");
 
+		m_has_request_entity = false;
 		if(request_headers.verb == Poseidon::Http::V_POST){
 			m_has_request_entity = true;
 		} else if(request_headers.verb == Poseidon::Http::V_PUT){
