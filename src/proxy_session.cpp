@@ -332,9 +332,16 @@ void ProxySession::on_sync_server_request_headers(Poseidon::Http::RequestHeaders
 
 		headers.set(sslit("Connection"), "Close");
 
-		if(!Poseidon::Http::ClientWriter::put_chunked_header(STD_MOVE(request_headers))){
-			LOG_MEDUSA_DEBUG("Lost connection to fetch server");
-			DEBUG_THROW(Exception, sslit("Lost connection to fetch server"));
+		if(m_has_request_entity){
+			if(!Poseidon::Http::ClientWriter::put_chunked_header(STD_MOVE(request_headers))){
+				LOG_MEDUSA_DEBUG("Lost connection to fetch server");
+				DEBUG_THROW(Exception, sslit("Lost connection to fetch server"));
+			}
+		} else {
+			if(!Poseidon::Http::ClientWriter::put_request(STD_MOVE(request_headers), Poseidon::StreamBuffer())){
+				LOG_MEDUSA_DEBUG("Lost connection to fetch server");
+				DEBUG_THROW(Exception, sslit("Lost connection to fetch server"));
+			}
 		}
 
 		m_state = ProxySession::S_HTTP_ENTITY;
