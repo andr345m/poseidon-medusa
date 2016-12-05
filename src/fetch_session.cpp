@@ -16,13 +16,6 @@
 
 namespace Medusa {
 
-namespace {
-	const std::string STR_PRIVATE_ADDR_REQUESTED        ("Connection to private address requested");
-	const std::string STR_CONNECTION_IS_NOT_PERSISTENT  ("Connection is not persistent");
-	const std::string STR_CONNECTION_NOT_ESTABLISHED    ("Lost connection to remote server");
-	const std::string STR_COULD_NOT_SEND_TO_REMOTE      ("Could not send data to remote server");
-}
-
 class FetchSession::Channel {
 private:
 	struct ConnectElement {
@@ -160,7 +153,7 @@ private:
 					channel->create_client();
 				}
 			} else {
-				session->send(it->first, Msg::SC_FetchClosed(Msg::ST_OK, 0, STR_CONNECTION_IS_NOT_PERSISTENT));
+				session->send(it->first, Msg::SC_FetchClosed(Msg::ST_OK, 0, "Connection is not persistent"));
 				session->m_channels.erase(it);
 			}
 		}
@@ -316,9 +309,8 @@ private:
 		LOG_MEDUSA_DEBUG("Next fetch request: host:port = ", elem.host, ':', elem.port,
 			", use_ssl = ", elem.use_ssl, ", keep_alive = ", elem.keep_alive);
 		try {
-			const AUTO(addr, boost::make_shared<Poseidon::SockAddr>());
+			const AUTO(promise, Poseidon::DnsDaemon::enqueue_for_looking_up(elem.host, elem.port));
 			try {
-				const AUTO(promise, Poseidon::DnsDaemon::enqueue_for_looking_up(addr, elem.host, elem.port));
 				Poseidon::JobDispatcher::yield(promise, true);
 			} catch(std::exception &e){
 				LOG_MEDUSA_DEBUG("DNS failure...");
@@ -329,13 +321,14 @@ private:
 				}
 				return;
 			}
+			const AUTO_REF(addr, promise->get());
 			LOG_MEDUSA_DEBUG("DNS lookup succeeded: fetch_uuid = ", m_fetch_uuid, ", host:port = ", elem.host, ':', elem.port);
 
-			if(addr->is_private()){
+			if(addr.is_private()){
 				LOG_MEDUSA_DEBUG("Connection to private address requested. Abort.");
 				const AUTO(session, m_session.lock());
 				if(session){
-					session->send(m_fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_ACCESS_DENIED, ECONNREFUSED, STR_PRIVATE_ADDR_REQUESTED));
+					session->send(m_fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_ACCESS_DENIED, ECONNREFUSED, "Connection to private address requested"));
 					session->m_channels.erase(m_fetch_uuid);
 				}
 				return;
@@ -346,7 +339,7 @@ private:
 				return;
 			}
 			LOG_MEDUSA_DEBUG("Creating remote client...");
-			const AUTO(client, boost::make_shared<Client>(*addr, elem.use_ssl, session, m_fetch_uuid));
+			const AUTO(client, boost::make_shared<Client>(addr, elem.use_ssl, session, m_fetch_uuid));
 			client->go_resident();
 			m_client = client;
 			m_updated_time = Poseidon::get_fast_mono_clock();
@@ -560,12 +553,12 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 	ON_RAW_MESSAGE(Msg::CS_FetchSend, req){
 		const AUTO(it, m_channels.find(fetch_uuid));
 		if(it == m_channels.end()){
-			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_NOT_CONNECTED, ENOTCONN, STR_CONNECTION_NOT_ESTABLISHED));
+			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_NOT_CONNECTED, ENOTCONN, "Lost connection to remote server"));
 			break;
 		}
 		const AUTO(channel, it->second);
 		if(!channel->send(STD_MOVE(req))){
-			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, EPIPE, STR_COULD_NOT_SEND_TO_REMOTE));
+			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, EPIPE, "Could not send data to remote server"));
 			m_channels.erase(it);
 			break;
 		}
@@ -573,7 +566,7 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 	ON_MESSAGE(Msg::CS_FetchClose, req){
 		const AUTO(it, m_channels.find(fetch_uuid));
 		if(it == m_channels.end()){
-			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_NOT_CONNECTED, ENOTCONN, STR_CONNECTION_NOT_ESTABLISHED));
+			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_NOT_CONNECTED, ENOTCONN, "Lost connection to remote server"));
 			break;
 		}
 		const AUTO(channel, it->second);
@@ -583,7 +576,7 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 	ON_MESSAGE(Msg::CS_FetchDataAcknowledgment, req){
 		const AUTO(it, m_channels.find(fetch_uuid));
 		if(it == m_channels.end()){
-			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_NOT_CONNECTED, ENOTCONN, STR_CONNECTION_NOT_ESTABLISHED));
+			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_NOT_CONNECTED, ENOTCONN, "Lost connection to remote server"));
 			break;
 		}
 		const AUTO(channel, it->second);
