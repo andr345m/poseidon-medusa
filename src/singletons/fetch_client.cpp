@@ -4,7 +4,6 @@
 #include <poseidon/job_base.hpp>
 #include <poseidon/singletons/timer_daemon.hpp>
 #include <poseidon/singletons/job_dispatcher.hpp>
-#include <poseidon/cbpp/control_codes.hpp>
 #include "../proxy_session.hpp"
 #include "../encryption.hpp"
 #include "../msg/cs_fetch.hpp"
@@ -129,10 +128,10 @@ bool FetchClient::send_data(const Poseidon::Uuid &fetch_uuid, const Poseidon::Cb
 
 	return send_data_explicit(fetch_uuid, msg.get_message_id(), msg);
 }
-bool FetchClient::send_control(Poseidon::Cbpp::ControlCode control_code, boost::int64_t vint_param, const char *string_param){
+bool FetchClient::send_control(Poseidon::Cbpp::StatusCode status_code, Poseidon::StreamBuffer param){
 	PROFILE_ME;
 
-	return Poseidon::Cbpp::Client::send_control(control_code, vint_param, string_param);
+	return Poseidon::Cbpp::Client::send_control(status_code, STD_MOVE(param));
 }
 
 void FetchClient::on_sync_data_message(boost::uint16_t message_id, Poseidon::StreamBuffer payload){
@@ -209,16 +208,6 @@ void FetchClient::on_sync_data_message(boost::uint16_t message_id, Poseidon::Str
 		LOG_MEDUSA_ERROR("Unknown fetch response from server: message_id = ", message_id, ", size = ", plain.size());
 		return;
 	}
-}
-void FetchClient::on_sync_error_message(boost::uint16_t message_id, Poseidon::Cbpp::StatusCode status_code, std::string reason){
-	PROFILE_ME;
-
-	if((message_id != 0) && (status_code != Msg::ST_OK)){
-		LOG_MEDUSA_ERROR("Fetch error: message_id = ", message_id, ", status_code = ", status_code, ", reason = ", reason);
-		force_shutdown();
-	}
-
-	Poseidon::Cbpp::Client::on_sync_error_message(message_id, status_code, STD_MOVE(reason));
 }
 
 bool FetchClient::connect(const boost::shared_ptr<ProxySession> &session, std::string host, unsigned port, bool use_ssl, bool keep_alive){

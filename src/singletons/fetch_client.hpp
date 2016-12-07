@@ -33,13 +33,12 @@ public:
 private:
 	bool send_data_explicit(const Poseidon::Uuid &fetch_uuid, boost::uint16_t message_id, Poseidon::StreamBuffer plain);
 	bool send_data(const Poseidon::Uuid &fetch_uuid, const Poseidon::Cbpp::MessageBase &msg);
-	bool send_control(Poseidon::Cbpp::ControlCode control_code, boost::int64_t vint_param, const char *string_param);
+	bool send_control(Poseidon::Cbpp::StatusCode status_code, Poseidon::StreamBuffer param);
 
 protected:
 	void on_close(int err_code) NOEXCEPT OVERRIDE;
 
 	void on_sync_data_message(boost::uint16_t message_id, Poseidon::StreamBuffer payload) OVERRIDE;
-	void on_sync_error_message(boost::uint16_t message_id, Poseidon::Cbpp::StatusCode status_code, std::string reason) OVERRIDE;
 
 public:
 	bool connect(const boost::shared_ptr<ProxySession> &session, std::string host, unsigned port, bool use_ssl, bool keep_alive);
