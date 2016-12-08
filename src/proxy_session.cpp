@@ -137,21 +137,18 @@ void ProxySession::on_sync_read_avail(Poseidon::StreamBuffer data){
 	try {
 		const AUTO(fetch_client, m_fetch_client.lock());
 		if(!fetch_client){
-			DEBUG_THROW(Poseidon::Http::Exception,
-				Poseidon::Http::ST_BAD_GATEWAY, sslit("Lost connection to fetch server"));
+			DEBUG_THROW(Poseidon::Http::Exception, Poseidon::Http::ST_GATEWAY_TIMEOUT);
 		}
 
 		if(m_state >= S_TUNNEL_CONNECTING){
 			if(!fetch_client->send(m_fetch_uuid, STD_MOVE(data))){
-				DEBUG_THROW(Poseidon::Http::Exception,
-					Poseidon::Http::ST_GATEWAY_TIMEOUT, sslit("Could not send data to fetch server"));
+				DEBUG_THROW(Poseidon::Http::Exception, Poseidon::Http::ST_GATEWAY_TIMEOUT);
 			}
 		} else {
 			if(m_state == S_HTTP_HEADERS){
 				const AUTO(max_header_size, get_config<boost::uint64_t>("proxy_http_header_max_header_size", 16384));
 				if(m_header_size > max_header_size){
-					DEBUG_THROW(Poseidon::Http::Exception,
-						Poseidon::Http::ST_BAD_REQUEST, sslit("Max request header size exceeded"));
+					DEBUG_THROW(Poseidon::Http::Exception, Poseidon::Http::ST_BAD_REQUEST);
 				}
 				m_header_size += data.size();
 			}
@@ -163,8 +160,7 @@ void ProxySession::on_sync_read_avail(Poseidon::StreamBuffer data){
 				queue.swap(Poseidon::Http::ServerReader::get_queue());
 				if(!queue.empty()){
 					if(!fetch_client->send(m_fetch_uuid, STD_MOVE(queue))){
-						DEBUG_THROW(Poseidon::Http::Exception,
-							Poseidon::Http::ST_GATEWAY_TIMEOUT, sslit("Could not send data to fetch server"));
+						DEBUG_THROW(Poseidon::Http::Exception, Poseidon::Http::ST_GATEWAY_TIMEOUT);
 					}
 				}
 			}
@@ -216,8 +212,7 @@ void ProxySession::on_sync_server_request_headers(Poseidon::Http::RequestHeaders
 		", URI = ", request_headers.uri);
 
 	if(request_headers.uri[0] == '/'){
-		DEBUG_THROW(Poseidon::Http::Exception,
-			Poseidon::Http::ST_NOT_FOUND, sslit("What do you wanna get from a proxy server by relative URI? :>"));
+		DEBUG_THROW(Poseidon::Http::Exception, Poseidon::Http::ST_FORBIDDEN);
 	}
 
 	LOG_MEDUSA_INFO("Fetch: ", Poseidon::Http::get_string_from_verb(request_headers.verb), " ", request_headers.uri);
@@ -242,8 +237,7 @@ void ProxySession::on_sync_server_request_headers(Poseidon::Http::RequestHeaders
 			use_ssl = true;
 		} else {
 			LOG_MEDUSA_DEBUG("Unknown protocol: ", request_headers.uri.c_str());
-			DEBUG_THROW(Poseidon::Http::Exception,
-				Poseidon::Http::ST_BAD_REQUEST, sslit("Unknown protocol"));
+			DEBUG_THROW(Poseidon::Http::Exception, Poseidon::Http::ST_BAD_REQUEST);
 		}
 		request_headers.uri.erase(0, pos + 3);
 	}
@@ -288,13 +282,11 @@ void ProxySession::on_sync_server_request_headers(Poseidon::Http::RequestHeaders
 	const AUTO(fetch_client, m_fetch_client.lock());
 	if(!fetch_client){
 		LOG_MEDUSA_DEBUG("Lost connection to fetch server");
-		DEBUG_THROW(Poseidon::Http::Exception,
-			Poseidon::Http::ST_BAD_GATEWAY, sslit("Lost connection to fetch server"));
+		DEBUG_THROW(Poseidon::Http::Exception, Poseidon::Http::ST_GATEWAY_TIMEOUT);
 	}
 	if(!fetch_client->connect(virtual_shared_from_this<ProxySession>(), STD_MOVE(host), port, use_ssl, keep_alive)){
 		LOG_MEDUSA_DEBUG("Could not send data to fetch server");
-		DEBUG_THROW(Poseidon::Http::Exception,
-			Poseidon::Http::ST_BAD_GATEWAY, sslit("Could not send data to fetch server"));
+		DEBUG_THROW(Poseidon::Http::Exception, Poseidon::Http::ST_GATEWAY_TIMEOUT);
 	}
 
 	if(request_headers.verb == Poseidon::Http::V_CONNECT){
