@@ -77,20 +77,19 @@ boost::shared_ptr<FetchClient> FetchClient::require(){
 	if(!client){
 		AUTO(addr, get_config<std::string>("fetch_client_addr", "0.0.0.0"));
 		AUTO(port, get_config<unsigned>("fetch_client_port", 5326));
-		AUTO(hbtm, get_config<boost::uint64_t>("fetch_client_heartbeat_interval", 15000));
 		AUTO(ssl,  get_config<bool>("fetch_client_uses_ssl", false));
 		AUTO(pass, get_config<std::string>("fetch_client_password", ""));
 
 		const Poseidon::IpPort addr_port(SharedNts(addr), port);
-		client.reset(new FetchClient(addr_port, ssl, hbtm, STD_MOVE(pass)));
+		client.reset(new FetchClient(addr_port, ssl, STD_MOVE(pass)));
 		client->go_resident();
 		weak_client = client;
 	}
 	return client;
 }
 
-FetchClient::FetchClient(const Poseidon::IpPort &addr, bool use_ssl, boost::uint64_t keep_alive_interval, std::string password)
-	: Poseidon::Cbpp::Client(addr, use_ssl, keep_alive_interval)
+FetchClient::FetchClient(const Poseidon::IpPort &addr, bool use_ssl, std::string password)
+	: Poseidon::Cbpp::Client(addr, use_ssl)
 	, m_password(STD_MOVE(password))
 {
 	LOG_MEDUSA_INFO("Creating fetch client: addr = ", addr);
