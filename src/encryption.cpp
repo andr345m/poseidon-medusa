@@ -1,6 +1,6 @@
 #include "precompiled.hpp"
 #include "encryption.hpp"
-#include <poseidon/hash.hpp>
+#include <poseidon/md5.hpp>
 #include <poseidon/random.hpp>
 #include <poseidon/http/utilities.hpp>
 
