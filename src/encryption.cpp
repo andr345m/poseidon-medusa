@@ -20,17 +20,23 @@ namespace {
 #endif
 	BOOST_STATIC_ASSERT_MSG(sizeof(EncryptedHeader) == 48, "Incompatible layout detected");
 
+	inline Poseidon::Md5 md5_string(const std::string &s){
+		Poseidon::Md5_ostream md5_os;
+		md5_os <<s;
+		return md5_os.finalize();
+	}
+
 	struct NoncedKey {
 		Nonce nonce;
 		Poseidon::Md5 key_md5;
 
 		explicit NoncedKey(const Nonce &nonce_, const std::string &key_)
-			: nonce(nonce_), key_md5(Poseidon::md5_hash(key_))
+			: nonce(nonce_), key_md5(md5_string(key_))
 		{
 		}
 	};
 
-	BOOST_STATIC_ASSERT_MSG(sizeof(NoncedKey) == 32, "Incompatible layout detected");
+	BOOST_STATIC_ASSERT_MSG(sizeof(NoncedKey) == 32, "Incompatible layout detected.");
 
 	// http://en.wikipedia.org/wiki/RC4 有改动。
 
@@ -125,7 +131,9 @@ std::pair<boost::shared_ptr<EncryptionContext>, Poseidon::StreamBuffer> encrypt_
 	EncryptedHeader header;
 	header.nonce = nonce;
 	header.uuid = uuid;
-	header.auth_md5 = Poseidon::md5_hash(&nonced_key, sizeof(nonced_key));
+	Poseidon::Md5_ostream md5_os;
+	md5_os.write(reinterpret_cast<const char *>(&nonced_key), static_cast<std::streamsize>(sizeof(nonced_key)));
+	header.auth_md5 = md5_os.finalize();
 	AUTO(encrypted, Poseidon::StreamBuffer(&header, sizeof(header)));
 
 	return std::make_pair(STD_MOVE(context), STD_MOVE(encrypted));
@@ -153,8 +161,10 @@ boost::shared_ptr<EncryptionContext> try_decrypt_header(const Poseidon::StreamBu
 	EncryptedHeader header;
 	encrypted.peek(&header, sizeof(header));
 	const NoncedKey nonced_key(header.nonce, key);
-	const AUTO(expected_md5, Poseidon::md5_hash(&nonced_key, sizeof(nonced_key)));
-	if(expected_md5 != header.auth_md5){
+	Poseidon::Md5_ostream md5_os;
+	md5_os.write(reinterpret_cast<const char *>(&nonced_key), static_cast<std::streamsize>(sizeof(nonced_key)));
+	const AUTO(auth_md5_expected, md5_os.finalize());
+	if(header.auth_md5 != auth_md5_expected){
 		LOG_MEDUSA_DEBUG("MD5 check failure.");
 		return VAL_INIT;
 	}
