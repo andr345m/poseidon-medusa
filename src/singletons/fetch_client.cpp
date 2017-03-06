@@ -1,6 +1,5 @@
 #include "../precompiled.hpp"
 #include "fetch_client.hpp"
-#include "../mmain.hpp"
 #include <poseidon/job_base.hpp>
 #include <poseidon/singletons/timer_daemon.hpp>
 #include <poseidon/singletons/job_dispatcher.hpp>
@@ -80,7 +79,7 @@ boost::shared_ptr<FetchClient> FetchClient::require(){
 		AUTO(ssl,  get_config<bool>("fetch_client_uses_ssl", false));
 		AUTO(pass, get_config<std::string>("fetch_client_password", ""));
 
-		const Poseidon::IpPort addr_port(SharedNts(addr), port);
+		const Poseidon::IpPort addr_port(Poseidon::SharedNts(addr), port);
 		client.reset(new FetchClient(addr_port, ssl, STD_MOVE(pass)));
 		client->go_resident();
 		weak_client = client;
@@ -141,12 +140,12 @@ void FetchClient::on_sync_data_message(boost::uint16_t message_id, Poseidon::Str
 	const AUTO(header_size, get_encrypted_header_size());
 	if(payload_size < header_size){
 		LOG_MEDUSA_ERROR("Frame from fetch server is too small: expecting ", header_size, ", got ", payload_size);
-		DEBUG_THROW(Poseidon::Cbpp::Exception, Poseidon::Cbpp::ST_END_OF_STREAM, sslit("Frame from fetch server is too small"));
+		DEBUG_THROW(Poseidon::Cbpp::Exception, Poseidon::Cbpp::ST_END_OF_STREAM, Poseidon::sslit("Frame from fetch server is too small"));
 	}
 	const AUTO(context, try_decrypt_header(payload, m_password));
 	if(!context){
 		LOG_MEDUSA_ERROR("Checksum mismatch. Maybe you provided a wrong password?");
-		DEBUG_THROW(Poseidon::Cbpp::Exception, Poseidon::Cbpp::ST_FORBIDDEN, sslit("Checksum mismatch"));
+		DEBUG_THROW(Poseidon::Cbpp::Exception, Poseidon::Cbpp::ST_FORBIDDEN, Poseidon::sslit("Checksum mismatch"));
 	}
 	payload.discard(header_size);
 	AUTO(plain, decrypt_payload(context, STD_MOVE(payload)));
@@ -181,8 +180,8 @@ void FetchClient::on_sync_data_message(boost::uint16_t message_id, Poseidon::Str
 		{ //
 //=============================================================================
 	ON_MESSAGE(Msg::SC_FetchConnected, req){
-		LOG_MEDUSA_DEBUG("Fetch connected: fetch_uuid = ", fetch_uuid, ", keep_alive = ", req.keep_alive);
-		session->on_fetch_connected(req.keep_alive);
+		LOG_MEDUSA_DEBUG("Fetch connected: fetch_uuid = ", fetch_uuid, ", flags = ", req.flags);
+		session->on_fetch_connected(req.flags);
 	}
 	ON_RAW_MESSAGE(Msg::SC_FetchReceived, req){
 		const AUTO(size, req.size());
@@ -209,12 +208,12 @@ void FetchClient::on_sync_data_message(boost::uint16_t message_id, Poseidon::Str
 	}
 }
 
-bool FetchClient::connect(const boost::shared_ptr<ProxySession> &session, std::string host, unsigned port, bool use_ssl, bool keep_alive){
+bool FetchClient::connect(const boost::shared_ptr<ProxySession> &session, std::string host, unsigned port, bool use_ssl, boost::uint64_t flags){
 	PROFILE_ME;
 
 	const AUTO(fetch_uuid, session->get_fetch_uuid());
 	m_sessions[fetch_uuid] = session;
-	return send_data(fetch_uuid, Msg::CS_FetchConnect(STD_MOVE(host), port, use_ssl, keep_alive));
+	return send_data(fetch_uuid, Msg::CS_FetchConnect(STD_MOVE(host), port, use_ssl, flags));
 }
 bool FetchClient::send(const Poseidon::Uuid &fetch_uuid, Poseidon::StreamBuffer data){
 	PROFILE_ME;

@@ -41,28 +41,22 @@ namespace {
 	// http://en.wikipedia.org/wiki/RC4 有改动。
 
 	boost::shared_ptr<EncryptionContext> create_context(const Poseidon::Uuid &uuid, const NoncedKey &nonced_key){
-		PROFILE_ME;
-
 		AUTO(ret, boost::make_shared<EncryptionContext>());
-
 		ret->uuid = uuid;
 		ret->i = 0;
 		ret->j = 0;
-
 		for(unsigned i = 0; i < 256; ++i){
 			ret->s[i] = i;
 		}
 		unsigned i = 0, j = 0;
 		while(i < 256){
 			unsigned tmp;
-
 #define GEN_S(k_)   \
 			tmp = ret->s[i];    \
 			j = (j + tmp + (k_)) & 0xFF;    \
 			ret->s[i] = ret->s[j];  \
 			ret->s[j] = tmp;    \
 			++i;
-
 			for(unsigned r = 0; r < 16; ++r){
 				GEN_S(nonced_key.nonce[r]);
 			}
@@ -76,41 +70,31 @@ namespace {
 				GEN_S(uuid[r]);
 			}
 		}
-
 		return ret;
 	}
-	void encrypt_bytes(EncryptionContext *ctx, unsigned char *data, std::size_t size){
-		PROFILE_ME;
-
-		for(std::size_t i = 0; i < size; ++i){
-			unsigned byte = data[i];
-
-			// ctx->i = (ctx->i + 1) & 0xFF;
-			const unsigned k1 = ctx->s[ctx->i];
-			ctx->j = (ctx->j + k1) & 0xFF;
-			const unsigned k2 = ctx->s[ctx->j];
-			ctx->s[ctx->i] = k2;
-			ctx->s[ctx->j] = k1;
-			ctx->i = (ctx->i + (byte | 0x0F)) & 0xFF; // RC4 改。
-			byte ^= k1 + k2;
-			data[i] = byte;
-		}
+	unsigned char encrypt_byte(EncryptionContext *ctx, unsigned char c){
+		unsigned byte = c;
+		// ctx->i = (ctx->i + 1) & 0xFF;
+		const unsigned k1 = ctx->s[ctx->i];
+		ctx->j = (ctx->j + k1) & 0xFF;
+		const unsigned k2 = ctx->s[ctx->j];
+		ctx->s[ctx->i] = k2;
+		ctx->s[ctx->j] = k1;
+		ctx->i = (ctx->i + (byte | 0x0F)) & 0xFF; // RC4 改。
+		byte ^= k1 + k2;
+		return byte;
 	}
-	void decrypt_bytes(EncryptionContext *ctx, unsigned char *data, std::size_t size){
-		PROFILE_ME;
-
-		for(std::size_t i = 0; i < size; ++i){
-			unsigned byte = data[i];
-			// ctx->i = (ctx->i + 1) & 0xFF;
-			const unsigned k1 = ctx->s[ctx->i];
-			ctx->j = (ctx->j + k1) & 0xFF;
-			const unsigned k2 = ctx->s[ctx->j];
-			ctx->s[ctx->i] = k2;
-			ctx->s[ctx->j] = k1;
-			byte ^= k1 + k2;
-			ctx->i = (ctx->i + (byte | 0x0F)) & 0xFF; // RC4 改。
-			data[i] = byte;
-		}
+	unsigned char decrypt_byte(EncryptionContext *ctx, unsigned char c){
+		unsigned byte = c;
+		// ctx->i = (ctx->i + 1) & 0xFF;
+		const unsigned k1 = ctx->s[ctx->i];
+		ctx->j = (ctx->j + k1) & 0xFF;
+		const unsigned k2 = ctx->s[ctx->j];
+		ctx->s[ctx->i] = k2;
+		ctx->s[ctx->j] = k1;
+		byte ^= k1 + k2;
+		ctx->i = (ctx->i + (byte | 0x0F)) & 0xFF; // RC4 改。
+		return byte;
 	}
 }
 
@@ -141,12 +125,12 @@ std::pair<boost::shared_ptr<EncryptionContext>, Poseidon::StreamBuffer> encrypt_
 Poseidon::StreamBuffer encrypt_payload(const boost::shared_ptr<EncryptionContext> &context, Poseidon::StreamBuffer plain){
 	PROFILE_ME;
 
-	AUTO(ce, plain.get_chunk_enumerator());
-	while(ce){
-		encrypt_bytes(context.get(), ce.data(), ce.size());
-		++ce;
+	Poseidon::StreamBuffer encrypted;
+	int c;
+	while((c = plain.get()) >= 0){
+		encrypted.put(encrypt_byte(context.get(), static_cast<unsigned char>(c)));
 	}
-	return STD_MOVE(plain);
+	return encrypted;
 }
 
 boost::shared_ptr<EncryptionContext> try_decrypt_header(const Poseidon::StreamBuffer &encrypted, const std::string &key){
@@ -154,8 +138,8 @@ boost::shared_ptr<EncryptionContext> try_decrypt_header(const Poseidon::StreamBu
 
 	const AUTO(header_size, get_encrypted_header_size());
 	if(encrypted.size() < header_size){
-		LOG_MEDUSA_ERROR("No enough data provided, expecting at least ", header_size, " bytes.");
-		DEBUG_THROW(Exception, sslit("No enough data provided"));
+		LOG_MEDUSA_ERROR("Data truncated, expecting at least ", header_size, " bytes.");
+		DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("Data truncated"));
 	}
 
 	EncryptedHeader header;
@@ -173,12 +157,12 @@ boost::shared_ptr<EncryptionContext> try_decrypt_header(const Poseidon::StreamBu
 Poseidon::StreamBuffer decrypt_payload(const boost::shared_ptr<EncryptionContext> &context, Poseidon::StreamBuffer encrypted){
 	PROFILE_ME;
 
-	AUTO(ce, encrypted.get_chunk_enumerator());
-	while(ce){
-		decrypt_bytes(context.get(), ce.data(), ce.size());
-		++ce;
+	Poseidon::StreamBuffer plain;
+	int c;
+	while((c = encrypted.get()) >= 0){
+		plain.put(decrypt_byte(context.get(), static_cast<unsigned char>(c)));
 	}
-	return STD_MOVE(encrypted);
+	return plain;
 }
 
 }

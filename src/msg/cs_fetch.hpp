@@ -13,7 +13,7 @@ namespace Msg {
 	FIELD_STRING        (host)  \
 	FIELD_VUINT         (port)  \
 	FIELD_VUINT         (use_ssl)   \
-	FIELD_VUINT         (keep_alive)
+	FIELD_VUINT         (flags)
 #include <poseidon/cbpp/message_generator.hpp>
 
 #define MESSAGE_NAME    CS_FetchSend

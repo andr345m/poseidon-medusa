@@ -1,5 +1,4 @@
 #include "../precompiled.hpp"
-#include "../mmain.hpp"
 #include <poseidon/tcp_server_base.hpp>
 #include <poseidon/singletons/epoll_daemon.hpp>
 #include "../proxy_session.hpp"
@@ -25,7 +24,7 @@ MODULE_RAII(handles){
 	AUTO(bind, get_config<std::string>("proxy_server_bind", "0.0.0.0"));
 	AUTO(port, get_config<unsigned>("proxy_server_port", 5322));
 
-	const Poseidon::IpPort bind_addr(SharedNts(bind), port);
+	const Poseidon::IpPort bind_addr(Poseidon::SharedNts(bind), port);
 	LOG_MEDUSA_INFO("Creating proxy HTTP server on ", bind_addr);
 	AUTO(server, boost::make_shared<ProxyServer>(bind_addr));
 	Poseidon::EpollDaemon::register_server(server);

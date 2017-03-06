@@ -1,6 +1,5 @@
 #include "precompiled.hpp"
 #include "fetch_session.hpp"
-#include "mmain.hpp"
 #include <poseidon/singletons/timer_daemon.hpp>
 #include <poseidon/singletons/job_dispatcher.hpp>
 #include <poseidon/singletons/dns_daemon.hpp>
@@ -22,13 +21,13 @@ private:
 		std::string host;
 		unsigned port;
 		bool use_ssl;
-		bool keep_alive;
+		boost::uint64_t flags;
 
 		bool connected;
 		Poseidon::StreamBuffer pending;
 
-		ConnectElement(std::string host_, unsigned port_, bool use_ssl_, bool keep_alive_)
-			: host(STD_MOVE(host_)), port(port_), use_ssl(use_ssl_), keep_alive(keep_alive_)
+		ConnectElement(std::string host_, unsigned port_, bool use_ssl_, boost::uint64_t flags_)
+			: host(STD_MOVE(host_)), port(port_), use_ssl(use_ssl_), flags(flags_)
 			, connected(false)
 		{
 		}
@@ -101,7 +100,7 @@ private:
 				elem.pending.clear();
 			}
 
-			session->send(it->first, Msg::SC_FetchConnected(elem.keep_alive));
+			session->send(it->first, Msg::SC_FetchConnected(elem.flags));
 		}
 	};
 
@@ -127,17 +126,14 @@ private:
 
 			if(m_err_code != 0){
 				try {
-					std::string err_msg;
-					err_msg.resize(255);
-					unsigned len;
+					Poseidon::Buffer_ostream os;
 					if(elem.connected){
-						len = (unsigned)std::sprintf(&err_msg[0], "Lost connection to remote server: errno was %d: ", m_err_code);
+						os <<"Lost connection to remote server";
 					} else {
-						len = (unsigned)std::sprintf(&err_msg[0], "Could not connect to remote server: errno was %d: ", m_err_code);
+						os <<"Could not connect to remote server";
 					}
-					err_msg.resize(len);
-					err_msg += Poseidon::get_error_desc(m_err_code).get();
-					session->send(it->first, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, m_err_code, STD_MOVE(err_msg)));
+					os <<": errno was " <<m_err_code <<": " <<Poseidon::get_error_desc(m_err_code);
+					session->send(it->first, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, m_err_code, os.get_buffer().dump_string()));
 				} catch(std::exception &e){
 					LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
 				}
@@ -147,7 +143,7 @@ private:
 
 			session->send(it->first, Msg::SC_FetchEnded());
 
-			if(elem.keep_alive){
+			if(Poseidon::has_any_flags_of(elem.flags, FL_KEEP_ALIVE)){
 				channel->m_connect_queue.pop_front();
 				if(!channel->m_connect_queue.empty()){
 					channel->create_client();
@@ -307,7 +303,7 @@ private:
 
 		const AUTO_REF(elem, m_connect_queue.front());
 		LOG_MEDUSA_DEBUG("Next fetch request: host:port = ", elem.host, ':', elem.port,
-			", use_ssl = ", elem.use_ssl, ", keep_alive = ", elem.keep_alive);
+			", use_ssl = ", elem.use_ssl, ", flags = ", elem.flags);
 		try {
 			const AUTO(promise, Poseidon::DnsDaemon::enqueue_for_looking_up(elem.host, elem.port));
 			try {
@@ -400,10 +396,10 @@ public:
 		}
 	}
 
-	void connect(std::string host, unsigned port, bool use_ssl, bool keep_alive){
+	void connect(std::string host, unsigned port, bool use_ssl, boost::uint64_t flags){
 		PROFILE_ME;
 		LOG_MEDUSA_INFO("Fetch connect: fetch_uuid = ", m_fetch_uuid,
-			", host:port = ", host, ':', port, ", use_ssl = ", use_ssl, ", keep_alive = ", keep_alive);
+			", host:port = ", host, ':', port, ", use_ssl = ", use_ssl, ", flags = ", flags);
 
 		const AUTO(max_pipelining_size, get_config<std::size_t>("fetch_max_pipelining_size", 16));
 		if(m_connect_queue.size() + 1 > max_pipelining_size){
@@ -411,7 +407,7 @@ public:
 			DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_MAX_PIPELINING_SIZE);
 		}
 
-		m_connect_queue.push_back(ConnectElement(STD_MOVE(host), port, use_ssl, keep_alive));
+		m_connect_queue.push_back(ConnectElement(STD_MOVE(host), port, use_ssl, flags));
 
 		if(m_connect_queue.size() == 1){
 			create_client();
@@ -548,7 +544,7 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 				boost::make_shared<Channel>(virtual_shared_from_this<FetchSession>(), fetch_uuid))).first;
 		}
 		const AUTO(channel, it->second);
-		channel->connect(STD_MOVE(req.host), req.port, req.use_ssl, req.keep_alive);
+		channel->connect(STD_MOVE(req.host), req.port, req.use_ssl, req.flags);
 	}
 	ON_RAW_MESSAGE(Msg::CS_FetchSend, req){
 		const AUTO(it, m_channels.find(fetch_uuid));

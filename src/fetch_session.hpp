@@ -10,6 +10,12 @@
 namespace Medusa {
 
 class FetchSession : public Poseidon::Cbpp::Session {
+public:
+	enum {
+		FL_KEEP_ALIVE = 0x0001,
+		FL_TUNNEL     = 0x0002,
+	};
+
 private:
 	class Channel;
 

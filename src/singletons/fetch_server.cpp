@@ -1,5 +1,4 @@
 #include "../precompiled.hpp"
-#include "../mmain.hpp"
 #include <poseidon/tcp_server_base.hpp>
 #include <poseidon/singletons/epoll_daemon.hpp>
 #include "../fetch_session.hpp"
@@ -33,7 +32,7 @@ MODULE_RAII(handles){
 	AUTO(pkey, get_config<std::string>("fetch_server_private_key"));
 	AUTO(pass, get_config<std::string>("fetch_server_password"));
 
-	const Poseidon::IpPort bind_addr(SharedNts(bind), port);
+	const Poseidon::IpPort bind_addr(Poseidon::SharedNts(bind), port);
 	LOG_MEDUSA_INFO("Creating fetch CBPP server on ", bind_addr);
 	AUTO(server, boost::make_shared<FetchServer>(bind_addr, cert, pkey, STD_MOVE(pass)));
 	Poseidon::EpollDaemon::register_server(server);
