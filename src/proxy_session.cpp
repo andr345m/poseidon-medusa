@@ -345,19 +345,53 @@ public:
 			m_session->shutdown_write();
 		}
 	}
-	void put_default_response_if_not_tunnel(Poseidon::Http::StatusCode status_code){
+	void put_default_response_if_not_tunnel(Poseidon::Http::StatusCode status_code, const char *err_msg){
 		PROFILE_ME;
 
 		if(Poseidon::has_any_flags_of(m_flags, FetchSession::FL_TUNNEL)){
 			// Don't send anything.
 		} else {
+			const AUTO(desc, Poseidon::Http::get_status_code_desc(status_code));
 			Poseidon::Http::ResponseHeaders response_headers = { };
 			response_headers.version = 10001;
 			response_headers.status_code = status_code;
-			response_headers.reason = Poseidon::Http::get_status_code_desc(status_code).desc_short;
+			response_headers.reason = desc.desc_short;
 			response_headers.headers.set(Poseidon::sslit("Connection"), "Close");
 			response_headers.headers.set(Poseidon::sslit("Proxy-Connection"), "Close");
-			Poseidon::Http::ServerWriter::put_default_response(STD_MOVE(response_headers));
+			response_headers.headers.set(Poseidon::sslit("Content-Type"), "text/html");
+			Poseidon::Buffer_ostream entity_os;
+			entity_os <<"<html><head><title>" <<status_code <<" " <<desc.desc_short <<"</title></head><body><h1>"
+			          <<status_code <<" " <<desc.desc_short <<"</h1><hr />";
+			if(err_msg){
+				entity_os <<"<p>";
+				const char *p = err_msg;
+				char ch;
+				while((ch = *(p++)) != 0){
+					switch(ch){
+					case '<':
+						entity_os <<"&lt;";
+						break;
+					case '>':
+						entity_os <<"&gt;";
+						break;
+					case '&':
+						entity_os <<"&amp;";
+						break;
+					case '\"':
+						entity_os <<"&quot;";
+						break;
+					case '\'':
+						entity_os <<"&apos;";
+						break;
+					default:
+						entity_os <<ch;
+						break;
+					}
+				}
+				entity_os <<"</p>";
+			}
+			entity_os <<"</body></html>";
+			Poseidon::Http::ServerWriter::put_response(STD_MOVE(response_headers), STD_MOVE(entity_os.get_buffer()), true);
 		}
 	}
 };
@@ -453,10 +487,10 @@ protected:
 			rewriter.put_encoded_data(STD_MOVE(m_data));
 		} catch(Poseidon::Http::Exception &e){
 			LOG_MEDUSA_ERROR("Http::Exception thrown: status_code = ", e.get_status_code(), ", what = ", e.what());
-			session->shutdown(e.get_status_code());
+			session->shutdown(e.get_status_code(), e.what());
 		} catch(std::exception &e){
 			LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
-			session->shutdown(Poseidon::Http::ST_INTERNAL_SERVER_ERROR);
+			session->shutdown(Poseidon::Http::ST_INTERNAL_SERVER_ERROR, e.what());
 		}
 	}
 };
@@ -488,12 +522,12 @@ ProxySession::ResponseRewriter &ProxySession::get_response_rewriter(){
 	}
 	return *m_response_rewriter;
 }
-void ProxySession::shutdown(unsigned http_status_code) NOEXCEPT {
+void ProxySession::shutdown(unsigned http_status_code, const char *err_msg) NOEXCEPT {
 	PROFILE_ME;
 
 	try {
 		AUTO_REF(rewriter, get_response_rewriter());
-		rewriter.put_default_response_if_not_tunnel(http_status_code);
+		rewriter.put_default_response_if_not_tunnel(http_status_code, err_msg);
 		shutdown_read();
 		shutdown_write();
 	} catch(std::exception &e){
@@ -593,7 +627,7 @@ void ProxySession::on_fetch_closed(int cbpp_err_code, int sys_err_code, const ch
 		shutdown_read();
 		shutdown_write();
 	} else {
-		shutdown(Poseidon::Http::ST_BAD_GATEWAY);
+		shutdown(Poseidon::Http::ST_BAD_GATEWAY, err_msg);
 	}
 }
 

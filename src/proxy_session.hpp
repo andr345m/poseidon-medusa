@@ -40,7 +40,7 @@ public:
 private:
 	RequestRewriter &get_request_rewriter();
 	ResponseRewriter &get_response_rewriter();
-	void shutdown(unsigned http_status_code) NOEXCEPT;
+	void shutdown(unsigned http_status_code, const char *err_msg) NOEXCEPT;
 
 protected:
 	void on_read_hup() NOEXCEPT OVERRIDE;
