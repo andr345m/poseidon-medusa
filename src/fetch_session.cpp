@@ -88,7 +88,7 @@ private:
 			LOG_MEDUSA_DEBUG("Remote client connected: fetch_uuid = ", it->first);
 
 			const AUTO(channel, it->second);
-			assert(!channel->m_connect_queue.empty());
+			DEBUG_THROW_ASSERT(!channel->m_connect_queue.empty());
 			AUTO_REF(elem, channel->m_connect_queue.front());
 
 			elem.connected = true;
@@ -121,7 +121,7 @@ private:
 			LOG_MEDUSA_DEBUG("Remote client closed: fetch_uuid = ", it->first, ", err_code = ", m_err_code);
 
 			const AUTO(channel, it->second);
-			assert(!channel->m_connect_queue.empty());
+			DEBUG_THROW_ASSERT(!channel->m_connect_queue.empty());
 			AUTO_REF(elem, channel->m_connect_queue.front());
 
 			if(m_err_code != 0){
@@ -299,7 +299,7 @@ private:
 	void create_client(){
 		PROFILE_ME;
 
-		assert(!m_connect_queue.empty());
+		DEBUG_THROW_ASSERT(!m_connect_queue.empty());
 
 		const AUTO_REF(elem, m_connect_queue.front());
 		LOG_MEDUSA_DEBUG("Next fetch request: host:port = ", elem.host, ':', elem.port,
@@ -407,7 +407,7 @@ public:
 		const AUTO(max_pipelining_size, get_config<std::size_t>("fetch_max_pipelining_size", 16));
 		if(m_connect_queue.size() + 1 > max_pipelining_size){
 			LOG_MEDUSA_WARNING("Max pipelining size exceeded: max_pipelining_size = ", max_pipelining_size);
-			DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_MAX_PIPELINING_SIZE);
+			DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_MAX_PIPELINING_SIZE, Poseidon::sslit("Max pipelining size exceeded"));
 		}
 
 		if(m_connect_queue.size() == 1){
@@ -419,18 +419,15 @@ public:
 	void send(Poseidon::StreamBuffer data){
 		PROFILE_ME;
 
-		if(m_connect_queue.empty()){
-			LOG_MEDUSA_WARNING("No connection in progress or connection lost: fetch_uuid = ", m_fetch_uuid);
-			DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_CONNECTION_LOST);
-		}
+		DEBUG_THROW_ASSERT(!m_connect_queue.empty());
 
 		if((m_connect_queue.size() == 1) && m_connect_queue.front().connected){
 			const AUTO(client, m_client.lock());
 			if(!client){
-				DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_CONNECTION_LOST);
+				DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_CONNECTION_LOST, Poseidon::sslit("Connection to the origin serverf lost"));
 			}
 			if(!client->send(STD_MOVE(data))){
-				DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_CONNECTION_LOST);
+				DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_CONNECTION_LOST, Poseidon::sslit("Could not send data to the origin server"));
 			}
 		} else {
 			const AUTO(max_pending_buffer_size, get_config<std::size_t>("fetch_max_pending_buffer_size", 65536));
@@ -440,7 +437,7 @@ public:
 			}
 			if(pending_size + data.size() > max_pending_buffer_size){
 				LOG_MEDUSA_WARNING("Max pending buffer size exceeded: max_pending_buffer_size = ", max_pending_buffer_size);
-				DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_MAX_PENDING_BUFFER_SIZE);
+				DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_MAX_PENDING_BUFFER_SIZE, Poseidon::sslit("Max pending buffer size exceeded"));
 			}
 			m_connect_queue.back().pending.splice(data);
 		}
@@ -548,11 +545,11 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 			channel->connect(STD_MOVE(req.host), req.port, req.use_ssl, req.flags);
 		} catch(Poseidon::Cbpp::Exception &e){
 			LOG_MEDUSA_WARNING("Cbpp::Exception thrown: status_code = ", e.get_status_code(), ", what = ", e.what());
-			send(fetch_uuid, Msg::SC_FetchClosed(e.get_status_code(), EPIPE, "Could not connect to the origin server"));
+			send(fetch_uuid, Msg::SC_FetchClosed(e.get_status_code(), EPIPE, e.what()));
 			m_channels.erase(it);
 		} catch(std::exception &e){
 			LOG_MEDUSA_WARNING("std::exception thrown: what = ", e.what());
-			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, EPIPE, "Could not connect to the origin server"));
+			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, EPIPE, e.what()));
 			m_channels.erase(it);
 		}
 	}
@@ -567,11 +564,11 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 			channel->send(STD_MOVE(req));
 		} catch(Poseidon::Cbpp::Exception &e){
 			LOG_MEDUSA_WARNING("Cbpp::Exception thrown: status_code = ", e.get_status_code(), ", what = ", e.what());
-			send(fetch_uuid, Msg::SC_FetchClosed(e.get_status_code(), EPIPE, "Could not send data to the origin server"));
+			send(fetch_uuid, Msg::SC_FetchClosed(e.get_status_code(), EPIPE, e.what()));
 			m_channels.erase(it);
 		} catch(std::exception &e){
 			LOG_MEDUSA_WARNING("std::exception thrown: what = ", e.what());
-			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, EPIPE, "Could not send data to the origin server"));
+			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, EPIPE, e.what()));
 			m_channels.erase(it);
 		}
 	}
