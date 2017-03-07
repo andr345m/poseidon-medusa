@@ -56,7 +56,7 @@ public:
 	void on_fetch_connected(boost::uint64_t flags);
 	void on_fetch_received(Poseidon::StreamBuffer data);
 	void on_fetch_ended();
-	void on_fetch_closed(int cbpp_err_code, int sys_err_code, const char *err_msg) NOEXCEPT;
+	void on_fetch_closed(int err_code, const char *err_msg) NOEXCEPT;
 };
 
 }

@@ -228,10 +228,10 @@ public:
 			const AUTO_REF(origin_client, m_requests.front().origin_client);
 			if(origin_client){
 				if(force){
+					origin_client->force_shutdown();
+				} else {
 					origin_client->shutdown_read();
 					origin_client->shutdown_write();
-				} else {
-					origin_client->force_shutdown();
 				}
 			}
 			m_requests.clear();
@@ -372,17 +372,11 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 	} catch(std::exception &e){
 		LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
 		if(it != m_channels.end()){
-			channel->clear(true);
+			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, 0, e.what()));
+			it->second->clear(true);
 		}
 	}
 	if((it != m_channels.end()) && it->second->empty()){
-		const AUTO_REF(channel, it->second);
-		try {
-			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, 0, e.what()));
-		} catch(std::exception &e){
-			LOG_MEDUSA_ERROR("std::exception thrown again: what = ", e.what());
-			force_shutdown();
-		}
 		m_channels.erase(it);
 	}
 }

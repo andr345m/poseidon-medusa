@@ -22,7 +22,7 @@ FetchClient::~FetchClient(){
 	for(AUTO(it, m_sessions.begin()); it != m_sessions.end(); ++it){
 		const AUTO(session, it->second.lock());
 		if(session){
-			session->on_fetch_closed(Msg::ERR_CONNECTION_LOST, 0, "Lost connection to fetch server");
+			session->on_fetch_closed(Msg::ERR_CONNECTION_LOST, "Lost connection to fetch server");
 		}
 	}
 }
@@ -100,7 +100,7 @@ void FetchClient::on_sync_data_message(boost::uint16_t message_id, Poseidon::Str
 	}
 	ON_MESSAGE(Msg::SC_FetchClosed, req){
 		LOG_MEDUSA_DEBUG("Fetch closed: fetch_uuid = ", fetch_uuid, ", err_code = ", req.err_code, ", err_msg = ", req.err_msg);
-		session->on_fetch_closed(req.err_code, 0, req.err_msg.c_str());
+		session->on_fetch_closed(req.err_code, req.err_msg.c_str());
 	}
 //=============================================================================
 				}}
@@ -155,7 +155,7 @@ void FetchClient::close(const Poseidon::Uuid &fetch_uuid, int err_code, const ch
 	}
 
 	if(session){
-		session->on_fetch_closed(cbpp_err_code, sys_err_code, err_msg);
+		session->on_fetch_closed(err_code, err_msg);
 	}
 }
 

@@ -506,7 +506,7 @@ protected:
 
 		const AUTO(fetch_client, m_fetch_client.lock());
 		if(fetch_client){
-			fetch_client->close(m_fetch_uuid, Msg::ST_OK, m_err_code, "Proxy client closed the connection");
+			fetch_client->close(m_fetch_uuid, Msg::ST_OK, "Lost connection to proxy client");
 		}
 	}
 };
@@ -671,17 +671,16 @@ void ProxySession::on_fetch_ended(){
 		rewriter.put_closure_response_if_none_exist(Poseidon::Http::ST_BAD_GATEWAY, e.what());
 	}
 }
-void ProxySession::on_fetch_closed(int cbpp_err_code, int sys_err_code, const char *err_msg) NOEXCEPT {
+void ProxySession::on_fetch_closed(int err_code, const char *err_msg) NOEXCEPT {
 	PROFILE_ME;
-	LOG_MEDUSA_DEBUG("Received close response from fetch server: fetch_uuid = ", m_fetch_uuid,
-		", cbpp_err_code = ", cbpp_err_code, ", sys_err_code = ", sys_err_code, ", err_msg = ", err_msg);
+	LOG_MEDUSA_DEBUG("Received close response from fetch server: fetch_uuid = ", m_fetch_uuid, ", err_code = ", err_code, ", err_msg = ", err_msg);
 
-	if(cbpp_err_code == 0){
+	if(err_code != 0){
+		shutdown(Poseidon::Http::ST_BAD_GATEWAY, err_msg);
+	} else {
 		// Proxy-Connection: Close
 		shutdown_read();
 		shutdown_write();
-	} else {
-		shutdown(Poseidon::Http::ST_BAD_GATEWAY, err_msg);
 	}
 }
 
