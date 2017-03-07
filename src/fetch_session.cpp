@@ -221,13 +221,13 @@ public:
 			DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_MAX_PENDING_BUFFER_SIZE, Poseidon::sslit("Max pending buffer size exceeded"));
 		}
 	}
-	void clear(int err_code) NOEXCEPT {
+	void clear(bool force) NOEXCEPT {
 		PROFILE_ME;
 
 		if(!m_requests.empty()){
 			const AUTO_REF(origin_client, m_requests.front().origin_client);
 			if(origin_client){
-				if(err_code == 0){
+				if(force){
 					origin_client->shutdown_read();
 					origin_client->shutdown_write();
 				} else {
@@ -273,7 +273,7 @@ FetchSession::~FetchSession(){
 
 	for(AUTO(it, m_channels.begin()); it != m_channels.end(); ++it){
 		const AUTO_REF(channel, it->second);
-		channel->clear(ECONNRESET);
+		channel->clear(true);
 	}
 }
 
@@ -352,7 +352,7 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 			break; // DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("No fetch request pending"));
 		}
 		const AUTO_REF(channel, it->second);
-		channel->clear(req.err_code);
+		channel->clear(req.err_code != 0);
 	}
 	ON_MESSAGE(Msg::CS_FetchAcknowledge, req){
 		it = m_channels.find(fetch_uuid);
@@ -372,17 +372,17 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 	} catch(std::exception &e){
 		LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
 		if(it != m_channels.end()){
-			const AUTO_REF(channel, it->second);
-			try {
-				send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, EPERM, e.what()));
-			} catch(std::exception &e){
-				LOG_MEDUSA_ERROR("std::exception thrown again: what = ", e.what());
-				force_shutdown();
-			}
-			channel->clear(ECONNRESET);
+			channel->clear(true);
 		}
 	}
 	if((it != m_channels.end()) && it->second->empty()){
+		const AUTO_REF(channel, it->second);
+		try {
+			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, 0, e.what()));
+		} catch(std::exception &e){
+			LOG_MEDUSA_ERROR("std::exception thrown again: what = ", e.what());
+			force_shutdown();
+		}
 		m_channels.erase(it);
 	}
 }
@@ -398,11 +398,11 @@ void FetchSession::on_sync_timer(){
 		} catch(Poseidon::Cbpp::Exception &e){
 			LOG_MEDUSA_DEBUG("Cbpp::Exception thrown: status_code = ", e.get_status_code(), ", what = ", e.what());
 			send(fetch_uuid, Msg::SC_FetchClosed(e.get_status_code(), 0, e.what()));
-			channel->clear(ECONNRESET);
+			channel->clear(true);
 		} catch(std::exception &e){
 			LOG_MEDUSA_DEBUG("Cbpp::Exception thrown: what = ", e.what());
 			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, 0, e.what()));
-			channel->clear(ECONNRESET);
+			channel->clear(true);
 		}
 		if(channel->empty()){
 			it = m_channels.erase(it);

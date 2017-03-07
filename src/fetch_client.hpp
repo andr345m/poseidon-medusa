@@ -31,7 +31,7 @@ protected:
 public:
 	bool connect(const boost::shared_ptr<ProxySession> &session, std::string host, unsigned port, bool use_ssl, boost::uint64_t flags);
 	bool send(const Poseidon::Uuid &fetch_uuid, Poseidon::StreamBuffer data);
-	void close(const Poseidon::Uuid &fetch_uuid, int cbpp_err_code, int sys_err_code, const char *err_msg) NOEXCEPT;
+	void close(const Poseidon::Uuid &fetch_uuid, int err_code, const char *err_msg) NOEXCEPT;
 };
 
 }

@@ -22,7 +22,7 @@ FetchClient::~FetchClient(){
 	for(AUTO(it, m_sessions.begin()); it != m_sessions.end(); ++it){
 		const AUTO(session, it->second.lock());
 		if(session){
-			session->on_fetch_closed(Msg::ERR_CONNECTION_LOST, ECONNRESET, "Lost connection to fetch server");
+			session->on_fetch_closed(Msg::ERR_CONNECTION_LOST, 0, "Lost connection to fetch server");
 		}
 	}
 }
@@ -111,11 +111,12 @@ void FetchClient::on_sync_data_message(boost::uint16_t message_id, Poseidon::Str
 			}
 		} catch(std::exception &e){
 			LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
-			session->on_fetch_closed(Msg::ERR_CONNECTION_LOST, EPERM, e.what());
+			session->on_fetch_closed(Msg::ERR_CONNECTION_LOST, e.what());
 		}
 	}
-	if(!session || session->has_been_shutdown_read()){
+	if(!session || session->has_been_shutdown_write()){
 		LOG_MEDUSA_DEBUG("Reclaiming proxy session: fetch_uuid = ", fetch_uuid);
+		close(fetch_uuid, Msg::ERR_CONNECTION_LOST, "Lost connection to proxy client");
 		m_sessions.erase(it);
 	}
 }
@@ -136,7 +137,7 @@ bool FetchClient::send(const Poseidon::Uuid &fetch_uuid, Poseidon::StreamBuffer 
 	}
 	return send_explicit(fetch_uuid, Msg::CS_FetchSend::ID, STD_MOVE(data));
 }
-void FetchClient::close(const Poseidon::Uuid &fetch_uuid, int cbpp_err_code, int sys_err_code, const char *err_msg) NOEXCEPT {
+void FetchClient::close(const Poseidon::Uuid &fetch_uuid, int err_code, const char *err_msg) NOEXCEPT {
 	PROFILE_ME;
 
 	const AUTO(it, m_sessions.find(fetch_uuid));
@@ -147,7 +148,7 @@ void FetchClient::close(const Poseidon::Uuid &fetch_uuid, int cbpp_err_code, int
 	m_sessions.erase(it);
 
 	try {
-		send(fetch_uuid, Msg::CS_FetchClose(sys_err_code));
+		send(fetch_uuid, Msg::CS_FetchClose(err_code));
 	} catch(std::exception &e){
 		LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
 		force_shutdown();
