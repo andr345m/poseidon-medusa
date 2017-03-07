@@ -16,6 +16,7 @@ namespace Medusa {
 
 class FetchSession::OriginClient : public Poseidon::TcpClientBase {
 private:
+	volatile bool m_readable;
 	volatile boost::uint64_t m_bytes_received;
 	volatile boost::uint64_t m_bytes_acknowledged;
 	volatile int m_err_code;
@@ -26,12 +27,20 @@ private:
 public:
 	OriginClient(const Poseidon::SockAddr &sock_addr, bool use_ssl)
 		: Poseidon::TcpClientBase(sock_addr, use_ssl, true)
-		, m_bytes_received(0), m_bytes_acknowledged(0), m_err_code(0)
+		, m_readable(false), m_bytes_received(0), m_bytes_acknowledged(0), m_err_code(0)
 	{
 	}
 	~OriginClient();
 
 protected:
+	void on_connect() OVERRIDE {
+		Poseidon::atomic_store(m_readable, true, Poseidon::ATOMIC_RELEASE);
+		Poseidon::TcpSessionBase::on_connect();
+	}
+	void on_read_hup() NOEXCEPT OVERRIDE {
+		shutdown_write();
+		Poseidon::TcpClientBase::on_read_hup();
+	}
 	void on_close(int err_code) NOEXCEPT OVERRIDE {
 		Poseidon::atomic_store(m_err_code, err_code, Poseidon::ATOMIC_RELEASE);
 		Poseidon::TcpClientBase::on_close(err_code);
@@ -53,6 +62,9 @@ protected:
 	}
 
 public:
+	bool is_readable() const NOEXCEPT {
+		return Poseidon::atomic_load(m_readable, Poseidon::ATOMIC_ACQUIRE);
+	}
 	bool send(Poseidon::StreamBuffer data) OVERRIDE {
 		return Poseidon::TcpClientBase::send(data);
 	}
@@ -64,7 +76,7 @@ public:
 		}
 		return recv_queue;
 	}
-	int peek_err_code() NOEXCEPT {
+	int peek_err_code() const NOEXCEPT {
 		return Poseidon::atomic_load(m_err_code, Poseidon::ATOMIC_ACQUIRE);
 	}
 	void consume_some(std::size_t size){
@@ -149,7 +161,7 @@ public:
 				}
 			}
 
-			if(!req.origin_client->is_connected()){
+			if(!req.origin_client->is_readable()){
 				LOG_MEDUSA_DEBUG("Waiting for SYN ACK: host:port = ", req.host);
 				const AUTO(time_elapsed, Poseidon::saturated_sub(now, req.creation_time));
 				const AUTO(connect_timeout, get_config<std::uint64_t>("remote_client_connect_timeout", 10000));
@@ -177,7 +189,8 @@ public:
 				LOG_MEDUSA_DEBUG("Fetch error: err_code = ", err_code);
 				DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_CONNECTION_LOST, Poseidon::get_error_desc(err_code));
 			}
-			LOG_MEDUSA_INFO("Closing connection to origin server: host:port = ", req.host, ":", req.port, ", use_ssl = ", req.use_ssl);
+			LOG_MEDUSA_INFO("Closing connection to origin server: host:port = ", req.host, ":", req.port);
+			session->send(fetch_uuid, Msg::SC_FetchEnded());
 			m_requests.pop_front();
 		}
 	}
@@ -336,7 +349,7 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 	ON_MESSAGE(Msg::CS_FetchClose, req){
 		it = m_channels.find(fetch_uuid);
 		if(it == m_channels.end()){
-			DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("No fetch request pending"));
+			break; // DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("No fetch request pending"));
 		}
 		const AUTO_REF(channel, it->second);
 		channel->clear(req.err_code);
@@ -344,7 +357,7 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 	ON_MESSAGE(Msg::CS_FetchAcknowledge, req){
 		it = m_channels.find(fetch_uuid);
 		if(it == m_channels.end()){
-			DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("No fetch request pending"));
+			break; // DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("No fetch request pending"));
 		}
 		const AUTO_REF(channel, it->second);
 		channel->acknowledge(req.size);

@@ -118,7 +118,7 @@ protected:
 			}
 			m_session->m_fetch_client = fetch_client;
 		}
-		if(!fetch_client->connect(m_session->virtual_shared_from_this<ProxySession>(), STD_MOVE(host), port, use_ssl, m_flags)){
+		if(!fetch_client->connect(m_session->virtual_shared_from_this<ProxySession>(), host, port, use_ssl, m_flags)){
 			LOG_MEDUSA_WARNING("Could not send data to fetch server");
 			DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("Could not send data to fetch server"));
 		}
@@ -155,6 +155,7 @@ protected:
 			request_headers.headers.set(Poseidon::sslit("X-Forwarded-For"), STD_MOVE(x_forwarded_for));
 
 			request_headers.headers.set(Poseidon::sslit("Connection"), "Close");
+			request_headers.headers.set(Poseidon::sslit("Host"), host);
 
 			if(m_has_request_entity){
 				if(!Poseidon::Http::ClientWriter::put_chunked_header(STD_MOVE(request_headers))){
@@ -379,9 +380,11 @@ public:
 			m_session->shutdown_write();
 		}
 
-		--(m_session->m_request_counter);
-		if((m_session->m_request_counter == 0) && (m_session->has_been_shutdown_read())){
-			m_session->shutdown_write();
+		if(Poseidon::has_none_flags_of(m_flags, FetchSession::FL_TUNNEL)){
+			--(m_session->m_request_counter);
+			if((m_session->m_request_counter == 0) && (m_session->has_been_shutdown_read())){
+				m_session->shutdown_write();
+			}
 		}
 	}
 
@@ -471,6 +474,7 @@ protected:
 			return;
 		}
 
+		LOG_MEDUSA_DEBUG("Request counter: ", session->m_request_counter);
 		if(session->m_request_counter == 0){
 			session->shutdown_write();
 		}
