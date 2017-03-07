@@ -128,9 +128,9 @@ private:
 				try {
 					Poseidon::Buffer_ostream os;
 					if(elem.connected){
-						os <<"Lost connection to remote server";
+						os <<"Lost connection to origin server";
 					} else {
-						os <<"Could not connect to remote server";
+						os <<"Could not connect to origin server";
 					}
 					os <<": errno was " <<m_err_code <<": " <<Poseidon::get_error_desc(m_err_code);
 					session->send(it->first, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, m_err_code, os.get_buffer().dump_string()));
@@ -415,21 +415,21 @@ public:
 
 		m_updated_time = Poseidon::get_fast_mono_clock();
 	}
-	bool send(Poseidon::StreamBuffer data){
+	void send(Poseidon::StreamBuffer data){
 		PROFILE_ME;
 
 		if(m_connect_queue.empty()){
-			LOG_MEDUSA_DEBUG("No connection in progress or connection lost: fetch_uuid = ", m_fetch_uuid);
-			return false;
+			LOG_MEDUSA_WARNING("No connection in progress or connection lost: fetch_uuid = ", m_fetch_uuid);
+			DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_CONNECTION_LOST);
 		}
 
 		if((m_connect_queue.size() == 1) && m_connect_queue.front().connected){
 			const AUTO(client, m_client.lock());
 			if(!client){
-				return false;
+				DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_CONNECTION_LOST);
 			}
 			if(!client->send(STD_MOVE(data))){
-				return false;
+				DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_CONNECTION_LOST);
 			}
 		} else {
 			const AUTO(max_pending_buffer_size, get_config<std::size_t>("fetch_max_pending_buffer_size", 65536));
@@ -445,7 +445,6 @@ public:
 		}
 
 		m_updated_time = Poseidon::get_fast_mono_clock();
-		return true;
 	}
 	void close(int err_code) NOEXCEPT {
 		PROFILE_ME;
@@ -544,25 +543,41 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 				boost::make_shared<Channel>(virtual_shared_from_this<FetchSession>(), fetch_uuid))).first;
 		}
 		const AUTO(channel, it->second);
-		channel->connect(STD_MOVE(req.host), req.port, req.use_ssl, req.flags);
+		try {
+			channel->connect(STD_MOVE(req.host), req.port, req.use_ssl, req.flags);
+		} catch(Poseidon::Cbpp::Exception &e){
+			LOG_MEDUSA_WARNING("Cbpp::Exception thrown: status_code = ", e.get_status_code(), ", what = ", e.what());
+			send(fetch_uuid, Msg::SC_FetchClosed(e.get_status_code(), EPIPE, "Could not connect to origin server"));
+			m_channels.erase(it);
+		} catch(std::exception &e){
+			LOG_MEDUSA_WARNING("std::exception thrown: what = ", e.what());
+			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, EPIPE, "Could not connect to origin server"));
+			m_channels.erase(it);
+		}
 	}
 	ON_RAW_MESSAGE(Msg::CS_FetchSend, req){
 		const AUTO(it, m_channels.find(fetch_uuid));
 		if(it == m_channels.end()){
-			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_NOT_CONNECTED, ENOTCONN, "Lost connection to remote server"));
+			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_NOT_CONNECTED, ENOTCONN, "Lost connection to origin server"));
 			break;
 		}
 		const AUTO(channel, it->second);
-		if(!channel->send(STD_MOVE(req))){
-			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, EPIPE, "Could not send data to remote server"));
+		try {
+			channel->send(STD_MOVE(req));
+		} catch(Poseidon::Cbpp::Exception &e){
+			LOG_MEDUSA_WARNING("Cbpp::Exception thrown: status_code = ", e.get_status_code(), ", what = ", e.what());
+			send(fetch_uuid, Msg::SC_FetchClosed(e.get_status_code(), EPIPE, "Could not connect to origin server"));
 			m_channels.erase(it);
-			break;
+		} catch(std::exception &e){
+			LOG_MEDUSA_WARNING("std::exception thrown: what = ", e.what());
+			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, EPIPE, "Could not connect to origin server"));
+			m_channels.erase(it);
 		}
 	}
 	ON_MESSAGE(Msg::CS_FetchClose, req){
 		const AUTO(it, m_channels.find(fetch_uuid));
 		if(it == m_channels.end()){
-			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_NOT_CONNECTED, ENOTCONN, "Lost connection to remote server"));
+			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_NOT_CONNECTED, ENOTCONN, "Lost connection to origin server"));
 			break;
 		}
 		const AUTO(channel, it->second);
@@ -572,11 +587,21 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 	ON_MESSAGE(Msg::CS_FetchDataAcknowledgment, req){
 		const AUTO(it, m_channels.find(fetch_uuid));
 		if(it == m_channels.end()){
-			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_NOT_CONNECTED, ENOTCONN, "Lost connection to remote server"));
+			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_NOT_CONNECTED, ENOTCONN, "Lost connection to origin server"));
 			break;
 		}
 		const AUTO(channel, it->second);
-		channel->throttle_produce(req.size);
+		try {
+			channel->throttle_produce(req.size);
+		} catch(Poseidon::Cbpp::Exception &e){
+			LOG_MEDUSA_WARNING("Cbpp::Exception thrown: status_code = ", e.get_status_code(), ", what = ", e.what());
+			send(fetch_uuid, Msg::SC_FetchClosed(e.get_status_code(), EPIPE, "Could not connect to origin server"));
+			m_channels.erase(it);
+		} catch(std::exception &e){
+			LOG_MEDUSA_WARNING("std::exception thrown: what = ", e.what());
+			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, EPIPE, "Could not connect to origin server"));
+			m_channels.erase(it);
+		}
 	}
 //=============================================================================
 		}}
