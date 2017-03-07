@@ -238,16 +238,17 @@ private:
 	ProxySession *const m_session;
 
 	boost::uint64_t m_flags;
+	bool m_response_valid;
 
-	bool m_headers_received;
+	bool m_headers_accepted;
 	boost::uint64_t m_header_size;
 	Poseidon::Http::StatusCode m_status_code;
 
 public:
 	explicit ResponseRewriter(ProxySession *session)
 		: m_session(session)
-		, m_flags(0)
-		, m_headers_received(false), m_header_size(0), m_status_code(Poseidon::Http::ST_NULL)
+		, m_flags(0), m_response_valid(false)
+		, m_headers_accepted(false), m_header_size(0), m_status_code(Poseidon::Http::ST_NULL)
 	{
 	}
 
@@ -256,7 +257,9 @@ protected:
 	void on_response_headers(Poseidon::Http::ResponseHeaders response_headers, boost::uint64_t /* content_length */) OVERRIDE {
 		PROFILE_ME;
 
-		m_headers_received = true;
+		m_response_valid = true;
+
+		m_headers_accepted = true;
 		m_status_code = response_headers.status_code;
 
 		response_headers.version = 10001;
@@ -283,7 +286,7 @@ protected:
 
 		Poseidon::Http::ServerWriter::put_chunked_trailer(STD_MOVE(headers));
 
-		m_headers_received = false;
+		m_headers_accepted = false;
 		m_header_size = 0;
 		m_status_code = Poseidon::Http::ST_NULL;
 
@@ -320,7 +323,7 @@ public:
 		} else {
 			m_header_size += data.size();
 			Poseidon::Http::ClientReader::put_encoded_data(STD_MOVE(data));
-			if(!m_headers_received){
+			if(!m_headers_accepted){
 				const AUTO(max_header_size, get_config<boost::uint64_t>("proxy_http_header_max_header_size", 16384));
 				if(m_header_size > max_header_size){
 					LOG_MEDUSA_WARNING("Too many HTTP headers: remote = ", m_session->get_remote_info(),
@@ -354,13 +357,15 @@ public:
 	void put_eof(){
 		PROFILE_ME;
 
-		if(!m_headers_received){
-			put_default_response_if_not_tunnel(Poseidon::Http::ST_BAD_GATEWAY, "The origin server did not send a valid HTTP response");
-		} else {
-			if(Poseidon::Http::ClientReader::is_content_till_eof()){
-				Poseidon::Http::ClientReader::terminate_content();
-			}
+		if(Poseidon::Http::ClientReader::is_content_till_eof()){
+			Poseidon::Http::ClientReader::terminate_content();
 		}
+
+		if(!m_response_valid){
+			put_default_response_if_not_tunnel(
+				Poseidon::Http::ST_BAD_GATEWAY, "The origin server did not send a valid HTTP response");
+		}
+		m_response_valid = false;
 
 		if(Poseidon::has_none_flags_of(m_flags, FetchSession::FL_KEEP_ALIVE)){
 			m_session->shutdown_read();
