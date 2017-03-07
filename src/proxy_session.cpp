@@ -284,6 +284,8 @@ protected:
 		Poseidon::Http::ServerWriter::put_chunked_trailer(STD_MOVE(headers));
 
 		m_headers_received = false;
+		m_header_size = 0;
+		m_status_code = Poseidon::Http::ST_NULL;
 
 		return true;
 	}
