@@ -331,10 +331,7 @@ public:
 					// XXX; Do we have a better solution?
 					boost::scoped_ptr<ResponseRewriter> temp_rewriter;
 					temp_rewriter.reset(new ResponseRewriter(m_session));
-					temp_rewriter->put_default_response_if_not_tunnel(
-						Poseidon::Http::ST_BAD_GATEWAY, "The origin server sent too many HTTP headers");
-					m_session->shutdown_read();
-					m_session->shutdown_write();
+					temp_rewriter->put_closure_response(Poseidon::Http::ST_BAD_GATEWAY, "The origin server sent too many HTTP headers");
 					return;
 				}
 			}
@@ -361,23 +358,22 @@ public:
 			Poseidon::Http::ClientReader::terminate_content();
 		}
 
-		if(!m_response_valid){
-			put_default_response_if_not_tunnel(
-				Poseidon::Http::ST_BAD_GATEWAY, "The origin server did not send a valid HTTP response");
-		}
-		m_response_valid = false;
+		put_closure_response_if_none_exist(Poseidon::Http::ST_BAD_GATEWAY, "The origin server did not send a valid HTTP response");
 
 		if(Poseidon::has_none_flags_of(m_flags, FetchSession::FL_KEEP_ALIVE)){
 			m_session->shutdown_read();
 			m_session->shutdown_write();
 		}
 
+		m_response_valid = false;
+
 		--(m_session->m_request_counter);
 		if((m_session->m_request_counter == 0) && (m_session->has_been_shutdown_read())){
 			m_session->shutdown_write();
 		}
 	}
-	void put_default_response_if_not_tunnel(Poseidon::Http::StatusCode status_code, const char *err_msg){
+
+	void put_closure_response(Poseidon::Http::StatusCode status_code, const char *err_msg){
 		PROFILE_ME;
 
 		if(Poseidon::has_any_flags_of(m_flags, FetchSession::FL_TUNNEL)){
@@ -425,6 +421,20 @@ public:
 			entity_os <<"</body></html>";
 			Poseidon::Http::ServerWriter::put_response(STD_MOVE(response_headers), STD_MOVE(entity_os.get_buffer()), true);
 		}
+
+		m_session->shutdown_read();
+		m_session->shutdown_write();
+	}
+	void put_closure_response_if_none_exist(Poseidon::Http::StatusCode status_code, const char *err_msg){
+		PROFILE_ME;
+
+		if(!m_response_valid){
+			put_closure_response(status_code, err_msg);
+			m_response_valid = true;
+		}
+
+		m_session->shutdown_read();
+		m_session->shutdown_write();
 	}
 };
 
@@ -559,9 +569,7 @@ void ProxySession::shutdown(unsigned http_status_code, const char *err_msg) NOEX
 
 	try {
 		AUTO_REF(rewriter, get_response_rewriter());
-		rewriter.put_default_response_if_not_tunnel(http_status_code, err_msg);
-		shutdown_read();
-		shutdown_write();
+		rewriter.put_closure_response(http_status_code, err_msg);
 	} catch(std::exception &e){
 		LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
 		force_shutdown();
@@ -617,36 +625,36 @@ void ProxySession::on_fetch_connected(boost::uint64_t flags){
 	PROFILE_ME;
 	LOG_MEDUSA_DEBUG("Received connect success from fetch server: fetch_uuid = ", m_fetch_uuid, ", flags = ", flags);
 
+	AUTO_REF(rewriter, get_response_rewriter());
 	try {
-		AUTO_REF(rewriter, get_response_rewriter());
 		rewriter.put_flags(flags);
 	} catch(std::exception &e){
 		LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
-		force_shutdown();
+		rewriter.put_closure_response_if_none_exist(Poseidon::Http::ST_BAD_GATEWAY, e.what());
 	}
 }
 void ProxySession::on_fetch_received(Poseidon::StreamBuffer data){
 	PROFILE_ME;
 	LOG_MEDUSA_DEBUG("Received data from fetch server: fetch_uuid = ", m_fetch_uuid, ", size = ", data.size());
 
+	AUTO_REF(rewriter, get_response_rewriter());
 	try {
-		AUTO_REF(rewriter, get_response_rewriter());
 		rewriter.put_encoded_data(STD_MOVE(data));
 	} catch(std::exception &e){
 		LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
-		force_shutdown();
+		rewriter.put_closure_response_if_none_exist(Poseidon::Http::ST_BAD_GATEWAY, e.what());
 	}
 }
 void ProxySession::on_fetch_ended(){
 	PROFILE_ME;
 	LOG_MEDUSA_DEBUG("Received EOF response from fetch server: fetch_uuid = ", m_fetch_uuid);
 
+	AUTO_REF(rewriter, get_response_rewriter());
 	try {
-		AUTO_REF(rewriter, get_response_rewriter());
 		rewriter.put_eof();
 	} catch(std::exception &e){
 		LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
-		force_shutdown();
+		rewriter.put_closure_response_if_none_exist(Poseidon::Http::ST_BAD_GATEWAY, e.what());
 	}
 }
 void ProxySession::on_fetch_closed(int cbpp_err_code, int sys_err_code, const char *err_msg) NOEXCEPT {
