@@ -358,14 +358,15 @@ public:
 			Poseidon::Http::ClientReader::terminate_content();
 		}
 
-		put_closure_response_if_none_exist(Poseidon::Http::ST_BAD_GATEWAY, "The origin server did not send a valid HTTP response");
+		if(!m_response_valid){
+			put_closure_response_if_none_exist(Poseidon::Http::ST_BAD_GATEWAY, "The origin server did not send a valid HTTP response");
+		}
+		m_response_valid = false;
 
 		if(Poseidon::has_none_flags_of(m_flags, FetchSession::FL_KEEP_ALIVE)){
 			m_session->shutdown_read();
 			m_session->shutdown_write();
 		}
-
-		m_response_valid = false;
 
 		--(m_session->m_request_counter);
 		if((m_session->m_request_counter == 0) && (m_session->has_been_shutdown_read())){
@@ -421,7 +422,6 @@ public:
 			entity_os <<"</body></html>";
 			Poseidon::Http::ServerWriter::put_response(STD_MOVE(response_headers), STD_MOVE(entity_os.get_buffer()), true);
 		}
-
 		m_session->shutdown_read();
 		m_session->shutdown_write();
 	}
@@ -432,7 +432,6 @@ public:
 			put_closure_response(status_code, err_msg);
 			m_response_valid = true;
 		}
-
 		m_session->shutdown_read();
 		m_session->shutdown_write();
 	}
