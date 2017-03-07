@@ -19,15 +19,15 @@ private:
 
 	boost::uint64_t m_flags;
 
-	boost::uint64_t m_header_size;
 	bool m_headers_accepted;
+	boost::uint64_t m_header_size;
 	bool m_has_request_entity;
 
 public:
 	explicit RequestRewriter(ProxySession *session)
 		: m_session(session)
 		, m_flags(0)
-		, m_header_size(0), m_headers_accepted(false), m_has_request_entity(false)
+		, m_headers_accepted(false), m_header_size(0), m_has_request_entity(false)
 	{
 	}
 
@@ -61,7 +61,7 @@ protected:
 				use_ssl = true;
 			} else {
 				LOG_MEDUSA_DEBUG("Unknown protocol: ", request_headers.uri.c_str());
-				DEBUG_THROW(Poseidon::Http::Exception, Poseidon::Http::ST_BAD_REQUEST);
+				DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("Unknown protocol"));
 			}
 			request_headers.uri.erase(0, pos + 3);
 		}
@@ -77,7 +77,7 @@ protected:
 			pos = host.find(']');
 			if(pos == std::string::npos){
 				LOG_MEDUSA_DEBUG("Invalid IPv6 address: host = ", host);
-				DEBUG_THROW(Poseidon::Http::Exception, Poseidon::Http::ST_BAD_REQUEST);
+				DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("Invalid IPv6 address"));
 			}
 			pos = host.find(':', pos + 1);
 		} else {
@@ -88,7 +88,7 @@ protected:
 			port = std::strtoul(host.c_str() + pos + 1, &endptr, 10);
 			if(*endptr){
 				LOG_MEDUSA_DEBUG("Invalid port in host string: host = ", host);
-				DEBUG_THROW(Poseidon::Http::Exception, Poseidon::Http::ST_BAD_REQUEST);
+				DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("Invalid port in host string"));
 			}
 			host.erase(pos);
 		}
@@ -112,12 +112,12 @@ protected:
 
 		const AUTO(fetch_client, m_session->m_fetch_client.lock());
 		if(!fetch_client){
-			LOG_MEDUSA_DEBUG("Lost connection to fetch server");
-			DEBUG_THROW(Poseidon::Http::Exception, Poseidon::Http::ST_BAD_GATEWAY);
+			LOG_MEDUSA_WARNING("Lost connection to fetch server");
+			DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("Lost connection to fetch server"));
 		}
 		if(!fetch_client->connect(m_session->virtual_shared_from_this<ProxySession>(), STD_MOVE(host), port, use_ssl, m_flags)){
-			LOG_MEDUSA_DEBUG("Could not send data to fetch server");
-			DEBUG_THROW(Poseidon::Http::Exception, Poseidon::Http::ST_BAD_GATEWAY);
+			LOG_MEDUSA_WARNING("Could not send data to fetch server");
+			DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("Could not send data to fetch server"));
 		}
 
 		if(request_headers.verb != Poseidon::Http::V_CONNECT){
@@ -187,8 +187,8 @@ protected:
 			}
 		}
 
-		m_header_size = 0;
 		m_headers_accepted = false;
+		m_header_size = 0;
 		m_has_request_entity = false;
 
 		return true;
@@ -240,12 +240,14 @@ private:
 	boost::uint64_t m_flags;
 
 	bool m_headers_received;
+	boost::uint64_t m_header_size;
+	Poseidon::Http::StatusCode m_status_code;
 
 public:
 	explicit ResponseRewriter(ProxySession *session)
 		: m_session(session)
 		, m_flags(0)
-		, m_headers_received(false)
+		, m_headers_received(false), m_header_size(0), m_status_code(Poseidon::Http::ST_NULL)
 	{
 	}
 
@@ -253,6 +255,9 @@ protected:
 	// ClientReader
 	void on_response_headers(Poseidon::Http::ResponseHeaders response_headers, boost::uint64_t /* content_length */) OVERRIDE {
 		PROFILE_ME;
+
+		m_headers_received = true;
+		m_status_code = response_headers.status_code;
 
 		response_headers.version = 10001;
 		response_headers.headers.erase("Connection");
@@ -311,7 +316,23 @@ public:
 		if(Poseidon::has_any_flags_of(m_flags, FetchSession::FL_TUNNEL)){
 			on_encoded_data_avail(STD_MOVE(data));
 		} else {
+			m_header_size += data.size();
 			Poseidon::Http::ClientReader::put_encoded_data(STD_MOVE(data));
+			if(!m_headers_received){
+				const AUTO(max_header_size, get_config<boost::uint64_t>("proxy_http_header_max_header_size", 16384));
+				if(m_header_size > max_header_size){
+					LOG_MEDUSA_WARNING("Too many HTTP headers: remote = ", m_session->get_remote_info(),
+						", header_size = ", m_header_size, ", max_header_size = ", max_header_size);
+					// XXX; Do we have a better solution?
+					boost::scoped_ptr<ResponseRewriter> temp_rewriter;
+					temp_rewriter.reset(new ResponseRewriter(m_session));
+					temp_rewriter->put_default_response_if_not_tunnel(
+						Poseidon::Http::ST_BAD_GATEWAY, "The origin server sent too many HTTP headers");
+					m_session->shutdown_read();
+					m_session->shutdown_write();
+					return;
+				}
+			}
 			if(Poseidon::has_any_flags_of(m_flags, FetchSession::FL_TUNNEL)){
 				AUTO_REF(queue, Poseidon::Http::ClientReader::get_queue());
 				if(!queue.empty()){
@@ -331,8 +352,12 @@ public:
 	void put_eof(){
 		PROFILE_ME;
 
-		if(Poseidon::Http::ClientReader::is_content_till_eof()){
-			Poseidon::Http::ClientReader::terminate_content();
+		if(!m_headers_received){
+			put_default_response_if_not_tunnel(Poseidon::Http::ST_BAD_GATEWAY, "The origin server did not send a valid HTTP response");
+		} else {
+			if(Poseidon::Http::ClientReader::is_content_till_eof()){
+				Poseidon::Http::ClientReader::terminate_content();
+			}
 		}
 
 		if(Poseidon::has_none_flags_of(m_flags, FetchSession::FL_KEEP_ALIVE)){
@@ -490,7 +515,7 @@ protected:
 			session->shutdown(e.get_status_code(), e.what());
 		} catch(std::exception &e){
 			LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
-			session->shutdown(Poseidon::Http::ST_INTERNAL_SERVER_ERROR, e.what());
+			session->shutdown(Poseidon::Http::ST_BAD_GATEWAY, e.what());
 		}
 	}
 };
