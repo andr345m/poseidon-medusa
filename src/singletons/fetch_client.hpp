@@ -1,5 +1,5 @@
-#ifndef MEDUSA_FETCH_CLIENT_HPP_
-#define MEDUSA_FETCH_CLIENT_HPP_
+#ifndef MEDUSA_SINGLETONS_FETCH_CLIENT_HPP_
+#define MEDUSA_SINGLETONS_FETCH_CLIENT_HPP_
 
 #include <map>
 #include <poseidon/fwd.hpp>
@@ -25,7 +25,7 @@ private:
 	std::map<Poseidon::Uuid, boost::weak_ptr<ProxySession> > m_sessions;
 
 private:
-	FetchClient(const Poseidon::IpPort &addr, bool use_ssl, std::string password);
+	FetchClient(const Poseidon::IpPort &addr, bool use_ssl, bool verify_peer, std::string password);
 
 public:
 	~FetchClient();
