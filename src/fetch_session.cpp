@@ -39,6 +39,7 @@ protected:
 	void on_read_avail(Poseidon::StreamBuffer data) OVERRIDE {
 		const AUTO(bytes_received, Poseidon::atomic_add(m_bytes_received, data.size(), Poseidon::ATOMIC_RELAXED));
 		const AUTO(bytes_acknowledged, Poseidon::atomic_load(m_bytes_acknowledged, Poseidon::ATOMIC_RELAXED));
+		LOG_MEDUSA_DEBUG("> Produced: bytes_received = ", bytes_received, ", bytes_acknowledged = ", bytes_acknowledged);
 		DEBUG_THROW_ASSERT(bytes_received >= bytes_acknowledged);
 		const AUTO(bytes_pending, bytes_received - bytes_acknowledged);
 		const AUTO(max_single_pipeline_size, get_config<boost::uint64_t>("fetch_max_single_pipeline_size", 1048576));
@@ -69,6 +70,7 @@ public:
 	void consume_some(std::size_t size){
 		const AUTO(bytes_received, Poseidon::atomic_load(m_bytes_received, Poseidon::ATOMIC_RELAXED));
 		const AUTO(bytes_acknowledged, Poseidon::atomic_add(m_bytes_acknowledged, size, Poseidon::ATOMIC_RELAXED));
+		LOG_MEDUSA_DEBUG("> Consumed: bytes_received = ", bytes_received, ", bytes_acknowledged = ", bytes_acknowledged);
 		DEBUG_THROW_ASSERT(bytes_received >= bytes_acknowledged);
 		const AUTO(bytes_pending, bytes_received - bytes_acknowledged);
 		const AUTO(max_single_pipeline_size, get_config<boost::uint64_t>("fetch_max_single_pipeline_size", 1048576));
