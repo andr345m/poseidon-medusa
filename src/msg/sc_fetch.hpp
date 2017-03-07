@@ -28,8 +28,8 @@ namespace Msg {
 #define MESSAGE_NAME    SC_FetchClosed
 #define MESSAGE_ID      196
 #define MESSAGE_FIELDS  \
-	FIELD_VINT          (cbpp_err_code) \
-	FIELD_VINT          (sys_err_code)  \
+	FIELD_VINT          (err_code) \
+	FIELD_VUINT         (reserved)  \
 	FIELD_STRING        (err_msg)
 #include <poseidon/cbpp/message_generator.hpp>
 

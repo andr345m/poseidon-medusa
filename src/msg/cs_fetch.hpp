@@ -28,7 +28,7 @@ namespace Msg {
 	FIELD_VINT          (err_code)
 #include <poseidon/cbpp/message_generator.hpp>
 
-#define MESSAGE_NAME    CS_FetchDataAcknowledgment
+#define MESSAGE_NAME    CS_FetchAcknowledge
 #define MESSAGE_ID      103
 #define MESSAGE_FIELDS  \
 	FIELD_VUINT         (size)

@@ -27,9 +27,9 @@ private:
 
 private:
 	const Poseidon::Uuid m_fetch_uuid;
-	const boost::weak_ptr<FetchClient> m_fetch_client;
 
 	boost::scoped_ptr<RequestRewriter> m_request_rewriter;
+	boost::weak_ptr<FetchClient> m_fetch_client;
 	boost::scoped_ptr<ResponseRewriter> m_response_rewriter;
 	unsigned long m_request_counter;
 

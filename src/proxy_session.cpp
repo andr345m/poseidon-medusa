@@ -6,8 +6,7 @@
 #include <poseidon/http/client_reader.hpp>
 #include <poseidon/http/client_writer.hpp>
 #include <poseidon/http/exception.hpp>
-#include <poseidon/singletons/job_dispatcher.hpp>
-#include "singletons/fetch_client.hpp"
+#include "singletons/fetch_connector.hpp"
 #include "msg/error_codes.hpp"
 #include "fetch_session.hpp"
 
@@ -110,10 +109,14 @@ protected:
 			Poseidon::add_flags(m_flags, FetchSession::FL_TUNNEL);
 		}
 
-		const AUTO(fetch_client, m_session->m_fetch_client.lock());
+		AUTO(fetch_client, m_session->m_fetch_client.lock());
 		if(!fetch_client){
-			LOG_MEDUSA_WARNING("Lost connection to fetch server");
-			DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("Lost connection to fetch server"));
+			fetch_client = FetchConnector::get_client();
+			if(!fetch_client){
+				LOG_MEDUSA_WARNING("Lost connection to fetch server");
+				DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("Lost connection to fetch server"));
+			}
+			m_session->m_fetch_client = fetch_client;
 		}
 		if(!fetch_client->connect(m_session->virtual_shared_from_this<ProxySession>(), STD_MOVE(host), port, use_ssl, m_flags)){
 			LOG_MEDUSA_WARNING("Could not send data to fetch server");
@@ -199,7 +202,11 @@ protected:
 		PROFILE_ME;
 
 		const AUTO(fetch_client, m_session->m_fetch_client.lock());
-		if(!fetch_client || !fetch_client->send(m_session->m_fetch_uuid, STD_MOVE(encoded))){
+		if(!fetch_client){
+			LOG_MEDUSA_DEBUG("Lost connection to fetch server");
+			DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("Lost connection to fetch server"));
+		}
+		if(!fetch_client->send(m_session->m_fetch_uuid, STD_MOVE(encoded))){
 			LOG_MEDUSA_DEBUG("Lost connection to fetch server");
 			DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("Lost connection to fetch server"));
 		}
@@ -230,6 +237,10 @@ public:
 				}
 			}
 		}
+
+		boost::uint64_t initial_timeout;
+		initial_timeout = get_config<boost::uint64_t>("proxy_http_initial_timeout", 300000);
+		m_session->set_timeout(initial_timeout);
 	}
 };
 
@@ -538,7 +549,7 @@ protected:
 
 ProxySession::ProxySession(Poseidon::UniqueFile socket)
 	: Poseidon::TcpSessionBase(STD_MOVE(socket))
-	, m_fetch_uuid(Poseidon::Uuid::random()), m_fetch_client(FetchClient::require())
+	, m_fetch_uuid(Poseidon::Uuid::random())
 	, m_request_counter(0)
 {
 	LOG_MEDUSA_INFO("ProxySession constructor: remote = ", get_remote_info(), ", fetch_uuid = ", m_fetch_uuid);
@@ -580,7 +591,7 @@ void ProxySession::on_read_hup() NOEXCEPT {
 	LOG_MEDUSA_DEBUG("Proxy session read hang up.");
 
 	try {
-		Poseidon::JobDispatcher::enqueue(
+		Poseidon::enqueue(
 			boost::make_shared<ReadHupJob>(
 				virtual_shared_from_this<ProxySession>()),
 			VAL_INIT);
@@ -596,7 +607,7 @@ void ProxySession::on_close(int err_code) NOEXCEPT {
 	LOG_MEDUSA_DEBUG("Proxy session closed: err_code = ", err_code);
 
 	try {
-		Poseidon::JobDispatcher::enqueue(
+		Poseidon::enqueue(
 			boost::make_shared<CloseJob>(
 				virtual_shared_from_this<ProxySession>(), err_code),
 			VAL_INIT);
@@ -609,7 +620,7 @@ void ProxySession::on_close(int err_code) NOEXCEPT {
 void ProxySession::on_read_avail(Poseidon::StreamBuffer data){
 	PROFILE_ME;
 
-	Poseidon::JobDispatcher::enqueue(
+	Poseidon::enqueue(
 		boost::make_shared<ReadAvailJob>(
 			virtual_shared_from_this<ProxySession>(), STD_MOVE(data)),
 		VAL_INIT);
