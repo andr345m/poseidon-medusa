@@ -547,11 +547,11 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 			channel->connect(STD_MOVE(req.host), req.port, req.use_ssl, req.flags);
 		} catch(Poseidon::Cbpp::Exception &e){
 			LOG_MEDUSA_WARNING("Cbpp::Exception thrown: status_code = ", e.get_status_code(), ", what = ", e.what());
-			send(fetch_uuid, Msg::SC_FetchClosed(e.get_status_code(), EPIPE, "Could not connect to origin server"));
+			send(fetch_uuid, Msg::SC_FetchClosed(e.get_status_code(), EPIPE, e.what()));
 			m_channels.erase(it);
 		} catch(std::exception &e){
 			LOG_MEDUSA_WARNING("std::exception thrown: what = ", e.what());
-			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, EPIPE, "Could not connect to origin server"));
+			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, EPIPE, e.what()));
 			m_channels.erase(it);
 		}
 	}
@@ -566,11 +566,11 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 			channel->send(STD_MOVE(req));
 		} catch(Poseidon::Cbpp::Exception &e){
 			LOG_MEDUSA_WARNING("Cbpp::Exception thrown: status_code = ", e.get_status_code(), ", what = ", e.what());
-			send(fetch_uuid, Msg::SC_FetchClosed(e.get_status_code(), EPIPE, "Could not connect to origin server"));
+			send(fetch_uuid, Msg::SC_FetchClosed(e.get_status_code(), EPIPE, e.what()));
 			m_channels.erase(it);
 		} catch(std::exception &e){
 			LOG_MEDUSA_WARNING("std::exception thrown: what = ", e.what());
-			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, EPIPE, "Could not connect to origin server"));
+			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, EPIPE, e.what()));
 			m_channels.erase(it);
 		}
 	}
@@ -591,17 +591,7 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 			break;
 		}
 		const AUTO(channel, it->second);
-		try {
-			channel->throttle_produce(req.size);
-		} catch(Poseidon::Cbpp::Exception &e){
-			LOG_MEDUSA_WARNING("Cbpp::Exception thrown: status_code = ", e.get_status_code(), ", what = ", e.what());
-			send(fetch_uuid, Msg::SC_FetchClosed(e.get_status_code(), EPIPE, "Could not connect to origin server"));
-			m_channels.erase(it);
-		} catch(std::exception &e){
-			LOG_MEDUSA_WARNING("std::exception thrown: what = ", e.what());
-			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, EPIPE, "Could not connect to origin server"));
-			m_channels.erase(it);
-		}
+		channel->throttle_produce(req.size);
 	}
 //=============================================================================
 		}}
