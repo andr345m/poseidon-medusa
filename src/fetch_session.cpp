@@ -107,7 +107,13 @@ public:
 
 public:
 	bool empty() const {
-		return m_requests.empty();
+		if(!m_requests.empty()){
+			return false;
+		}
+		if(Poseidon::atomic_load(m_bytes_received, Poseidon::ATOMIC_ACQUIRE) != Poseidon::atomic_load(m_bytes_acknowledged, Poseidon::ATOMIC_ACQUIRE)){
+			return false;
+		}
+		return true;
 	}
 	void fetch_some(const Poseidon::Uuid &fetch_uuid, FetchSession *session){
 		PROFILE_ME;
