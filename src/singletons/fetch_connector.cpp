@@ -8,7 +8,7 @@ namespace Medusa {
 namespace {
 	class RollingMap : NONCOPYABLE {
 	private:
-		std::vector<boost::shared_ptr<FetchClient> > m_pool;
+		std::vector<boost::weak_ptr<FetchClient> > m_pool;
 		std::size_t m_next;
 
 	public:
@@ -19,10 +19,7 @@ namespace {
 		}
 		~RollingMap(){
 			for(std::size_t i = 0; i < m_pool.size(); ++i){
-				AUTO_REF(client, m_pool.at(i));
-				if(client && client->has_been_shutdown_write()){
-					client.reset();
-				}
+				const AUTO(client, m_pool.at(i).lock());
 				if(client){
 					client->force_shutdown();
 				}
@@ -34,16 +31,13 @@ namespace {
 			PROFILE_ME;
 
 			for(std::size_t i = 0; i < m_pool.size(); ++i){
-				AUTO_REF(client, m_pool.at(i));
-				if(client && client->has_been_shutdown_write()){
-					client.reset();
-				}
+				AUTO(client, m_pool.at(i).lock());
 				if(!client){
 					LOG_MEDUSA_DEBUG("Creating new fetch client: sock_addr = ", Poseidon::get_ip_port_from_sock_addr(sock_addr));
-					AUTO(new_client, boost::make_shared<FetchClient>(sock_addr, use_ssl, verify_peer, password));
-					new_client->go_resident();
-					new_client->send_control(Poseidon::Cbpp::ST_PING, VAL_INIT);
-					client = new_client;
+					client = boost::make_shared<FetchClient>(sock_addr, use_ssl, verify_peer, password);
+					client->go_resident();
+					client->send_control(Poseidon::Cbpp::ST_PING, VAL_INIT);
+					m_pool.at(i) = client;
 					break; // 一次只检查一个。
 				}
 			}
@@ -52,12 +46,9 @@ namespace {
 			PROFILE_ME;
 
 			for(std::size_t i = 0; i < m_pool.size(); ++i){
-				AUTO_REF(client, m_pool.at(++m_next % m_pool.size()));
-				if(client && client->has_been_shutdown_write()){
-					client.reset();
-				}
+				AUTO(client, m_pool.at(++m_next % m_pool.size()).lock());
 				if(client){
-					return client;
+					return STD_MOVE(client);
 				}
 			}
 			return VAL_INIT;
