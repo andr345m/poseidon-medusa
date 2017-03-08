@@ -313,7 +313,7 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 	}
 
 	const AUTO_REF(fetch_uuid, context->uuid);
-	AUTO(it, m_channels.end());
+	boost::shared_ptr<Channel> channel;
 	try {
 		LOG_MEDUSA_DEBUG("Fetch request: fetch_uuid = ", fetch_uuid, ", message_id = ", message_id);
 		switch(message_id){
@@ -337,39 +337,42 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 			LOG_MEDUSA_WARNING("Fetch channel exists: fetch_uuid = ", fetch_uuid);
 			break;
 		}
-		it = result.first;
+		channel = result.first->second;
 	}
 	ON_MESSAGE(Msg::CS_FetchConnect, req){
-		it = m_channels.find(fetch_uuid);
-		if((it == m_channels.end()) || !(it->second)){
+		const AUTO(it, m_channels.find(fetch_uuid));
+		if(it == m_channels.end()){
 			LOG_MEDUSA_DEBUG("Fetch channel not found: fetch_uuid = ", fetch_uuid);
 			break;
 		}
-		it->second->push_connect(STD_MOVE(req.host), req.port, req.use_ssl, req.flags);
+		channel = it->second;
+		channel->push_connect(STD_MOVE(req.host), req.port, req.use_ssl, req.flags);
 	}
 	ON_RAW_MESSAGE(Msg::CS_FetchSend, req){
-		it = m_channels.find(fetch_uuid);
-		if((it == m_channels.end()) || !(it->second)){
+		const AUTO(it, m_channels.find(fetch_uuid));
+		if(it == m_channels.end()){
 			LOG_MEDUSA_DEBUG("Fetch channel not found: fetch_uuid = ", fetch_uuid);
 			break;
 		}
-		it->second->push_send(STD_MOVE(req));
+		channel = it->second;
+		channel->push_send(STD_MOVE(req));
 	}
 	ON_MESSAGE(Msg::CS_FetchAcknowledge, req){
-		it = m_channels.find(fetch_uuid);
-		if((it == m_channels.end()) || !(it->second)){
+		const AUTO(it, m_channels.find(fetch_uuid));
+		if(it == m_channels.end()){
 			LOG_MEDUSA_DEBUG("Fetch channel not found: fetch_uuid = ", fetch_uuid);
 			break;
 		}
-		it->second->consume_some(req.size);
+		channel = it->second;
+		channel->consume_some(req.size);
 	}
 	ON_MESSAGE(Msg::CS_FetchClose, req){
-		it = m_channels.find(fetch_uuid);
-		if((it == m_channels.end()) || !(it->second)){
+		const AUTO(it, m_channels.find(fetch_uuid));
+		if(it == m_channels.end()){
 			LOG_MEDUSA_DEBUG("Fetch channel not found: fetch_uuid = ", fetch_uuid);
 			break;
 		}
-		it->second.reset();
+		// channel.reset();
 	}
 //=============================================================================
 			}}
@@ -380,44 +383,37 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 		}
 	} catch(Poseidon::Cbpp::Exception &e){
 		LOG_MEDUSA_WARNING("Poseidon::Cbpp::Exception thrown: status_code = ", e.get_status_code(), ", what = ", e.what());
-		if(it != m_channels.end()){
-			send(fetch_uuid, Msg::SC_FetchClosed(e.get_status_code(), 0, e.what()));
-			it->second.reset();
-		}
+		send(fetch_uuid, Msg::SC_FetchClosed(e.get_status_code(), 0, e.what()));
+		channel.reset();
 	} catch(std::exception &e){
 		LOG_MEDUSA_WARNING("std::exception thrown: what = ", e.what());
-		if(it != m_channels.end()){
-			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ST_INTERNAL_ERROR, 0, e.what()));
-			it->second.reset();
-		}
+		send(fetch_uuid, Msg::SC_FetchClosed(Msg::ST_INTERNAL_ERROR, 0, e.what()));
+		channel.reset();
 	}
-	if((it != m_channels.end()) && !(it->second)){
-		m_channels.erase(it);
+	if(!channel){
+		LOG_MEDUSA_DEBUG("Reclaiming fetch client: fetch_uuid = ", fetch_uuid);
+		m_channels.erase(fetch_uuid);
 	}
 }
 void FetchSession::on_sync_timer(){
 	PROFILE_ME;
 
-	AUTO(it, m_channels.begin());
-	while(it != m_channels.end()){
-		if(it->second){
-			try {
-				it->second->fetch_some(it->first, this);
-			} catch(Poseidon::Cbpp::Exception &e){
-				LOG_MEDUSA_DEBUG("Cbpp::Exception thrown: status_code = ", e.get_status_code(), ", what = ", e.what());
-				send(it->first, Msg::SC_FetchClosed(e.get_status_code(), 0, e.what()));
-				it->second.reset();
-			} catch(std::exception &e){
-				LOG_MEDUSA_DEBUG("Cbpp::Exception thrown: what = ", e.what());
-				send(it->first, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, 0, e.what()));
-				it->second.reset();
-			}
+	AUTO(channels, m_channels);
+	for(AUTO(it, channels.begin()); it != channels.end(); ++it){
+		const AUTO_REF(fetch_uuid, it->first);
+		AUTO_REF(channel, it->second);
+		try {
+			channel->fetch_some(fetch_uuid, this);
+		} catch(Poseidon::Cbpp::Exception &e){
+			LOG_MEDUSA_DEBUG("Cbpp::Exception thrown: status_code = ", e.get_status_code(), ", what = ", e.what());
+			send(fetch_uuid, Msg::SC_FetchClosed(e.get_status_code(), 0, e.what()));
+			channel.reset();
+		} catch(std::exception &e){
+			LOG_MEDUSA_DEBUG("Cbpp::Exception thrown: what = ", e.what());
+			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, 0, e.what()));
+			channel.reset();
 		}
-		if(!(it->second)){
-			it = m_channels.erase(it);
-		} else {
-			++it;
-		}
+		m_channels.erase(fetch_uuid);
 	}
 	if(m_channels.empty()){
 		m_timer.reset();
