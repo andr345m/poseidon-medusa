@@ -203,7 +203,7 @@ protected:
 			LOG_MEDUSA_DEBUG("Lost connection to fetch server");
 			DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("Lost connection to fetch server"));
 		}
-		if(!fetch_client->send(m_session->m_fetch_uuid, STD_MOVE(encoded))){
+		if(!fetch_client->send(m_session->virtual_shared_from_this<ProxySession>(), STD_MOVE(encoded))){
 			LOG_MEDUSA_DEBUG("Lost connection to fetch server");
 			DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("Lost connection to fetch server"));
 		}
