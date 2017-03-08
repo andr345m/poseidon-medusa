@@ -42,7 +42,7 @@ public:
 
 protected:
 	void on_connect() OVERRIDE {
-		Poseidon::atomic_store(m_readable, true, Poseidon::ATOMIC_RELEASE);
+		Poseidon::atomic_store(m_readable, true, Poseidon::ATOMIC_RELAXED);
 		Poseidon::TcpSessionBase::on_connect();
 	}
 	void on_read_hup() NOEXCEPT OVERRIDE {
@@ -50,14 +50,14 @@ protected:
 		Poseidon::TcpClientBase::on_read_hup();
 	}
 	void on_close(int err_code) NOEXCEPT OVERRIDE {
-		Poseidon::atomic_store(m_err_code, err_code, Poseidon::ATOMIC_RELEASE);
+		Poseidon::atomic_store(m_err_code, err_code, Poseidon::ATOMIC_RELAXED);
 		Poseidon::TcpClientBase::on_close(err_code);
 	}
 	void on_read_avail(Poseidon::StreamBuffer data) OVERRIDE;
 
 public:
 	bool is_readable() const NOEXCEPT {
-		return Poseidon::atomic_load(m_readable, Poseidon::ATOMIC_ACQUIRE);
+		return Poseidon::atomic_load(m_readable, Poseidon::ATOMIC_RELAXED);
 	}
 	bool send(Poseidon::StreamBuffer data) OVERRIDE {
 		return Poseidon::TcpClientBase::send(data);
@@ -71,7 +71,7 @@ public:
 		return recv_queue;
 	}
 	int peek_err_code() const NOEXCEPT {
-		return Poseidon::atomic_load(m_err_code, Poseidon::ATOMIC_ACQUIRE);
+		return Poseidon::atomic_load(m_err_code, Poseidon::ATOMIC_RELAXED);
 	}
 };
 
@@ -94,7 +94,6 @@ private:
 		boost::uint64_t creation_time;
 	};
 	boost::container::deque<Request> m_requests;
-
 	volatile boost::uint64_t m_bytes_received;
 	volatile boost::uint64_t m_bytes_acknowledged;
 
@@ -110,11 +109,32 @@ public:
 		if(!m_requests.empty()){
 			return false;
 		}
-		if(Poseidon::atomic_load(m_bytes_received, Poseidon::ATOMIC_ACQUIRE) != Poseidon::atomic_load(m_bytes_acknowledged, Poseidon::ATOMIC_ACQUIRE)){
+		const AUTO(bytes_received, Poseidon::atomic_load(m_bytes_received, Poseidon::ATOMIC_RELAXED));
+        const AUTO(bytes_acknowledged, Poseidon::atomic_load(m_bytes_acknowledged, Poseidon::ATOMIC_RELAXED));
+		if(bytes_received > bytes_acknowledged){
 			return false;
 		}
 		return true;
 	}
+	void clear(bool force) NOEXCEPT {
+		PROFILE_ME;
+
+		if(!m_requests.empty()){
+			const AUTO_REF(origin_client, m_requests.front().origin_client);
+			if(origin_client){
+				if(force){
+					origin_client->force_shutdown();
+				} else {
+					origin_client->shutdown_read();
+					origin_client->shutdown_write();
+				}
+			}
+		}
+		m_requests.clear();
+		Poseidon::atomic_store(m_bytes_received, 0, Poseidon::ATOMIC_RELAXED);
+		Poseidon::atomic_store(m_bytes_acknowledged, 0, Poseidon::ATOMIC_RELAXED);
+	}
+
 	void fetch_some(const Poseidon::Uuid &fetch_uuid, FetchSession *session){
 		PROFILE_ME;
 
@@ -210,22 +230,6 @@ public:
 		if(req.send_queue.size() >= max_size){
 			LOG_MEDUSA_WARNING("Max pending buffer size exceeded: size = ", req.send_queue.size(), ", max_size = ", max_size);
 			DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_MAX_PENDING_BUFFER_SIZE, Poseidon::sslit("Max pending buffer size exceeded"));
-		}
-	}
-	void clear(bool force) NOEXCEPT {
-		PROFILE_ME;
-
-		if(!m_requests.empty()){
-			const AUTO_REF(origin_client, m_requests.front().origin_client);
-			if(origin_client){
-				if(force){
-					origin_client->force_shutdown();
-				} else {
-					origin_client->shutdown_read();
-					origin_client->shutdown_write();
-				}
-			}
-			m_requests.clear();
 		}
 	}
 
