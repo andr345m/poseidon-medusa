@@ -14,10 +14,10 @@ FetchClient::FetchClient(const Poseidon::SockAddr &sock_addr, bool use_ssl, bool
 	: Poseidon::Cbpp::Client(sock_addr, use_ssl, verify_peer)
 	, m_password(STD_MOVE(password))
 {
-	LOG_MEDUSA_INFO("FetchSession constructor: remote = ", Poseidon::get_ip_port_from_sock_addr(sock_addr));
+	LOG_MEDUSA_INFO("FetchClient constructor: remote = ", Poseidon::get_ip_port_from_sock_addr(sock_addr));
 }
 FetchClient::~FetchClient(){
-	LOG_MEDUSA_INFO("FetchSession destructor: remote = ", get_remote_info_nothrow());
+	LOG_MEDUSA_INFO("FetchClient destructor: remote = ", get_remote_info_nothrow());
 
 	for(AUTO(it, m_sessions.begin()); it != m_sessions.end(); ++it){
 		const AUTO(session, it->second.lock());
@@ -127,7 +127,7 @@ void FetchClient::on_sync_data_message(boost::uint16_t message_id, Poseidon::Str
 	}
 }
 
-bool FetchClient::connect(const boost::shared_ptr<ProxySession> &session, std::string host, unsigned port, bool use_ssl, boost::uint64_t flags){
+bool FetchClient::fetch_connect(const boost::shared_ptr<ProxySession> &session, std::string host, unsigned port, bool use_ssl, boost::uint64_t flags){
 	PROFILE_ME;
 
 	const AUTO_REF(fetch_uuid, session->get_fetch_uuid());
@@ -137,7 +137,7 @@ bool FetchClient::connect(const boost::shared_ptr<ProxySession> &session, std::s
 	}
 	return send(fetch_uuid, Msg::CS_FetchConnect(STD_MOVE(host), port, use_ssl, flags));
 }
-bool FetchClient::send(const boost::shared_ptr<ProxySession> &session, Poseidon::StreamBuffer data){
+bool FetchClient::fetch_send(const boost::shared_ptr<ProxySession> &session, Poseidon::StreamBuffer data){
 	PROFILE_ME;
 
 	const AUTO_REF(fetch_uuid, session->get_fetch_uuid());
@@ -148,7 +148,7 @@ bool FetchClient::send(const boost::shared_ptr<ProxySession> &session, Poseidon:
 	}
 	return send_explicit(fetch_uuid, Msg::CS_FetchSend::ID, STD_MOVE(data));
 }
-void FetchClient::close(const Poseidon::Uuid &fetch_uuid, int err_code, const char *err_msg) NOEXCEPT {
+void FetchClient::fetch_close(const Poseidon::Uuid &fetch_uuid, int err_code, const char *err_msg) NOEXCEPT {
 	PROFILE_ME;
 
 	const AUTO(it, m_sessions.find(fetch_uuid));

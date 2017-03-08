@@ -114,7 +114,7 @@ protected:
 			LOG_MEDUSA_DEBUG("Lost connection to fetch server");
 			DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("Lost connection to fetch server"));
 		}
-		if(!fetch_client->connect(m_session->virtual_shared_from_this<ProxySession>(), host, port, use_ssl, m_flags)){
+		if(!fetch_client->fetch_connect(m_session->virtual_shared_from_this<ProxySession>(), host, port, use_ssl, m_flags)){
 			LOG_MEDUSA_WARNING("Could not send data to fetch server");
 			DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("Could not send data to fetch server"));
 		}
@@ -203,7 +203,7 @@ protected:
 			LOG_MEDUSA_DEBUG("Lost connection to fetch server");
 			DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("Lost connection to fetch server"));
 		}
-		if(!fetch_client->send(m_session->virtual_shared_from_this<ProxySession>(), STD_MOVE(encoded))){
+		if(!fetch_client->fetch_send(m_session->virtual_shared_from_this<ProxySession>(), STD_MOVE(encoded))){
 			LOG_MEDUSA_DEBUG("Lost connection to fetch server");
 			DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("Lost connection to fetch server"));
 		}
@@ -502,7 +502,7 @@ protected:
 
 		const AUTO(fetch_client, m_fetch_client.lock());
 		if(fetch_client){
-			fetch_client->close(m_fetch_uuid, Msg::ST_OK, "Lost connection to proxy client");
+			fetch_client->fetch_close(m_fetch_uuid, Msg::ST_OK, "Lost connection to proxy client");
 		}
 	}
 };

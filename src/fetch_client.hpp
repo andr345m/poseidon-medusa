@@ -29,9 +29,9 @@ protected:
 	void on_sync_data_message(boost::uint16_t message_id, Poseidon::StreamBuffer payload) OVERRIDE;
 
 public:
-	bool connect(const boost::shared_ptr<ProxySession> &session, std::string host, unsigned port, bool use_ssl, boost::uint64_t flags);
-	bool send(const boost::shared_ptr<ProxySession> &session, Poseidon::StreamBuffer data);
-	void close(const Poseidon::Uuid &fetch_uuid, int err_code, const char *err_msg) NOEXCEPT;
+	bool fetch_connect(const boost::shared_ptr<ProxySession> &session, std::string host, unsigned port, bool use_ssl, boost::uint64_t flags);
+	bool fetch_send(const boost::shared_ptr<ProxySession> &session, Poseidon::StreamBuffer data);
+	void fetch_close(const Poseidon::Uuid &fetch_uuid, int err_code, const char *err_msg) NOEXCEPT;
 };
 
 }
