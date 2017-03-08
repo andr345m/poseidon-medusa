@@ -14,6 +14,13 @@
 
 namespace Medusa {
 
+namespace {
+	inline boost::uint64_t get_max_single_pipeline_size(){
+		const AUTO(max_single_pipeline_size, get_config<boost::uint64_t>("fetch_max_single_pipeline_size", 1048576));
+		return max_single_pipeline_size;
+	}
+}
+
 class FetchSession::OriginClient : public Poseidon::TcpClientBase {
 private:
 	volatile bool m_readable;
@@ -50,9 +57,7 @@ protected:
 		const AUTO(bytes_acknowledged, Poseidon::atomic_load(m_bytes_acknowledged, Poseidon::ATOMIC_RELAXED));
 		LOG_MEDUSA_DEBUG("> Produced: bytes_received = ", bytes_received, ", bytes_acknowledged = ", bytes_acknowledged);
 		DEBUG_THROW_ASSERT(bytes_received >= bytes_acknowledged);
-		const AUTO(bytes_pending, bytes_received - bytes_acknowledged);
-		const AUTO(max_single_pipeline_size, get_config<boost::uint64_t>("fetch_max_single_pipeline_size", 1048576));
-		if(bytes_pending >= max_single_pipeline_size){
+		if(bytes_received - bytes_acknowledged >= get_max_single_pipeline_size()){
 			LOG_MEDUSA_DEBUG("Throttle the client!");
 			set_throttled(true);
 		}
@@ -84,9 +89,7 @@ public:
 		const AUTO(bytes_acknowledged, Poseidon::atomic_add(m_bytes_acknowledged, size, Poseidon::ATOMIC_RELAXED));
 		LOG_MEDUSA_DEBUG("> Consumed: bytes_received = ", bytes_received, ", bytes_acknowledged = ", bytes_acknowledged);
 		DEBUG_THROW_ASSERT(bytes_received >= bytes_acknowledged);
-		const AUTO(bytes_pending, bytes_received - bytes_acknowledged);
-		const AUTO(max_single_pipeline_size, get_config<boost::uint64_t>("fetch_max_single_pipeline_size", 1048576));
-		if(bytes_pending < max_single_pipeline_size){
+		if(bytes_received - bytes_acknowledged < get_max_single_pipeline_size()){
 			LOG_MEDUSA_DEBUG("Unthrottle the client!");
 			set_throttled(false);
 		}
@@ -263,7 +266,7 @@ void FetchSession::timer_proc(const boost::weak_ptr<FetchSession> &weak) NOEXCEP
 }
 
 FetchSession::FetchSession(Poseidon::UniqueFile socket, std::string password)
-	: Poseidon::Cbpp::Session(STD_MOVE(socket))
+	: Poseidon::Cbpp::Session(STD_MOVE(socket), get_max_single_pipeline_size())
 	, m_password(STD_MOVE(password))
 {
 	LOG_MEDUSA_INFO("FetchSession constructor: remote = ", get_remote_info());
