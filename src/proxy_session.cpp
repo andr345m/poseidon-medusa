@@ -559,6 +559,7 @@ ProxySession::ProxySession(Poseidon::UniqueFile socket)
 		LOG_MEDUSA_WARNING("No fetch server available");
 		DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("No fetch server available"));
 	}
+	m_fetch_client = fetch_client;
 }
 ProxySession::~ProxySession(){
 	LOG_MEDUSA_INFO("ProxySession destructor: remote = ", get_remote_info_nothrow(), ", fetch_uuid = ", m_fetch_uuid);
