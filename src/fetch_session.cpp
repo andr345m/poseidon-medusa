@@ -23,18 +23,19 @@ namespace {
 
 class FetchSession::OriginClient : public Poseidon::TcpClientBase {
 private:
+	const boost::weak_ptr<Channel> m_weak_channel;
+
 	volatile bool m_readable;
-	volatile boost::uint64_t m_bytes_received;
-	volatile boost::uint64_t m_bytes_acknowledged;
 	volatile int m_err_code;
 
 	mutable Poseidon::Mutex m_recv_queue_mutex;
 	Poseidon::StreamBuffer m_recv_queue;
 
 public:
-	OriginClient(const Poseidon::SockAddr &sock_addr, bool use_ssl)
+	OriginClient(const Poseidon::SockAddr &sock_addr, bool use_ssl, const boost::shared_ptr<Channel> &channel)
 		: Poseidon::TcpClientBase(sock_addr, use_ssl, true)
-		, m_readable(false), m_bytes_received(0), m_bytes_acknowledged(0), m_err_code(0)
+		, m_weak_channel(channel)
+		, m_readable(false), m_err_code(0)
 	{
 	}
 	~OriginClient();
@@ -52,19 +53,7 @@ protected:
 		Poseidon::atomic_store(m_err_code, err_code, Poseidon::ATOMIC_RELEASE);
 		Poseidon::TcpClientBase::on_close(err_code);
 	}
-	void on_read_avail(Poseidon::StreamBuffer data) OVERRIDE {
-		const AUTO(bytes_received, Poseidon::atomic_add(m_bytes_received, data.size(), Poseidon::ATOMIC_RELAXED));
-		const AUTO(bytes_acknowledged, Poseidon::atomic_load(m_bytes_acknowledged, Poseidon::ATOMIC_RELAXED));
-		LOG_MEDUSA_DEBUG("> Produced: bytes_received = ", bytes_received, ", bytes_acknowledged = ", bytes_acknowledged);
-		DEBUG_THROW_ASSERT(bytes_received >= bytes_acknowledged);
-		if(bytes_received - bytes_acknowledged >= get_max_single_pipeline_size()){
-			LOG_MEDUSA_DEBUG("Throttle the client!");
-			set_throttled(true);
-		}
-
-		const Poseidon::Mutex::UniqueLock lock(m_recv_queue_mutex);
-		m_recv_queue.splice(data);
-	}
+	void on_read_avail(Poseidon::StreamBuffer data) OVERRIDE;
 
 public:
 	bool is_readable() const NOEXCEPT {
@@ -83,16 +72,6 @@ public:
 	}
 	int peek_err_code() const NOEXCEPT {
 		return Poseidon::atomic_load(m_err_code, Poseidon::ATOMIC_ACQUIRE);
-	}
-	void consume_some(std::size_t size){
-		const AUTO(bytes_received, Poseidon::atomic_load(m_bytes_received, Poseidon::ATOMIC_RELAXED));
-		const AUTO(bytes_acknowledged, Poseidon::atomic_add(m_bytes_acknowledged, size, Poseidon::ATOMIC_RELAXED));
-		LOG_MEDUSA_DEBUG("> Consumed: bytes_received = ", bytes_received, ", bytes_acknowledged = ", bytes_acknowledged);
-		DEBUG_THROW_ASSERT(bytes_received >= bytes_acknowledged);
-		if(bytes_received - bytes_acknowledged < get_max_single_pipeline_size()){
-			LOG_MEDUSA_DEBUG("Unthrottle the client!");
-			set_throttled(false);
-		}
 	}
 };
 
@@ -116,8 +95,13 @@ private:
 	};
 	boost::container::deque<Request> m_requests;
 
+	volatile boost::uint64_t m_bytes_received;
+	volatile boost::uint64_t m_bytes_acknowledged;
+
 public:
-	Channel(){
+	Channel()
+		: m_requests(), m_bytes_received(0), m_bytes_acknowledged(0)
+	{
 	}
 	~Channel();
 
@@ -150,7 +134,7 @@ public:
 					DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_DNS_FAILURE, Poseidon::SharedNts(e.what()));
 				}
 				LOG_MEDUSA_INFO("Connecting to origin server: host:port = ", req.host, ":", req.port, ", use_ssl = ", req.use_ssl);
-				AUTO(origin_client, boost::make_shared<OriginClient>(sock_addr, req.use_ssl));
+				AUTO(origin_client, boost::make_shared<OriginClient>(sock_addr, req.use_ssl, virtual_shared_from_this<Channel>()));
 				origin_client->go_resident();
 
 				req.origin_client = origin_client;
@@ -238,19 +222,56 @@ public:
 			m_requests.clear();
 		}
 	}
-	void acknowledge(boost::uint64_t bytes){
+
+	void produce_some(boost::uint64_t size){
 		PROFILE_ME;
 
-		if(!m_requests.empty()){
-			const AUTO_REF(origin_client, m_requests.front().origin_client);
-			if(origin_client){
-				origin_client->consume_some(bytes);
+		const AUTO(bytes_received, Poseidon::atomic_add(m_bytes_received, size, Poseidon::ATOMIC_RELAXED));
+		const AUTO(bytes_acknowledged, Poseidon::atomic_load(m_bytes_acknowledged, Poseidon::ATOMIC_RELAXED));
+		LOG_MEDUSA_DEBUG("> Produced: bytes_received = ", bytes_received, ", bytes_acknowledged = ", bytes_acknowledged);
+		DEBUG_THROW_ASSERT(bytes_received >= bytes_acknowledged);
+		if(bytes_received - bytes_acknowledged >= get_max_single_pipeline_size()){
+			LOG_MEDUSA_DEBUG("Throttle the client!");
+			if(!m_requests.empty()){
+				const AUTO_REF(origin_client, m_requests.front().origin_client);
+				if(origin_client){
+					origin_client->set_throttled(true);
+				}
+			}
+		}
+	}
+	void consume_some(boost::uint64_t size){
+		PROFILE_ME;
+
+		const AUTO(bytes_received, Poseidon::atomic_load(m_bytes_received, Poseidon::ATOMIC_RELAXED));
+		const AUTO(bytes_acknowledged, Poseidon::atomic_add(m_bytes_acknowledged, size, Poseidon::ATOMIC_RELAXED));
+		LOG_MEDUSA_DEBUG("> Consumed: bytes_received = ", bytes_received, ", bytes_acknowledged = ", bytes_acknowledged);
+		DEBUG_THROW_ASSERT(bytes_received >= bytes_acknowledged);
+		if(bytes_received - bytes_acknowledged < get_max_single_pipeline_size()){
+			LOG_MEDUSA_DEBUG("Unthrottle the client!");
+			if(!m_requests.empty()){
+				const AUTO_REF(origin_client, m_requests.front().origin_client);
+				if(origin_client){
+					origin_client->set_throttled(false);
+				}
 			}
 		}
 	}
 };
 
 FetchSession::Channel::~Channel(){
+}
+
+void FetchSession::OriginClient::on_read_avail(Poseidon::StreamBuffer data){
+	const AUTO(channel, m_weak_channel.lock());
+	if(!channel){
+		force_shutdown();
+		return;
+	}
+	channel->produce_some(data.size());
+
+	const Poseidon::Mutex::UniqueLock lock(m_recv_queue_mutex);
+	m_recv_queue.splice(data);
 }
 
 void FetchSession::timer_proc(const boost::weak_ptr<FetchSession> &weak) NOEXCEPT {
@@ -361,7 +382,7 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 			break; // DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("No fetch request pending"));
 		}
 		const AUTO_REF(channel, it->second);
-		channel->acknowledge(req.size);
+		channel->consume_some(req.size);
 	}
 //=============================================================================
 			}}
