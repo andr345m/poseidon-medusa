@@ -172,11 +172,9 @@ public:
 				req.connected = true;
 			}
 
-			if(!req.send_queue.empty()){
-				if(!req.origin_client->send(STD_MOVE(req.send_queue))){
-					LOG_MEDUSA_DEBUG("Error sending data to origin server: host:port = ", req.host, ":", req.port);
-					DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_CONNECTION_LOST, Poseidon::sslit("Error sending data to origin server"));
-				}
+			if(!req.send_queue.empty() && !req.origin_client->send(STD_MOVE(req.send_queue))){
+				LOG_MEDUSA_DEBUG("Error sending data to origin server: host:port = ", req.host, ":", req.port);
+				DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_CONNECTION_LOST, Poseidon::sslit("Error sending data to origin server"));
 			}
 
 			AUTO(recv_queue, req.origin_client->move_recv_queue());
