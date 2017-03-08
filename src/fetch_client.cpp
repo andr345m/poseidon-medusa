@@ -109,6 +109,9 @@ void FetchClient::on_sync_data_message(boost::uint16_t message_id, Poseidon::Str
 				LOG_MEDUSA_ERROR("Unknown fetch response from server: message_id = ", message_id, ", size = ", plain.size());
 				break;
 			}
+		} catch(Poseidon::Cbpp::Exception &e){
+			LOG_MEDUSA_ERROR("Poseidon::Cbpp::Exception thrown: status_code = ", e.get_status_code(), ", what = ", e.what());
+			session->on_fetch_closed(e.get_status_code(), e.what());
 		} catch(std::exception &e){
 			LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
 			session->on_fetch_closed(Msg::ERR_CONNECTION_LOST, e.what());

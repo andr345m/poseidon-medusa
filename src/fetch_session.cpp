@@ -378,6 +378,12 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 			LOG_MEDUSA_ERROR("Unknown fetch message from client: message_id = ", message_id, ", size = ", plain.size());
 			break;
 		}
+	} catch(Poseidon::Cbpp::Exception &e){
+		LOG_MEDUSA_WARNING("Poseidon::Cbpp::Exception thrown: status_code = ", e.get_status_code(), ", what = ", e.what());
+		if(it != m_channels.end()){
+			send(fetch_uuid, Msg::SC_FetchClosed(e.get_status_code(), 0, e.what()));
+			it->second.reset();
+		}
 	} catch(std::exception &e){
 		LOG_MEDUSA_WARNING("std::exception thrown: what = ", e.what());
 		if(it != m_channels.end()){
