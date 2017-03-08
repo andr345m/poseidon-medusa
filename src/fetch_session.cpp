@@ -196,7 +196,7 @@ public:
 		PROFILE_ME;
 
 		DEBUG_THROW_ASSERT(!m_requests.empty());
-		AUTO_REF(req, m_requests.front());
+		AUTO_REF(req, m_requests.back());
 
 		req.send_queue.splice(data);
 
