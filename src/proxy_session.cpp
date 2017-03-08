@@ -109,10 +109,19 @@ protected:
 			Poseidon::add_flags(m_flags, FetchSession::FL_TUNNEL);
 		}
 
-		const AUTO(fetch_client, m_session->m_fetch_client.lock());
+		AUTO(fetch_client, m_session->m_weak_fetch_client.lock());
 		if(!fetch_client){
-			LOG_MEDUSA_DEBUG("Lost connection to fetch server");
-			DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("Lost connection to fetch server"));
+			const VALUE_TYPE(m_session->m_weak_fetch_client) null_weak_fetch_client;
+			if((m_session->m_weak_fetch_client < null_weak_fetch_client) || (null_weak_fetch_client < m_session->m_weak_fetch_client)){
+				LOG_MEDUSA_DEBUG("Lost connection to fetch server");
+				DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("Lost connection to fetch server"));
+			}
+			fetch_client = FetchConnector::get_client();
+			if(!fetch_client){
+				LOG_MEDUSA_WARNING("No fetch server available");
+				DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("No fetch server available"));
+			}
+			m_session->m_weak_fetch_client = fetch_client;
 		}
 		if(!fetch_client->fetch_connect(m_session->virtual_shared_from_this<ProxySession>(), host, port, use_ssl, m_flags)){
 			LOG_MEDUSA_WARNING("Could not send data to fetch server");
@@ -198,7 +207,7 @@ protected:
 	long on_encoded_data_avail(Poseidon::StreamBuffer encoded) OVERRIDE {
 		PROFILE_ME;
 
-		const AUTO(fetch_client, m_session->m_fetch_client.lock());
+		const AUTO(fetch_client, m_session->m_weak_fetch_client.lock());
 		if(!fetch_client){
 			LOG_MEDUSA_DEBUG("Lost connection to fetch server");
 			DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("Lost connection to fetch server"));
@@ -483,13 +492,13 @@ private:
 	const boost::weak_ptr<ProxySession> m_weak_session;
 
 	Poseidon::Uuid m_fetch_uuid;
-	boost::weak_ptr<FetchClient> m_fetch_client;
+	boost::weak_ptr<FetchClient> m_weak_fetch_client;
 	int m_err_code;
 
 public:
 	CloseJob(const boost::shared_ptr<ProxySession> &session, int err_code)
 		: m_category(session), m_weak_session(session)
-		, m_fetch_uuid(session->m_fetch_uuid), m_fetch_client(session->m_fetch_client), m_err_code(err_code)
+		, m_fetch_uuid(session->m_fetch_uuid), m_weak_fetch_client(session->m_weak_fetch_client), m_err_code(err_code)
 	{
 	}
 
@@ -500,7 +509,7 @@ protected:
 	void perform() FINAL {
 		PROFILE_ME;
 
-		const AUTO(fetch_client, m_fetch_client.lock());
+		const AUTO(fetch_client, m_weak_fetch_client.lock());
 		if(fetch_client){
 			fetch_client->fetch_close(m_fetch_uuid, Msg::ST_OK, "Lost connection to proxy client");
 		}
@@ -553,13 +562,6 @@ ProxySession::ProxySession(Poseidon::UniqueFile socket)
 	, m_request_counter(0)
 {
 	LOG_MEDUSA_INFO("ProxySession constructor: remote = ", get_remote_info(), ", fetch_uuid = ", m_fetch_uuid);
-
-	const AUTO(fetch_client, FetchConnector::get_client());
-	if(!fetch_client || fetch_client->has_been_shutdown_read() || fetch_client->has_been_shutdown_write()){
-		LOG_MEDUSA_WARNING("No fetch server available");
-		DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("No fetch server available"));
-	}
-	m_fetch_client = fetch_client;
 }
 ProxySession::~ProxySession(){
 	LOG_MEDUSA_INFO("ProxySession destructor: remote = ", get_remote_info_nothrow(), ", fetch_uuid = ", m_fetch_uuid);
