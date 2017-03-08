@@ -125,13 +125,17 @@ bool FetchClient::connect(const boost::shared_ptr<ProxySession> &session, std::s
 	PROFILE_ME;
 
 	const AUTO(fetch_uuid, session->get_fetch_uuid());
-	m_sessions[fetch_uuid] = session;
+	const AUTO(result, m_sessions.emplace(fetch_uuid, session));
+	if(result.second && !send(fetch_uuid, Msg:: CS_FetchOpen())){
+		return false;
+	}
 	return send(fetch_uuid, Msg::CS_FetchConnect(STD_MOVE(host), port, use_ssl, flags));
 }
 bool FetchClient::send(const Poseidon::Uuid &fetch_uuid, Poseidon::StreamBuffer data){
 	PROFILE_ME;
 
-	if(m_sessions.find(fetch_uuid) == m_sessions.end()){
+	const AUTO(it, m_sessions.find(fetch_uuid));
+	if(it == m_sessions.end()){
 		LOG_MEDUSA_WARNING("Fetch client not connected? fetch_uuid = ", fetch_uuid);
 		return false;
 	}

@@ -105,36 +105,6 @@ public:
 	~Channel();
 
 public:
-	bool empty() const {
-		if(!m_requests.empty()){
-			return false;
-		}
-		const AUTO(bytes_received, Poseidon::atomic_load(m_bytes_received, Poseidon::ATOMIC_RELAXED));
-        const AUTO(bytes_acknowledged, Poseidon::atomic_load(m_bytes_acknowledged, Poseidon::ATOMIC_RELAXED));
-		if(bytes_received > bytes_acknowledged){
-			return false;
-		}
-		return true;
-	}
-	void clear(bool force) NOEXCEPT {
-		PROFILE_ME;
-
-		if(!m_requests.empty()){
-			const AUTO_REF(origin_client, m_requests.front().origin_client);
-			if(origin_client){
-				if(force){
-					origin_client->force_shutdown();
-				} else {
-					origin_client->shutdown_read();
-					origin_client->shutdown_write();
-				}
-			}
-		}
-		m_requests.clear();
-		Poseidon::atomic_store(m_bytes_received, 0, Poseidon::ATOMIC_RELAXED);
-		Poseidon::atomic_store(m_bytes_acknowledged, 0, Poseidon::ATOMIC_RELAXED);
-	}
-
 	void fetch_some(const Poseidon::Uuid &fetch_uuid, FetchSession *session){
 		PROFILE_ME;
 
@@ -270,6 +240,10 @@ public:
 };
 
 FetchSession::Channel::~Channel(){
+	const AUTO_REF(origin_client, m_requests.front().origin_client);
+	if(origin_client){
+		origin_client->force_shutdown();
+	}
 }
 
 void FetchSession::OriginClient::on_read_avail(Poseidon::StreamBuffer data){
@@ -302,11 +276,6 @@ FetchSession::FetchSession(Poseidon::UniqueFile socket, std::string password)
 }
 FetchSession::~FetchSession(){
 	LOG_MEDUSA_INFO("FetchSession destructor: remote = ", get_remote_info_nothrow());
-
-	for(AUTO(it, m_channels.begin()); it != m_channels.end(); ++it){
-		const AUTO_REF(channel, it->second);
-		channel->clear(true);
-	}
 }
 
 bool FetchSession::send_explicit(const Poseidon::Uuid &fetch_uuid, boost::uint16_t message_id, Poseidon::StreamBuffer plain){
@@ -362,37 +331,39 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 			::Poseidon::StreamBuffer & (req_) = plain;  \
 			{ //
 //=============================================================================
-	ON_MESSAGE(Msg::CS_FetchConnect, req){
+	ON_MESSAGE(Msg::CS_FetchOpen, req){
 		it = m_channels.find(fetch_uuid);
 		if(it == m_channels.end()){
 			it = m_channels.emplace(fetch_uuid, boost::make_shared<Channel>()).first;
 		}
-		const AUTO_REF(channel, it->second);
-		channel->push_connect(STD_MOVE(req.host), req.port, req.use_ssl, req.flags);
+	}
+	ON_MESSAGE(Msg::CS_FetchConnect, req){
+		it = m_channels.find(fetch_uuid);
+		if((it == m_channels.end()) || !(it->second)){
+			DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("Fetch channel closed"));
+		}
+		it->second->push_connect(STD_MOVE(req.host), req.port, req.use_ssl, req.flags);
 	}
 	ON_RAW_MESSAGE(Msg::CS_FetchSend, req){
 		it = m_channels.find(fetch_uuid);
-		if(it == m_channels.end()){
-			DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("No fetch request pending"));
+		if((it == m_channels.end()) || !(it->second)){
+			DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("Fetch channel closed"));
 		}
-		const AUTO_REF(channel, it->second);
-		channel->push_send(STD_MOVE(req));
-	}
-	ON_MESSAGE(Msg::CS_FetchClose, req){
-		it = m_channels.find(fetch_uuid);
-		if(it == m_channels.end()){
-			break; // DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("No fetch request pending"));
-		}
-		const AUTO_REF(channel, it->second);
-		channel->clear(req.err_code != 0);
+		it->second->push_send(STD_MOVE(req));
 	}
 	ON_MESSAGE(Msg::CS_FetchAcknowledge, req){
 		it = m_channels.find(fetch_uuid);
-		if(it == m_channels.end()){
-			break; // DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("No fetch request pending"));
+		if((it == m_channels.end()) || !(it->second)){
+			DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("Fetch channel closed"));
 		}
-		const AUTO_REF(channel, it->second);
-		channel->consume_some(req.size);
+		it->second->consume_some(req.size);
+	}
+	ON_MESSAGE(Msg::CS_FetchClose, req){
+		it = m_channels.find(fetch_uuid);
+		if((it == m_channels.end()) || !(it->second)){
+			break; // DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("Fetch channel closed"));
+		}
+		it->second.reset();
 	}
 //=============================================================================
 			}}
@@ -402,13 +373,13 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 			break;
 		}
 	} catch(std::exception &e){
-		LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
+		LOG_MEDUSA_INFO("std::exception thrown: what = ", e.what());
 		if(it != m_channels.end()){
 			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, 0, e.what()));
-			it->second->clear(true);
+			it->second.reset();
 		}
 	}
-	if((it != m_channels.end()) && it->second->empty()){
+	if((it != m_channels.end()) && !(it->second)){
 		m_channels.erase(it);
 	}
 }
@@ -417,20 +388,20 @@ void FetchSession::on_sync_timer(){
 
 	AUTO(it, m_channels.begin());
 	while(it != m_channels.end()){
-		const AUTO_REF(fetch_uuid, it->first);
-		const AUTO_REF(channel, it->second);
-		try {
-			channel->fetch_some(fetch_uuid, this);
-		} catch(Poseidon::Cbpp::Exception &e){
-			LOG_MEDUSA_DEBUG("Cbpp::Exception thrown: status_code = ", e.get_status_code(), ", what = ", e.what());
-			send(fetch_uuid, Msg::SC_FetchClosed(e.get_status_code(), 0, e.what()));
-			channel->clear(true);
-		} catch(std::exception &e){
-			LOG_MEDUSA_DEBUG("Cbpp::Exception thrown: what = ", e.what());
-			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, 0, e.what()));
-			channel->clear(true);
+		if(it->second){
+			try {
+				it->second->fetch_some(it->first, this);
+			} catch(Poseidon::Cbpp::Exception &e){
+				LOG_MEDUSA_DEBUG("Cbpp::Exception thrown: status_code = ", e.get_status_code(), ", what = ", e.what());
+				send(it->first, Msg::SC_FetchClosed(e.get_status_code(), 0, e.what()));
+				it->second.reset();
+			} catch(std::exception &e){
+				LOG_MEDUSA_DEBUG("Cbpp::Exception thrown: what = ", e.what());
+				send(it->first, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, 0, e.what()));
+				it->second.reset();
+			}
 		}
-		if(channel->empty()){
+		if(!(it->second)){
 			it = m_channels.erase(it);
 		} else {
 			++it;

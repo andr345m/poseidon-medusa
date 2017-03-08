@@ -7,6 +7,12 @@ namespace Medusa {
 
 namespace Msg {
 
+#define MESSAGE_NAME    CS_FetchOpen
+#define MESSAGE_ID      104
+#define MESSAGE_FIELDS  \
+	//
+#include <poseidon/cbpp/message_generator.hpp>
+
 #define MESSAGE_NAME    CS_FetchConnect
 #define MESSAGE_ID      100
 #define MESSAGE_FIELDS  \
@@ -22,16 +28,16 @@ namespace Msg {
 	// 这个结构并不使用，我们只用协议号。
 #include <poseidon/cbpp/message_generator.hpp>
 
-#define MESSAGE_NAME    CS_FetchClose
-#define MESSAGE_ID      102
-#define MESSAGE_FIELDS  \
-	FIELD_VINT          (err_code)
-#include <poseidon/cbpp/message_generator.hpp>
-
 #define MESSAGE_NAME    CS_FetchAcknowledge
 #define MESSAGE_ID      103
 #define MESSAGE_FIELDS  \
 	FIELD_VUINT         (size)
+#include <poseidon/cbpp/message_generator.hpp>
+
+#define MESSAGE_NAME    CS_FetchClose
+#define MESSAGE_ID      102
+#define MESSAGE_FIELDS  \
+	FIELD_VINT          (err_code)
 #include <poseidon/cbpp/message_generator.hpp>
 
 }
