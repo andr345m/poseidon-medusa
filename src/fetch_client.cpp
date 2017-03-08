@@ -114,9 +114,9 @@ void FetchClient::on_sync_data_message(boost::uint16_t message_id, Poseidon::Str
 			session->on_fetch_closed(Msg::ERR_CONNECTION_LOST, e.what());
 		}
 	}
-	if(!session || session->has_been_shutdown_write()){
+	if((it != m_sessions.end()) && (!session || session->has_been_shutdown_write())){
 		LOG_MEDUSA_DEBUG("Reclaiming proxy session: fetch_uuid = ", fetch_uuid);
-		close(fetch_uuid, Msg::ERR_CONNECTION_LOST, "Lost connection to proxy client");
+		send(fetch_uuid, Msg::CS_FetchClose(Msg::ERR_CONNECTION_LOST));
 		m_sessions.erase(it);
 	}
 }
