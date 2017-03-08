@@ -332,36 +332,42 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 			{ //
 //=============================================================================
 	ON_MESSAGE(Msg::CS_FetchOpen, req){
-		it = m_channels.find(fetch_uuid);
-		if(it == m_channels.end()){
-			it = m_channels.emplace(fetch_uuid, boost::make_shared<Channel>()).first;
+		const AUTO(result, m_channels.emplace(fetch_uuid, boost::make_shared<Channel>()));
+		if(!result.second){
+			LOG_MEDUSA_WARNING("Fetch channel exists: fetch_uuid = ", fetch_uuid);
+			break;
 		}
+		it = result.first;
 	}
 	ON_MESSAGE(Msg::CS_FetchConnect, req){
 		it = m_channels.find(fetch_uuid);
 		if((it == m_channels.end()) || !(it->second)){
-			DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("Fetch channel closed"));
+			LOG_MEDUSA_DEBUG("Fetch channel not found: fetch_uuid = ", fetch_uuid);
+			break;
 		}
 		it->second->push_connect(STD_MOVE(req.host), req.port, req.use_ssl, req.flags);
 	}
 	ON_RAW_MESSAGE(Msg::CS_FetchSend, req){
 		it = m_channels.find(fetch_uuid);
 		if((it == m_channels.end()) || !(it->second)){
-			DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("Fetch channel closed"));
+			LOG_MEDUSA_DEBUG("Fetch channel not found: fetch_uuid = ", fetch_uuid);
+			break;
 		}
 		it->second->push_send(STD_MOVE(req));
 	}
 	ON_MESSAGE(Msg::CS_FetchAcknowledge, req){
 		it = m_channels.find(fetch_uuid);
 		if((it == m_channels.end()) || !(it->second)){
-			DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("Fetch channel closed"));
+			LOG_MEDUSA_DEBUG("Fetch channel not found: fetch_uuid = ", fetch_uuid);
+			break;
 		}
 		it->second->consume_some(req.size);
 	}
 	ON_MESSAGE(Msg::CS_FetchClose, req){
 		it = m_channels.find(fetch_uuid);
 		if((it == m_channels.end()) || !(it->second)){
-			break; // DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("Fetch channel closed"));
+			LOG_MEDUSA_DEBUG("Fetch channel not found: fetch_uuid = ", fetch_uuid);
+			break;
 		}
 		it->second.reset();
 	}
@@ -373,9 +379,9 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 			break;
 		}
 	} catch(std::exception &e){
-		LOG_MEDUSA_INFO("std::exception thrown: what = ", e.what());
+		LOG_MEDUSA_WARNING("std::exception thrown: what = ", e.what());
 		if(it != m_channels.end()){
-			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, 0, e.what()));
+			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ST_INTERNAL_ERROR, 0, e.what()));
 			it->second.reset();
 		}
 	}
