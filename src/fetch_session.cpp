@@ -240,9 +240,11 @@ public:
 };
 
 FetchSession::Channel::~Channel(){
-	const AUTO_REF(origin_client, m_requests.front().origin_client);
-	if(origin_client){
-		origin_client->force_shutdown();
+	if(!m_requests.empty()){
+		const AUTO_REF(origin_client, m_requests.front().origin_client);
+		if(origin_client){
+			origin_client->force_shutdown();
+		}
 	}
 }
 
