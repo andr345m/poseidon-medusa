@@ -413,7 +413,9 @@ void FetchSession::on_sync_timer(){
 			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, 0, e.what()));
 			channel.reset();
 		}
-		m_channels.erase(fetch_uuid);
+		if(!channel){
+			m_channels.erase(fetch_uuid);
+		}
 	}
 	if(m_channels.empty()){
 		m_timer.reset();
