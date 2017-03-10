@@ -45,7 +45,7 @@ private:
 protected:
 	void on_read_hup() NOEXCEPT OVERRIDE;
 	void on_close(int err_code) NOEXCEPT OVERRIDE;
-	void on_read_avail(Poseidon::StreamBuffer data) OVERRIDE;
+	void on_receive(Poseidon::StreamBuffer data) OVERRIDE;
 	bool send(Poseidon::StreamBuffer data) OVERRIDE;
 
 public:

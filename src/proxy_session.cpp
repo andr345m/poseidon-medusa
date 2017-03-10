@@ -387,6 +387,7 @@ public:
 
 		if(Poseidon::has_none_flags_of(m_flags, FetchSession::FL_TUNNEL)){
 			--(m_session->m_request_counter);
+			LOG_MEDUSA_DEBUG("Request counter: ", m_session->m_request_counter);
 			if((m_session->m_request_counter == 0) && (m_session->has_been_shutdown_read())){
 				m_session->shutdown_write();
 			}
@@ -626,7 +627,7 @@ void ProxySession::on_close(int err_code) NOEXCEPT {
 
 	Poseidon::TcpSessionBase::on_close(err_code);
 }
-void ProxySession::on_read_avail(Poseidon::StreamBuffer data){
+void ProxySession::on_receive(Poseidon::StreamBuffer data){
 	PROFILE_ME;
 
 	Poseidon::enqueue(

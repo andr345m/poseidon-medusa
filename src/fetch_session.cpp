@@ -53,7 +53,7 @@ protected:
 		Poseidon::atomic_store(m_err_code, err_code, Poseidon::ATOMIC_RELAXED);
 		Poseidon::TcpClientBase::on_close(err_code);
 	}
-	void on_read_avail(Poseidon::StreamBuffer data) OVERRIDE;
+	void on_receive(Poseidon::StreamBuffer data) OVERRIDE;
 
 public:
 	bool is_readable() const NOEXCEPT {
@@ -248,7 +248,7 @@ FetchSession::Channel::~Channel(){
 	}
 }
 
-void FetchSession::OriginClient::on_read_avail(Poseidon::StreamBuffer data){
+void FetchSession::OriginClient::on_receive(Poseidon::StreamBuffer data){
 	const AUTO(channel, m_weak_channel.lock());
 	if(!channel){
 		force_shutdown();
