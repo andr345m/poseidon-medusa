@@ -2,6 +2,7 @@
 #include "fetch_connector.hpp"
 #include <poseidon/singletons/dns_daemon.hpp>
 #include <poseidon/singletons/timer_daemon.hpp>
+#include <poseidon/sock_addr.hpp>
 
 namespace Medusa {
 

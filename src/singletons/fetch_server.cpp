@@ -35,7 +35,7 @@ MODULE_RAII(handles){
 	const Poseidon::IpPort bind_addr(Poseidon::SharedNts(bind), port);
 	LOG_MEDUSA_INFO("Creating fetch CBPP server on ", bind_addr);
 	AUTO(server, boost::make_shared<FetchServer>(bind_addr, cert, pkey, STD_MOVE(pass)));
-	Poseidon::EpollDaemon::register_server(server);
+	Poseidon::EpollDaemon::add_socket(server);
 	handles.push(STD_MOVE_IDN(server));
 }
 

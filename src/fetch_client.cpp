@@ -17,7 +17,7 @@ FetchClient::FetchClient(const Poseidon::SockAddr &sock_addr, bool use_ssl, bool
 	LOG_MEDUSA_INFO("FetchClient constructor: remote = ", Poseidon::get_ip_port_from_sock_addr(sock_addr));
 }
 FetchClient::~FetchClient(){
-	LOG_MEDUSA_INFO("FetchClient destructor: remote = ", get_remote_info_nothrow());
+	LOG_MEDUSA_INFO("FetchClient destructor: remote = ", get_remote_info());
 
 	for(AUTO(it, m_sessions.begin()); it != m_sessions.end(); ++it){
 		const AUTO(session, it->second.lock());

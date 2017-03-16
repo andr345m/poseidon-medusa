@@ -27,7 +27,7 @@ MODULE_RAII(handles){
 	const Poseidon::IpPort bind_addr(Poseidon::SharedNts(bind), port);
 	LOG_MEDUSA_INFO("Creating proxy HTTP server on ", bind_addr);
 	AUTO(server, boost::make_shared<ProxyServer>(bind_addr));
-	Poseidon::EpollDaemon::register_server(server);
+	Poseidon::EpollDaemon::add_socket(server);
 	handles.push(STD_MOVE_IDN(server));
 }
 

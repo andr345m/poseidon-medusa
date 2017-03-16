@@ -156,7 +156,7 @@ protected:
 			if(!x_forwarded_for.empty()){
 				x_forwarded_for += ", ";
 			}
-			x_forwarded_for += m_session->get_remote_info().ip.get();
+			x_forwarded_for += m_session->get_remote_info().get_ip();
 			request_headers.headers.set(Poseidon::sslit("X-Forwarded-For"), STD_MOVE(x_forwarded_for));
 
 			request_headers.headers.set(Poseidon::sslit("Connection"), "Close");
@@ -565,7 +565,7 @@ ProxySession::ProxySession(Poseidon::UniqueFile socket)
 	LOG_MEDUSA_INFO("ProxySession constructor: remote = ", get_remote_info(), ", fetch_uuid = ", m_fetch_uuid);
 }
 ProxySession::~ProxySession(){
-	LOG_MEDUSA_INFO("ProxySession destructor: remote = ", get_remote_info_nothrow(), ", fetch_uuid = ", m_fetch_uuid);
+	LOG_MEDUSA_INFO("ProxySession destructor: remote = ", get_remote_info(), ", fetch_uuid = ", m_fetch_uuid);
 }
 
 ProxySession::RequestRewriter &ProxySession::get_request_rewriter(){

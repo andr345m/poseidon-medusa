@@ -277,7 +277,7 @@ FetchSession::FetchSession(Poseidon::UniqueFile socket, std::string password)
 	LOG_MEDUSA_INFO("FetchSession constructor: remote = ", get_remote_info());
 }
 FetchSession::~FetchSession(){
-	LOG_MEDUSA_INFO("FetchSession destructor: remote = ", get_remote_info_nothrow());
+	LOG_MEDUSA_INFO("FetchSession destructor: remote = ", get_remote_info());
 }
 
 bool FetchSession::send_explicit(const Poseidon::Uuid &fetch_uuid, boost::uint16_t message_id, Poseidon::StreamBuffer plain){
