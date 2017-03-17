@@ -159,8 +159,11 @@ public:
 				DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_CONNECTION_LOST, Poseidon::sslit("Error sending data to origin server"));
 			}
 
-			AUTO(recv_queue, req.origin_client->move_recv_queue());
-			if(!recv_queue.empty()){
+			for(;;){
+				AUTO(recv_queue, req.origin_client->move_recv_queue());
+				if(recv_queue.empty()){
+					break;
+				}
 				session->send_explicit(fetch_uuid, Msg::SC_FetchReceived::ID, STD_MOVE(recv_queue));
 			}
 
