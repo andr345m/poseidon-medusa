@@ -144,6 +144,13 @@ public:
 				}
 				break;
 			}
+			for(;;){
+				AUTO(recv_queue, req.origin_client->move_recv_queue());
+				if(recv_queue.empty()){
+					break;
+				}
+				session->send_explicit(fetch_uuid, Msg::SC_FetchReceived::ID, STD_MOVE(recv_queue));
+			}
 			const AUTO(err_code, req.origin_client->peek_err_code());
 			if(err_code != 0){
 				LOG_MEDUSA_DEBUG("Fetch error: err_code = ", err_code);
@@ -153,18 +160,9 @@ public:
 				session->send(fetch_uuid, Msg::SC_FetchConnected(req.flags));
 				req.connected = true;
 			}
-
 			if(!req.send_queue.empty() && !req.origin_client->send(STD_MOVE(req.send_queue))){
 				LOG_MEDUSA_DEBUG("Error sending data to origin server: host:port = ", req.host, ":", req.port);
 				DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_CONNECTION_LOST, Poseidon::sslit("Error sending data to origin server"));
-			}
-
-			for(;;){
-				AUTO(recv_queue, req.origin_client->move_recv_queue());
-				if(recv_queue.empty()){
-					break;
-				}
-				session->send_explicit(fetch_uuid, Msg::SC_FetchReceived::ID, STD_MOVE(recv_queue));
 			}
 
 			if(!req.origin_client->has_been_shutdown_read()){
