@@ -120,7 +120,7 @@ void FetchClient::on_sync_data_message(boost::uint16_t message_id, Poseidon::Str
 		}
 	}
 	if(!session || session->has_been_shutdown_write()){
-		LOG_MEDUSA_DEBUG("Reclaiming proxy session: fetch_uuid = ", fetch_uuid);
+		LOG_MEDUSA_DEBUG("Reclaiming fetch request: fetch_uuid = ", fetch_uuid);
 		if(m_sessions.erase(fetch_uuid) > 0){
 			send(fetch_uuid, Msg::CS_FetchClose(Msg::ERR_CONNECTION_LOST));
 		}

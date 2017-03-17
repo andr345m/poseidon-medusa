@@ -50,6 +50,7 @@ protected:
 		Poseidon::TcpClientBase::on_read_hup();
 	}
 	void on_close(int err_code) NOEXCEPT OVERRIDE {
+		Poseidon::atomic_store(m_readable, true, Poseidon::ATOMIC_RELAXED);
 		Poseidon::atomic_store(m_err_code, err_code, Poseidon::ATOMIC_RELAXED);
 		Poseidon::TcpClientBase::on_close(err_code);
 	}
@@ -63,12 +64,8 @@ public:
 		return Poseidon::TcpClientBase::send(data);
 	}
 	Poseidon::StreamBuffer move_recv_queue(){
-		Poseidon::StreamBuffer recv_queue;
-		{
-			const Poseidon::Mutex::UniqueLock lock(m_recv_queue_mutex);
-			recv_queue.swap(m_recv_queue);
-		}
-		return recv_queue;
+		const Poseidon::Mutex::UniqueLock lock(m_recv_queue_mutex);
+		return m_recv_queue.cut_off(4096);
 	}
 	int peek_err_code() const NOEXCEPT {
 		return Poseidon::atomic_load(m_err_code, Poseidon::ATOMIC_RELAXED);
@@ -147,6 +144,11 @@ public:
 				}
 				break;
 			}
+			const AUTO(err_code, req.origin_client->peek_err_code());
+			if(err_code != 0){
+				LOG_MEDUSA_DEBUG("Fetch error: err_code = ", err_code);
+				DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_CONNECTION_LOST, Poseidon::get_error_desc(err_code));
+			}
 			if(!req.connected){
 				session->send(fetch_uuid, Msg::SC_FetchConnected(req.flags));
 				req.connected = true;
@@ -164,11 +166,6 @@ public:
 
 			if(!req.origin_client->has_been_shutdown_read()){
 				break;
-			}
-			const AUTO(err_code, req.origin_client->peek_err_code());
-			if(err_code != 0){
-				LOG_MEDUSA_DEBUG("Fetch error: err_code = ", err_code);
-				DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_CONNECTION_LOST, Poseidon::get_error_desc(err_code));
 			}
 			LOG_MEDUSA_INFO("Closing connection to origin server: host:port = ", req.host, ":", req.port);
 			session->send(fetch_uuid, Msg::SC_FetchEnded());
@@ -393,7 +390,7 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 		channel.reset();
 	}
 	if(!channel){
-		LOG_MEDUSA_DEBUG("Reclaiming fetch client: fetch_uuid = ", fetch_uuid);
+		LOG_MEDUSA_DEBUG("Reclaiming fetch request: fetch_uuid = ", fetch_uuid);
 		m_channels.erase(fetch_uuid);
 	}
 }
