@@ -1,9 +1,5 @@
 ### 这个东西是干什么的呢，我只能说“你懂的”了……
 
-### 需要先安装 Poseidon：
-
-    https://github.com/lhmouse/poseidon
-
 ### 确保以下依赖为最新：
 
     automake
@@ -20,7 +16,9 @@
 
 ### 编译 Poseidon：
 
-    git clone https://github.com/lhmouse/poseidon.git
+    # https://github.com/lhmouse/poseidon
+    git submodule init
+    git submodule update --rebase poseidon
     cd poseidon
     ./reconfig_release_cxx11.sh
     make -j3
@@ -36,8 +34,7 @@
 
 ### 编译 Medusa：
 
-    git clone https://github.com/lhmouse/poseidon-medusa.git
-    cd poseidon-medusa
+    cd ..
     ./reconfig_release_cxx11.sh
     make -j3
 
