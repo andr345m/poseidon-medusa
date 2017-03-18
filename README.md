@@ -47,13 +47,13 @@
 
 ### 修改配置文件（配置文件内有注释）：
 
-    # 使用 ./runserver.sh：
+    # （使用 ./runserver.sh 启动）项目目录中的配置文件：
     cd etc/poseidon-medusa/
     cp medusa-template.conf medusa.conf
     nano medusa.conf
 
-    # 使用 ./makedeb.sh 创建 .deb 包并安装后：
-    cd /usr/etc/poseidon-medusa/
+    # （创建 .deb 包并安装后直接使用 poseidon /usr/local/etc/poseidon-medusa/ 启动）安装好的配置文件：
+    cd /usr/local/etc/poseidon-medusa/
     sudo cp medusa-template.conf medusa.conf
     sudo nano medusa.conf
 
