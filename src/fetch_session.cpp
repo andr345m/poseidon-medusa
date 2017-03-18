@@ -269,7 +269,7 @@ void FetchSession::timer_proc(const boost::weak_ptr<FetchSession> &weak) NOEXCEP
 }
 
 FetchSession::FetchSession(Poseidon::UniqueFile socket, std::string password)
-	: Poseidon::Cbpp::Session(STD_MOVE(socket), get_max_single_pipeline_size())
+	: Poseidon::Cbpp::Session(STD_MOVE(socket))
 	, m_password(STD_MOVE(password))
 {
 	LOG_MEDUSA_INFO("FetchSession constructor: remote = ", get_remote_info());
