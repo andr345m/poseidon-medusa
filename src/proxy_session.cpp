@@ -156,7 +156,7 @@ protected:
 			if(!x_forwarded_for.empty()){
 				x_forwarded_for += ", ";
 			}
-			x_forwarded_for += m_session->get_remote_info().get_ip();
+			x_forwarded_for += m_session->get_remote_info().ip();
 			request_headers.headers.set(Poseidon::sslit("X-Forwarded-For"), STD_MOVE(x_forwarded_for));
 
 			request_headers.headers.set(Poseidon::sslit("Connection"), "Close");
