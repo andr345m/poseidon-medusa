@@ -63,9 +63,9 @@ public:
 	bool send(Poseidon::StreamBuffer data) OVERRIDE {
 		return Poseidon::TcpClientBase::send(data);
 	}
-	Poseidon::StreamBuffer move_recv_queue(){
+	Poseidon::StreamBuffer move_recv_queue(std::uint64_t max_size){
 		const Poseidon::Mutex::UniqueLock lock(m_recv_queue_mutex);
-		return m_recv_queue.cut_off(4096);
+		return m_recv_queue.cut_off(max_size);
 	}
 	int peek_err_code() const NOEXCEPT {
 		return Poseidon::atomic_load(m_err_code, Poseidon::ATOMIC_RELAXED);
@@ -126,6 +126,10 @@ public:
 					LOG_MEDUSA_INFO("DNS failure: host:port = ", req.host, ":", req.port, ", what = ", e.what());
 					DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_DNS_FAILURE, Poseidon::SharedNts(e.what()));
 				}
+				if(sock_addr.is_private()){
+					LOG_MEDUSA_INFO("Connection to private address requested: host:port = ", req.host, ":", req.port, ", ip_port = ", Poseidon::get_ip_port_from_sock_addr(sock_addr));
+					DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_PRIVATE_ADDRESS, Poseidon::SharedNts("Connection to private address requested"));
+				}
 				LOG_MEDUSA_INFO("Connecting to origin server: host:port = ", req.host, ":", req.port, ", use_ssl = ", req.use_ssl);
 				AUTO(origin_client, boost::make_shared<OriginClient>(sock_addr, req.use_ssl, virtual_shared_from_this<Channel>()));
 				origin_client->go_resident();
@@ -145,7 +149,7 @@ public:
 				break;
 			}
 			for(;;){
-				AUTO(recv_queue, req.origin_client->move_recv_queue());
+				AUTO(recv_queue, req.origin_client->move_recv_queue(8192));
 				if(recv_queue.empty()){
 					break;
 				}

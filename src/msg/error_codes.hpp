@@ -14,7 +14,7 @@ namespace Msg {
 		ERR_DNS_FAILURE                 = 9503,
 		ERR_MAX_PIPELINING_SIZE         = 9504,
 		ERR_MAX_PENDING_BUFFER_SIZE     = 9505,
-		ERR_ACCESS_DENIED               = 9506,
+		ERR_PRIVATE_ADDRESS             = 9506,
 		ERR_CONNECTION_REFUSED          = 9507,
 		ERR_CONNECTION_TIMED_OUT        = 9508,
 	};
