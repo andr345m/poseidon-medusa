@@ -151,6 +151,10 @@ public:
 				}
 				break;
 			}
+			if(!req.connected){
+				session->send(fetch_uuid, Msg::SC_FetchConnected(req.flags));
+				req.connected = true;
+			}
 			AUTO(recv_queue, req.origin_client->move_recv_queue());
 			for(;;){
 				AUTO(chunk, recv_queue.cut_off(8192));
@@ -163,10 +167,6 @@ public:
 			if(err_code != 0){
 				LOG_MEDUSA_DEBUG("Fetch error: err_code = ", err_code);
 				DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_CONNECTION_LOST, Poseidon::get_error_desc(err_code));
-			}
-			if(!req.connected){
-				session->send(fetch_uuid, Msg::SC_FetchConnected(req.flags));
-				req.connected = true;
 			}
 			if(!req.send_queue.empty() && !req.origin_client->send(STD_MOVE(req.send_queue))){
 				LOG_MEDUSA_DEBUG("Error sending data to origin server: host:port = ", req.host, ":", req.port);
