@@ -63,7 +63,7 @@ public:
 	bool send(Poseidon::StreamBuffer data) OVERRIDE {
 		return Poseidon::TcpClientBase::send(data);
 	}
-	Poseidon::StreamBuffer move_recv_queue(std::uint64_t max_size){
+	Poseidon::StreamBuffer move_recv_queue(boost::uint64_t max_size){
 		const Poseidon::Mutex::UniqueLock lock(m_recv_queue_mutex);
 		return m_recv_queue.cut_off(max_size);
 	}
@@ -142,7 +142,7 @@ public:
 			if(!req.origin_client->is_readable()){
 				LOG_MEDUSA_DEBUG("Waiting for SYN ACK: host:port = ", req.host);
 				const AUTO(time_elapsed, Poseidon::saturated_sub(now, req.creation_time));
-				const AUTO(connect_timeout, get_config<std::uint64_t>("remote_client_connect_timeout", 10000));
+				const AUTO(connect_timeout, get_config<boost::uint64_t>("remote_client_connect_timeout", 10000));
 				if(time_elapsed > connect_timeout){
 					LOG_MEDUSA_INFO("Connection to origin server timed out: host:port = ", req.host);
 					DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_CONNECTION_TIMED_OUT, Poseidon::sslit("Connection to origin server timed out"));
