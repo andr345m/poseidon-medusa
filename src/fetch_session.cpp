@@ -63,9 +63,11 @@ public:
 	bool send(Poseidon::StreamBuffer data) OVERRIDE {
 		return Poseidon::TcpClientBase::send(data);
 	}
-	Poseidon::StreamBuffer move_recv_queue(boost::uint64_t max_size){
+	Poseidon::StreamBuffer move_recv_queue(){
+		Poseidon::StreamBuffer recv_queue;
 		const Poseidon::Mutex::UniqueLock lock(m_recv_queue_mutex);
-		return m_recv_queue.cut_off(max_size);
+		recv_queue.swap(m_recv_queue);
+		return recv_queue;
 	}
 	int peek_err_code() const NOEXCEPT {
 		return Poseidon::atomic_load(m_err_code, Poseidon::ATOMIC_RELAXED);
@@ -149,12 +151,13 @@ public:
 				}
 				break;
 			}
+			AUTO(recv_queue, req.origin_client->move_recv_queue());
 			for(;;){
-				AUTO(recv_queue, req.origin_client->move_recv_queue(8192));
-				if(recv_queue.empty()){
+				AUTO(chunk, recv_queue.cut_off(8192));
+				if(chunk.empty()){
 					break;
 				}
-				session->send_explicit(fetch_uuid, Msg::SC_FetchReceived::ID, STD_MOVE(recv_queue));
+				session->send_explicit(fetch_uuid, Msg::SC_FetchReceived::ID, STD_MOVE(chunk));
 			}
 			const AUTO(err_code, req.origin_client->peek_err_code());
 			if(err_code != 0){
