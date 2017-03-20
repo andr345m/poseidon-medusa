@@ -302,7 +302,7 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 
 	const AUTO(header_size, get_encrypted_header_size());
 	if(payload.size() < header_size){
-		LOG_MEDUSA_WARNING("Frame from remote client is too small, expecting ", header_size);
+		LOG_MEDUSA_ERROR("Frame from fetch client is too small: got ", payload.size(), ", expecting ", header_size);
 		DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ST_END_OF_STREAM);
 	}
 	const AUTO(context, try_decrypt_header(payload, m_password));

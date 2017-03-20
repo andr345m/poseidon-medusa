@@ -45,10 +45,9 @@ void FetchClient::on_sync_data_message(boost::uint16_t message_id, Poseidon::Str
 	PROFILE_ME;
 	LOG_MEDUSA_DEBUG("Fetch data message: message_id = ", message_id, ", payload_size = ", payload.size());
 
-	const AUTO(payload_size, payload.size());
 	const AUTO(header_size, get_encrypted_header_size());
-	if(payload_size < header_size){
-		LOG_MEDUSA_ERROR("Frame from fetch server is too small: expecting ", header_size, ", got ", payload_size);
+	if(payload.size() < header_size){
+		LOG_MEDUSA_ERROR("Frame from fetch server is too small: got ", payload.size(), ", expecting ", header_size);
 		DEBUG_THROW(Poseidon::Cbpp::Exception, Poseidon::Cbpp::ST_END_OF_STREAM, Poseidon::sslit("Frame from fetch server is too small"));
 	}
 	const AUTO(context, try_decrypt_header(payload, m_password));
