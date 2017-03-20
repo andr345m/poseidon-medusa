@@ -212,9 +212,15 @@ protected:
 			LOG_MEDUSA_DEBUG("Lost connection to fetch server");
 			DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("Lost connection to fetch server"));
 		}
-		if(!fetch_client->fetch_send(m_session->virtual_shared_from_this<ProxySession>(), STD_MOVE(encoded))){
-			LOG_MEDUSA_DEBUG("Lost connection to fetch server");
-			DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("Lost connection to fetch server"));
+		for(;;){
+			AUTO(send_queue, encoded.cut_off(8192));
+			if(send_queue.empty()){
+				break;
+			}
+			if(!fetch_client->fetch_send(m_session->virtual_shared_from_this<ProxySession>(), STD_MOVE(send_queue))){
+				LOG_MEDUSA_DEBUG("Lost connection to fetch server");
+				DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("Lost connection to fetch server"));
+			}
 		}
 		return true;
 	}
