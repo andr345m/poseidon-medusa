@@ -14,7 +14,7 @@ FetchClient::FetchClient(const Poseidon::SockAddr &sock_addr, bool use_ssl, bool
 	: Poseidon::Cbpp::Client(sock_addr, use_ssl, verify_peer)
 	, m_password(STD_MOVE(password))
 {
-	LOG_MEDUSA_INFO("FetchClient constructor: remote = ", Poseidon::get_ip_port_from_sock_addr(sock_addr));
+	LOG_MEDUSA_INFO("FetchClient constructor: remote = ", Poseidon::IpPort(sock_addr));
 }
 FetchClient::~FetchClient(){
 	LOG_MEDUSA_INFO("FetchClient destructor: remote = ", get_remote_info());

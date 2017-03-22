@@ -130,7 +130,7 @@ public:
 				}
 				if(sock_addr.is_private()){
 					LOG_MEDUSA_INFO("Connection to private address requested: host:port = ", req.host, ":", req.port,
-						", ip_port = ", Poseidon::get_ip_port_from_sock_addr(sock_addr));
+						", ip_port = ", Poseidon::IpPort(sock_addr));
 					DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_PRIVATE_ADDRESS, Poseidon::SharedNts("Connection to private address requested"));
 				}
 				LOG_MEDUSA_INFO("Connecting to origin server: host:port = ", req.host, ":", req.port, ", use_ssl = ", req.use_ssl);

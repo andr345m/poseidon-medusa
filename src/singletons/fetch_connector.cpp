@@ -34,7 +34,7 @@ namespace {
 			for(std::size_t i = 0; i < m_pool.size(); ++i){
 				AUTO(client, m_pool.at(i).lock());
 				if(!client){
-					LOG_MEDUSA_DEBUG("Creating new fetch client: sock_addr = ", Poseidon::get_ip_port_from_sock_addr(sock_addr));
+					LOG_MEDUSA_DEBUG("Creating new fetch client: sock_addr = ", Poseidon::IpPort(sock_addr));
 					client = boost::make_shared<FetchClient>(sock_addr, use_ssl, verify_peer, password);
 					client->go_resident();
 					client->send_control(Poseidon::Cbpp::ST_PING, VAL_INIT);
