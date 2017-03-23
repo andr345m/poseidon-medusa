@@ -43,16 +43,13 @@ public:
 protected:
 	void on_connect() OVERRIDE {
 		Poseidon::atomic_store(m_readable, true, Poseidon::ATOMIC_RELAXED);
-		Poseidon::TcpSessionBase::on_connect();
 	}
 	void on_read_hup() NOEXCEPT OVERRIDE {
 		shutdown_write();
-		Poseidon::TcpClientBase::on_read_hup();
 	}
 	void on_close(int err_code) NOEXCEPT OVERRIDE {
 		Poseidon::atomic_store(m_readable, true, Poseidon::ATOMIC_RELAXED);
 		Poseidon::atomic_store(m_err_code, err_code, Poseidon::ATOMIC_RELAXED);
-		Poseidon::TcpClientBase::on_close(err_code);
 	}
 	void on_receive(Poseidon::StreamBuffer data) OVERRIDE;
 

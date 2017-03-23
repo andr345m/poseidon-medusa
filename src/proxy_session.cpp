@@ -617,7 +617,6 @@ void ProxySession::on_read_hup(){
 			virtual_shared_from_this<ProxySession>()),
 		VAL_INIT);
 }
-
 void ProxySession::on_close(int err_code) NOEXCEPT {
 	PROFILE_ME;
 	LOG_MEDUSA_DEBUG("Proxy session closed: err_code = ", err_code);
@@ -630,10 +629,7 @@ void ProxySession::on_close(int err_code) NOEXCEPT {
 	} catch(std::exception &e){
 		LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
 	}
-
-	Poseidon::TcpSessionBase::on_close(err_code);
 }
-
 void ProxySession::on_receive(Poseidon::StreamBuffer data){
 	PROFILE_ME;
 
