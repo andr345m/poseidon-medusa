@@ -602,22 +602,22 @@ void ProxySession::shutdown(unsigned http_status_code, const char *err_msg) NOEX
 	}
 }
 
-void ProxySession::on_read_hup() NOEXCEPT {
+void ProxySession::on_connect(){
 	PROFILE_ME;
-	LOG_MEDUSA_DEBUG("Proxy session read hang up.");
+	LOG_MEDUSA_DEBUG("Proxy session connected: remote = ", get_remote_info());
 
-	try {
-		Poseidon::enqueue(
-			boost::make_shared<ReadHupJob>(
-				virtual_shared_from_this<ProxySession>()),
-			VAL_INIT);
-	} catch(std::exception &e){
-		LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
-		force_shutdown();
-	}
-
-	Poseidon::TcpSessionBase::on_read_hup();
+	//
 }
+void ProxySession::on_read_hup(){
+	PROFILE_ME;
+	LOG_MEDUSA_DEBUG("Proxy session read hung up: remote = ", get_remote_info());
+
+	Poseidon::enqueue(
+		boost::make_shared<ReadHupJob>(
+			virtual_shared_from_this<ProxySession>()),
+		VAL_INIT);
+}
+
 void ProxySession::on_close(int err_code) NOEXCEPT {
 	PROFILE_ME;
 	LOG_MEDUSA_DEBUG("Proxy session closed: err_code = ", err_code);
@@ -633,6 +633,7 @@ void ProxySession::on_close(int err_code) NOEXCEPT {
 
 	Poseidon::TcpSessionBase::on_close(err_code);
 }
+
 void ProxySession::on_receive(Poseidon::StreamBuffer data){
 	PROFILE_ME;
 

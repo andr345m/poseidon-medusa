@@ -43,8 +43,11 @@ private:
 	void shutdown(unsigned http_status_code, const char *err_msg) NOEXCEPT;
 
 protected:
-	void on_read_hup() NOEXCEPT OVERRIDE;
+	void on_connect() OVERRIDE;
+	void on_read_hup() OVERRIDE;
+
 	void on_close(int err_code) NOEXCEPT OVERRIDE;
+
 	void on_receive(Poseidon::StreamBuffer data) OVERRIDE;
 	bool send(Poseidon::StreamBuffer data) OVERRIDE;
 
