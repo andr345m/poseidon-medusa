@@ -317,7 +317,7 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 	AUTO(plain, decrypt_payload(context, STD_MOVE(payload)));
 
 	if(!m_timer){
-		m_timer = Poseidon::TimerDaemon::register_timer(0, 200, boost::bind(&timer_proc, virtual_weak_from_this<FetchSession>()));
+		m_timer = Poseidon::TimerDaemon::register_timer(0, 50, boost::bind(&timer_proc, virtual_weak_from_this<FetchSession>()));
 	}
 
 	const AUTO_REF(fetch_uuid, context->uuid);
