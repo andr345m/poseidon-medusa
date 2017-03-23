@@ -3,6 +3,7 @@
 
 #include <poseidon/cbpp/fwd.hpp>
 #include <poseidon/cbpp/session.hpp>
+#include <poseidon/uuid.hpp>
 #include <boost/cstdint.hpp>
 #include <boost/container/map.hpp>
 
