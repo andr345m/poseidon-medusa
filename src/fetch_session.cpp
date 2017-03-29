@@ -152,6 +152,7 @@ public:
 				session->send(fetch_uuid, Msg::SC_FetchConnected(req.flags));
 				req.connected = true;
 			}
+			const bool client_closed = req.origin_client->has_been_shutdown_read();
 			AUTO(recv_queue, req.origin_client->move_recv_queue());
 			for(;;){
 				AUTO(chunk, recv_queue.cut_off(8192));
@@ -169,8 +170,7 @@ public:
 				LOG_MEDUSA_DEBUG("Error sending data to origin server: host:port = ", req.host, ":", req.port);
 				DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_CONNECTION_LOST, Poseidon::sslit("Error sending data to origin server"));
 			}
-
-			if(!req.origin_client->has_been_shutdown_read()){
+			if(!client_closed){
 				break;
 			}
 			LOG_MEDUSA_INFO("Closing connection to origin server: host:port = ", req.host, ":", req.port);
