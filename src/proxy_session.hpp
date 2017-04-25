@@ -3,6 +3,7 @@
 
 #include <poseidon/tcp_session_base.hpp>
 #include <poseidon/uuid.hpp>
+#include <poseidon/http/fwd.hpp>
 #include <boost/scoped_ptr.hpp>
 #include <boost/shared_ptr.hpp>
 
@@ -27,6 +28,7 @@ private:
 
 private:
 	const Poseidon::Uuid m_fetch_uuid;
+	const boost::shared_ptr<const Poseidon::Http::AuthInfo> m_auth_info;
 
 	boost::scoped_ptr<RequestRewriter> m_request_rewriter;
 	boost::weak_ptr<FetchClient> m_weak_fetch_client;
@@ -34,13 +36,13 @@ private:
 	unsigned long m_request_counter;
 
 public:
-	explicit ProxySession(Poseidon::UniqueFile socket);
+	ProxySession(Poseidon::UniqueFile socket, boost::shared_ptr<const Poseidon::Http::AuthInfo> auth_info);
 	~ProxySession() OVERRIDE;
 
 private:
 	RequestRewriter &get_request_rewriter();
 	ResponseRewriter &get_response_rewriter();
-	void shutdown(unsigned http_status_code, const char *err_msg) NOEXCEPT;
+	void shutdown(unsigned http_status_code, const char *err_msg, Poseidon::OptionalMap headers = Poseidon::OptionalMap()) NOEXCEPT;
 
 protected:
 	void on_connect() OVERRIDE;

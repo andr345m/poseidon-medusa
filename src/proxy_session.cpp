@@ -6,6 +6,7 @@
 #include <poseidon/http/client_reader.hpp>
 #include <poseidon/http/client_writer.hpp>
 #include <poseidon/http/exception.hpp>
+#include <poseidon/http/authorization.hpp>
 #include "singletons/fetch_connector.hpp"
 #include "msg/error_codes.hpp"
 #include "fetch_session.hpp"
@@ -42,7 +43,7 @@ protected:
 		}
 		LOG_MEDUSA_INFO("New fetch request: ", Poseidon::Http::get_string_from_verb(request_headers.verb), " ", request_headers.uri);
 
-		// TODO 代理服务器登录。
+		Poseidon::Http::check_and_throw_if_unauthorized(m_session->m_auth_info, m_session->get_remote_info(), request_headers, true);
 
 		std::string host;
 		unsigned port = 80;
@@ -400,7 +401,7 @@ public:
 		}
 	}
 
-	void put_closure_response(Poseidon::Http::StatusCode status_code, const char *err_msg){
+	void put_closure_response(Poseidon::Http::StatusCode status_code, const char *err_msg, Poseidon::OptionalMap headers = Poseidon::OptionalMap()){
 		PROFILE_ME;
 
 		if(Poseidon::has_any_flags_of(m_flags, FetchSession::FL_TUNNEL)){
@@ -411,6 +412,7 @@ public:
 			response_headers.version = 10001;
 			response_headers.status_code = status_code;
 			response_headers.reason = desc.desc_short;
+			response_headers.headers.swap(headers);
 			response_headers.headers.set(Poseidon::sslit("Connection"), "Close");
 			response_headers.headers.set(Poseidon::sslit("Proxy-Connection"), "Close");
 			response_headers.headers.set(Poseidon::sslit("Content-Type"), "text/html");
@@ -554,8 +556,8 @@ protected:
 			AUTO_REF(rewriter, session->get_request_rewriter());
 			rewriter.put_encoded_data(STD_MOVE(m_data));
 		} catch(Poseidon::Http::Exception &e){
-			LOG_MEDUSA_ERROR("Http::Exception thrown: status_code = ", e.get_status_code(), ", what = ", e.what());
-			session->shutdown(e.get_status_code(), e.what());
+			LOG_MEDUSA_INFO("Http::Exception thrown: status_code = ", e.get_status_code(), ", what = ", e.what());
+			session->shutdown(e.get_status_code(), e.what(), e.get_headers());
 		} catch(std::exception &e){
 			LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
 			session->shutdown(Poseidon::Http::ST_BAD_GATEWAY, e.what());
@@ -563,9 +565,9 @@ protected:
 	}
 };
 
-ProxySession::ProxySession(Poseidon::UniqueFile socket)
+ProxySession::ProxySession(Poseidon::UniqueFile socket, boost::shared_ptr<const Poseidon::Http::AuthInfo> auth_info)
 	: Poseidon::TcpSessionBase(STD_MOVE(socket))
-	, m_fetch_uuid(Poseidon::Uuid::random())
+	, m_fetch_uuid(Poseidon::Uuid::random()), m_auth_info(STD_MOVE_IDN(auth_info))
 	, m_request_counter(0)
 {
 	LOG_MEDUSA_INFO("ProxySession constructor: remote = ", get_remote_info(), ", fetch_uuid = ", m_fetch_uuid);
@@ -590,12 +592,12 @@ ProxySession::ResponseRewriter &ProxySession::get_response_rewriter(){
 	}
 	return *m_response_rewriter;
 }
-void ProxySession::shutdown(unsigned http_status_code, const char *err_msg) NOEXCEPT {
+void ProxySession::shutdown(unsigned http_status_code, const char *err_msg, Poseidon::OptionalMap headers) NOEXCEPT {
 	PROFILE_ME;
 
 	try {
 		AUTO_REF(rewriter, get_response_rewriter());
-		rewriter.put_closure_response(http_status_code, err_msg);
+		rewriter.put_closure_response(http_status_code, err_msg, STD_MOVE(headers));
 	} catch(std::exception &e){
 		LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
 		force_shutdown();
