@@ -2,6 +2,7 @@
 #include "encryption.hpp"
 #include <poseidon/sha256.hpp>
 #include <poseidon/endian.hpp>
+#include <poseidon/random.hpp>
 #include <openssl/aes.h>
 
 namespace Medusa {
@@ -14,9 +15,13 @@ void encrypt(Poseidon::StreamBuffer &dst, const Poseidon::Uuid &uuid, Poseidon::
 	const std::size_t plain_size = src.size();
 	Poseidon::store_be(length_be, plain_size);
 	dst.put(&length_be, sizeof(length_be)); // 8 bytes: length of plaintext
+	boost::uint64_t nonce_be;
+	Poseidon::store_be(nonce_be, Poseidon::random_uint64());
+	dst.put(&nonce_be, sizeof(nonce_be)); // 8 bytes: nonce
 	Poseidon::Sha256_ostream sha256_os;
 	sha256_os.write(reinterpret_cast<const char *>(uuid.data()), static_cast<std::streamsize>(uuid.size()))
 	         .write(reinterpret_cast<const char *>(&length_be), static_cast<std::streamsize>(sizeof(length_be)))
+	         .write(reinterpret_cast<const char *>(&nonce_be), static_cast<std::streamsize>(sizeof(nonce_be)))
 	         .write(reinterpret_cast<const char *>(key.data()), static_cast<std::streamsize>(key.size()));
 	const AUTO(sha256, sha256_os.finalize());
 	dst.put(sha256.data(), 16); // 16 bytes: first half of checksum
@@ -51,10 +56,16 @@ bool decrypt(Poseidon::Uuid &uuid, Poseidon::StreamBuffer &dst, Poseidon::Stream
 		return false;
 	}
 	const std::size_t plain_size = Poseidon::load_be(length_be);
+	boost::uint64_t nonce_be;
+	if(src.get(&nonce_be, sizeof(nonce_be)) < 8){ // 8 bytes: nonce
+		LOG_MEDUSA_WARNING("Encrypted data is truncated, expecting nonce.");
+		return false;
+	}
 	std::size_t plain_size_remaining = plain_size;
 	Poseidon::Sha256_ostream sha256_os;
 	sha256_os.write(reinterpret_cast<const char *>(uuid.data()), static_cast<std::streamsize>(uuid.size()))
 	         .write(reinterpret_cast<const char *>(&length_be), static_cast<std::streamsize>(sizeof(length_be)))
+	         .write(reinterpret_cast<const char *>(&nonce_be), static_cast<std::streamsize>(sizeof(nonce_be)))
 	         .write(reinterpret_cast<const char *>(key.data()), static_cast<std::streamsize>(key.size()));
 	const AUTO(sha256, sha256_os.finalize());
 	boost::array<unsigned char, 16> checksum;
