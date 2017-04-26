@@ -1,168 +1,94 @@
 #include "precompiled.hpp"
 #include "encryption.hpp"
-#include <poseidon/md5.hpp>
-#include <poseidon/random.hpp>
-#include <poseidon/hex.hpp>
+#include <poseidon/sha256.hpp>
+#include <poseidon/endian.hpp>
+#include <openssl/aes.h>
 
 namespace Medusa {
 
-namespace {
-	typedef boost::array<unsigned char, 16> Nonce;
+void encrypt(Poseidon::StreamBuffer &dst, const Poseidon::Uuid &uuid, Poseidon::StreamBuffer src, const std::string &key){
+	PROFILE_ME;
 
-	struct EncryptedHeader {
-		Nonce nonce;
-		Poseidon::Uuid uuid;
-		Poseidon::Md5 auth_md5;
-	};
-
-#ifdef POSEIDON_CXX11
-	static_assert(std::is_standard_layout<EncryptedHeader>::value, "EncryptedHeader is not a standard-layout struct?");
-#endif
-	BOOST_STATIC_ASSERT_MSG(sizeof(EncryptedHeader) == 48, "Incompatible layout detected");
-
-	inline Poseidon::Md5 md5_string(const std::string &s){
-		Poseidon::Md5_ostream md5_os;
-		md5_os <<s;
-		return md5_os.finalize();
+	dst.put(uuid.data(), uuid.size()); // 16 bytes: UUID
+	boost::uint64_t length_be;
+	const boost::uint64_t plain_size = src.size();
+	Poseidon::store_be(length_be, plain_size);
+	dst.put(&length_be, sizeof(length_be)); // 8 bytes: length of plaintext
+	Poseidon::Sha256_ostream sha256_os;
+	sha256_os.write(reinterpret_cast<const char *>(uuid.data()), static_cast<std::streamsize>(uuid.size()))
+	         .write(reinterpret_cast<const char *>(&length_be), static_cast<std::streamsize>(sizeof(length_be)))
+	         .write(reinterpret_cast<const char *>(key.data()), static_cast<std::streamsize>(key.size()));
+	const AUTO(sha256, sha256_os.finalize());
+	dst.put(sha256.data(), 16); // 16 bytes: first half of checksum
+	::AES_KEY aes_key[1];
+	if(::AES_set_encrypt_key(sha256.data() + 16, 128, aes_key) != 0){
+		LOG_MEDUSA_FATAL("::AES_set_encrypt_key() failed!");
+		std::abort();
 	}
-
-	struct NoncedKey {
-		Nonce nonce;
-		Poseidon::Md5 key_md5;
-
-		explicit NoncedKey(const Nonce &nonce_, const std::string &key_)
-			: nonce(nonce_), key_md5(md5_string(key_))
-		{
+	boost::array<unsigned char, 16> iv, block_dst, block_src;
+	std::memcpy(iv.data(), uuid.data(), 16);
+	std::memset(block_src.data(), 0, block_src.size());
+	for(;;){
+		const AUTO(block_len, src.get(block_src.data(), 16));
+		if(block_len == 0){
+			break;
 		}
-	};
+		AES_cbc_encrypt(block_src.data(), block_dst.data(), block_len, aes_key, iv.data(), AES_ENCRYPT);
+		dst.put(block_dst.data(), block_dst.size()); // *: encrypted data
+	}
+}
+bool decrypt(Poseidon::Uuid &uuid, Poseidon::StreamBuffer &dst, Poseidon::StreamBuffer src, const std::string &key){
+	PROFILE_ME;
 
-	BOOST_STATIC_ASSERT_MSG(sizeof(NoncedKey) == 32, "Incompatible layout detected.");
-
-	// http://en.wikipedia.org/wiki/RC4 有改动。
-
-	boost::shared_ptr<EncryptionContext> create_context(const Poseidon::Uuid &uuid, const NoncedKey &nonced_key){
-		AUTO(ret, boost::make_shared<EncryptionContext>());
-		ret->uuid = uuid;
-		ret->i = 0;
-		ret->j = 0;
-		for(unsigned i = 0; i < 256; ++i){
-			ret->s[i] = i;
+	if(src.get(uuid.data(), uuid.size()) < 16){ // 16 bytes: UUID
+		LOG_MEDUSA_WARNING("Encrypted data is truncated, expecting UUID.");
+		return false;
+	}
+	boost::uint64_t length_be;
+	if(src.get(&length_be, sizeof(length_be)) < 8){ // 8 bytes: length of plaintext
+		LOG_MEDUSA_WARNING("Encrypted data is truncated, expecting length of plaintext.");
+		return false;
+	}
+	const boost::uint64_t plain_size = Poseidon::load_be(length_be);
+	boost::uint64_t plain_size_remaining = plain_size;
+	Poseidon::Sha256_ostream sha256_os;
+	sha256_os.write(reinterpret_cast<const char *>(uuid.data()), static_cast<std::streamsize>(uuid.size()))
+	         .write(reinterpret_cast<const char *>(&length_be), static_cast<std::streamsize>(sizeof(length_be)))
+	         .write(reinterpret_cast<const char *>(key.data()), static_cast<std::streamsize>(key.size()));
+	const AUTO(sha256, sha256_os.finalize());
+	boost::array<unsigned char, 16> checksum;
+	if(src.get(checksum.data(), checksum.size()) < 16){
+		LOG_MEDUSA_WARNING("Encrypted data is truncated, expecting first half of checksum.");
+		return false;
+	}
+	if(std::memcmp(sha256.data(), checksum.data(), 16) != 0){
+		LOG_MEDUSA_WARNING("Encrypted data is invalid, checksum failure.");
+		return false;
+	}
+	::AES_KEY aes_key[1];
+	if(::AES_set_decrypt_key(sha256.data() + 16, 128, aes_key) != 0){
+		LOG_MEDUSA_FATAL("::AES_set_decrypt_key() failed!");
+		std::abort();
+	}
+	boost::array<unsigned char, 16> iv, block_dst, block_src;
+	std::memcpy(iv.data(), uuid.data(), 16);
+	std::memset(block_src.data(), 0, block_src.size());
+	while(plain_size_remaining != 0){
+		const AUTO(block_len, src.get(block_src.data(), 16));
+		if(block_len == 0){
+			LOG_MEDUSA_WARNING("Encrypted data is truncated, leaving out ", plain_size_remaining, " byte(s) of plaintext.");
+			return false;
 		}
-		unsigned i = 0, j = 0;
-		while(i < 256){
-			unsigned tmp;
-#define GEN_S(k_)   \
-			tmp = ret->s[i];    \
-			j = (j + tmp + (k_)) & 0xFF;    \
-			ret->s[i] = ret->s[j];  \
-			ret->s[j] = tmp;    \
-			++i;
-			for(unsigned r = 0; r < 16; ++r){
-				GEN_S(nonced_key.nonce[r]);
-			}
-			for(unsigned r = 0; r < 16; ++r){
-				GEN_S(uuid[r]);
-			}
-			for(unsigned r = 0; r < 16; ++r){
-				GEN_S(nonced_key.key_md5[r]);
-			}
-			for(unsigned r = 0; r < 16; ++r){
-				GEN_S(uuid[r]);
-			}
+		AES_cbc_encrypt(block_src.data(), block_dst.data(), block_len, aes_key, iv.data(), AES_DECRYPT);
+		if(plain_size_remaining < block_dst.size()){
+			dst.put(block_dst.data(), plain_size_remaining); // *: encrypted data
+			plain_size_remaining = 0;
+		} else {
+			dst.put(block_dst.data(), block_dst.size()); // *: encrypted data
+			plain_size_remaining -= block_dst.size();
 		}
-		return ret;
 	}
-	unsigned char encrypt_byte(EncryptionContext *ctx, unsigned char c){
-		unsigned byte = c;
-		// ctx->i = (ctx->i + 1) & 0xFF;
-		const unsigned k1 = ctx->s[ctx->i];
-		ctx->j = (ctx->j + k1) & 0xFF;
-		const unsigned k2 = ctx->s[ctx->j];
-		ctx->s[ctx->i] = k2;
-		ctx->s[ctx->j] = k1;
-		ctx->i = (ctx->i + (byte | 0x0F)) & 0xFF; // RC4 改。
-		byte ^= k1 + k2;
-		return byte;
-	}
-	unsigned char decrypt_byte(EncryptionContext *ctx, unsigned char c){
-		unsigned byte = c;
-		// ctx->i = (ctx->i + 1) & 0xFF;
-		const unsigned k1 = ctx->s[ctx->i];
-		ctx->j = (ctx->j + k1) & 0xFF;
-		const unsigned k2 = ctx->s[ctx->j];
-		ctx->s[ctx->i] = k2;
-		ctx->s[ctx->j] = k1;
-		byte ^= k1 + k2;
-		ctx->i = (ctx->i + (byte | 0x0F)) & 0xFF; // RC4 改。
-		return byte;
-	}
-}
-
-std::size_t get_encrypted_header_size(){
-	return sizeof(EncryptedHeader);
-}
-
-std::pair<boost::shared_ptr<EncryptionContext>, Poseidon::StreamBuffer> encrypt_header(const Poseidon::Uuid &uuid, const std::string &key){
-	PROFILE_ME;
-
-	Nonce nonce;
-	for(AUTO(it, nonce.begin()); it != nonce.end(); ++it){
-		*it = Poseidon::random_uint32();
-	}
-	const NoncedKey nonced_key(nonce, key);
-	AUTO(context, create_context(uuid, nonced_key));
-
-	EncryptedHeader header;
-	header.nonce = nonce;
-	header.uuid = uuid;
-	Poseidon::Md5_ostream md5_os;
-	md5_os.write(reinterpret_cast<const char *>(&nonced_key), static_cast<std::streamsize>(sizeof(nonced_key)));
-	header.auth_md5 = md5_os.finalize();
-	AUTO(encrypted, Poseidon::StreamBuffer(&header, sizeof(header)));
-
-	return std::make_pair(STD_MOVE(context), STD_MOVE(encrypted));
-}
-Poseidon::StreamBuffer encrypt_payload(const boost::shared_ptr<EncryptionContext> &context, Poseidon::StreamBuffer plain){
-	PROFILE_ME;
-
-	Poseidon::StreamBuffer encrypted;
-	int c;
-	while((c = plain.get()) >= 0){
-		encrypted.put(encrypt_byte(context.get(), static_cast<unsigned char>(c)));
-	}
-	return encrypted;
-}
-
-boost::shared_ptr<EncryptionContext> try_decrypt_header(const Poseidon::StreamBuffer &encrypted, const std::string &key){
-	PROFILE_ME;
-
-	const AUTO(header_size, get_encrypted_header_size());
-	if(encrypted.size() < header_size){
-		LOG_MEDUSA_ERROR("Data truncated, expecting at least ", header_size, " bytes.");
-		DEBUG_THROW(Poseidon::Exception, Poseidon::sslit("Data truncated"));
-	}
-
-	EncryptedHeader header;
-	encrypted.peek(&header, sizeof(header));
-	const NoncedKey nonced_key(header.nonce, key);
-	Poseidon::Md5_ostream md5_os;
-	md5_os.write(reinterpret_cast<const char *>(&nonced_key), static_cast<std::streamsize>(sizeof(nonced_key)));
-	const AUTO(auth_md5_expected, md5_os.finalize());
-	if(header.auth_md5 != auth_md5_expected){
-		LOG_MEDUSA_DEBUG("MD5 check failure.");
-		return VAL_INIT;
-	}
-	return create_context(header.uuid, nonced_key);
-}
-Poseidon::StreamBuffer decrypt_payload(const boost::shared_ptr<EncryptionContext> &context, Poseidon::StreamBuffer encrypted){
-	PROFILE_ME;
-
-	Poseidon::StreamBuffer plain;
-	int c;
-	while((c = encrypted.get()) >= 0){
-		plain.put(decrypt_byte(context.get(), static_cast<unsigned char>(c)));
-	}
-	return plain;
+	return true;
 }
 
 }

@@ -286,10 +286,9 @@ FetchSession::~FetchSession(){
 bool FetchSession::send_explicit(const Poseidon::Uuid &fetch_uuid, boost::uint16_t message_id, Poseidon::StreamBuffer plain){
 	PROFILE_ME;
 
-	AUTO(pair, encrypt_header(fetch_uuid, m_password));
-	AUTO(payload, encrypt_payload(pair.first, STD_MOVE(plain)));
-	pair.second.splice(payload);
-	return Poseidon::Cbpp::Session::send(message_id, STD_MOVE(pair.second));
+	Poseidon::StreamBuffer encrypted;
+	encrypt(encrypted, fetch_uuid, STD_MOVE(plain), m_password);
+	return Poseidon::Cbpp::Session::send(message_id, STD_MOVE(encrypted));
 }
 bool FetchSession::send(const Poseidon::Uuid &fetch_uuid, const Poseidon::Cbpp::MessageBase &msg){
 	PROFILE_ME;
@@ -300,24 +299,12 @@ bool FetchSession::send(const Poseidon::Uuid &fetch_uuid, const Poseidon::Cbpp::
 void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::StreamBuffer payload){
 	PROFILE_ME;
 
-	const AUTO(header_size, get_encrypted_header_size());
-	if(payload.size() < header_size){
-		LOG_MEDUSA_ERROR("Frame from fetch client is too small: got ", payload.size(), ", expecting ", header_size);
-		DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ST_END_OF_STREAM);
+	Poseidon::Uuid fetch_uuid;
+	Poseidon::StreamBuffer plain;
+	if(!decrypt(fetch_uuid, plain, STD_MOVE(payload), m_password)){
+		LOG_MEDUSA_ERROR("Error decrypting data from fetch client: remote = ", get_remote_info());
+		DEBUG_THROW(Poseidon::Cbpp::Exception, Poseidon::Cbpp::ST_END_OF_STREAM, Poseidon::sslit("Error decrypting data from fetch client"));
 	}
-	const AUTO(context, try_decrypt_header(payload, m_password));
-	if(!context){
-		LOG_MEDUSA_WARNING("Unexpected checksum. Maybe you provided a wrong password?");
-		DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ST_FORBIDDEN);
-	}
-	payload.discard(header_size);
-	AUTO(plain, decrypt_payload(context, STD_MOVE(payload)));
-
-	if(!m_timer){
-		m_timer = Poseidon::TimerDaemon::register_timer(0, 50, boost::bind(&timer_proc, virtual_weak_from_this<FetchSession>()));
-	}
-
-	const AUTO_REF(fetch_uuid, context->uuid);
 	boost::shared_ptr<Channel> channel;
 	try {
 		LOG_MEDUSA_DEBUG("Fetch request: fetch_uuid = ", fetch_uuid, ", message_id = ", message_id);
@@ -341,6 +328,9 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 		if(!result.second){
 			LOG_MEDUSA_WARNING("Fetch channel exists: fetch_uuid = ", fetch_uuid);
 			break;
+		}
+		if(!m_timer){
+			m_timer = Poseidon::TimerDaemon::register_timer(0, 100, boost::bind(&timer_proc, virtual_weak_from_this<FetchSession>()));
 		}
 		channel = result.first->second;
 	}

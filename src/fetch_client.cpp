@@ -30,10 +30,9 @@ FetchClient::~FetchClient(){
 bool FetchClient::send_explicit(const Poseidon::Uuid &fetch_uuid, boost::uint16_t message_id, Poseidon::StreamBuffer plain){
 	PROFILE_ME;
 
-	AUTO(pair, encrypt_header(fetch_uuid, m_password));
-	AUTO(payload, encrypt_payload(pair.first, STD_MOVE(plain)));
-	pair.second.splice(payload);
-	return Poseidon::Cbpp::Client::send(message_id, STD_MOVE(pair.second));
+	Poseidon::StreamBuffer encrypted;
+	encrypt(encrypted, fetch_uuid, STD_MOVE(plain), m_password);
+	return Poseidon::Cbpp::Client::send(message_id, STD_MOVE(encrypted));
 }
 bool FetchClient::send(const Poseidon::Uuid &fetch_uuid, const Poseidon::Cbpp::MessageBase &msg){
 	PROFILE_ME;
@@ -45,20 +44,12 @@ void FetchClient::on_sync_data_message(boost::uint16_t message_id, Poseidon::Str
 	PROFILE_ME;
 	LOG_MEDUSA_DEBUG("Fetch data message: message_id = ", message_id, ", payload_size = ", payload.size());
 
-	const AUTO(header_size, get_encrypted_header_size());
-	if(payload.size() < header_size){
-		LOG_MEDUSA_ERROR("Frame from fetch server is too small: got ", payload.size(), ", expecting ", header_size);
-		DEBUG_THROW(Poseidon::Cbpp::Exception, Poseidon::Cbpp::ST_END_OF_STREAM, Poseidon::sslit("Frame from fetch server is too small"));
+	Poseidon::Uuid fetch_uuid;
+	Poseidon::StreamBuffer plain;
+	if(!decrypt(fetch_uuid, plain, STD_MOVE(payload), m_password)){
+		LOG_MEDUSA_ERROR("Error decrypting data from fetch server: remote = ", get_remote_info());
+		DEBUG_THROW(Poseidon::Cbpp::Exception, Poseidon::Cbpp::ST_END_OF_STREAM, Poseidon::sslit("Error decrypting data from fetch server"));
 	}
-	const AUTO(context, try_decrypt_header(payload, m_password));
-	if(!context){
-		LOG_MEDUSA_ERROR("Checksum mismatch. Maybe you provided a wrong password?");
-		DEBUG_THROW(Poseidon::Cbpp::Exception, Poseidon::Cbpp::ST_FORBIDDEN, Poseidon::sslit("Checksum mismatch"));
-	}
-	payload.discard(header_size);
-	AUTO(plain, decrypt_payload(context, STD_MOVE(payload)));
-
-	const AUTO_REF(fetch_uuid, context->uuid);
 	LOG_MEDUSA_DEBUG("Fetch response: fetch_uuid = ", fetch_uuid, ", message_id = ", message_id);
 	AUTO(it, m_sessions.find(fetch_uuid));
 	if(it == m_sessions.end()){
