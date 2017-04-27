@@ -47,7 +47,7 @@ protected:
 	void on_read_hup() NOEXCEPT OVERRIDE {
 		shutdown_write();
 	}
-	void on_close(int err_code) NOEXCEPT OVERRIDE {
+	void on_close(int err_code) OVERRIDE {
 		Poseidon::atomic_store(m_readable, true, Poseidon::ATOMIC_RELAXED);
 		Poseidon::atomic_store(m_err_code, err_code, Poseidon::ATOMIC_RELAXED);
 	}

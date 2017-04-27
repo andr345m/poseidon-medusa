@@ -619,18 +619,14 @@ void ProxySession::on_read_hup(){
 			virtual_shared_from_this<ProxySession>()),
 		VAL_INIT);
 }
-void ProxySession::on_close(int err_code) NOEXCEPT {
+void ProxySession::on_close(int err_code){
 	PROFILE_ME;
 	LOG_MEDUSA_DEBUG("Proxy session closed: err_code = ", err_code);
 
-	try {
-		Poseidon::enqueue(
-			boost::make_shared<CloseJob>(
-				virtual_shared_from_this<ProxySession>(), err_code),
-			VAL_INIT);
-	} catch(std::exception &e){
-		LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
-	}
+	Poseidon::enqueue(
+		boost::make_shared<CloseJob>(
+			virtual_shared_from_this<ProxySession>(), err_code),
+		VAL_INIT);
 }
 void ProxySession::on_receive(Poseidon::StreamBuffer data){
 	PROFILE_ME;
