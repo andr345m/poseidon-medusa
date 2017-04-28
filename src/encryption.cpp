@@ -11,17 +11,12 @@ void encrypt(Poseidon::StreamBuffer &dst, const Poseidon::Uuid &uuid, Poseidon::
 	PROFILE_ME;
 
 	dst.put(uuid.data(), uuid.size()); // 16 bytes: UUID
-	boost::uint64_t length_be;
-	const std::size_t plain_size = src.size();
-	Poseidon::store_be(length_be, plain_size);
-	dst.put(&length_be, sizeof(length_be)); // 8 bytes: length of plaintext
-	boost::uint64_t nonce_be;
-	Poseidon::store_be(nonce_be, Poseidon::random_uint64());
-	dst.put(&nonce_be, sizeof(nonce_be)); // 8 bytes: nonce
+	boost::uint64_t nonce_remainder_be;
+	Poseidon::store_be(nonce_remainder_be, (Poseidon::random_uint64() << 4) | (src.size() & 0x0F));
+	dst.put(&nonce_remainder_be, sizeof(nonce_remainder_be)); // 8 bytes: nonce and number of bytes in the last block
 	Poseidon::Sha256_ostream sha256_os;
 	sha256_os.write(reinterpret_cast<const char *>(uuid.data()), static_cast<std::streamsize>(uuid.size()))
-	         .write(reinterpret_cast<const char *>(&length_be), static_cast<std::streamsize>(sizeof(length_be)))
-	         .write(reinterpret_cast<const char *>(&nonce_be), static_cast<std::streamsize>(sizeof(nonce_be)))
+	         .write(reinterpret_cast<const char *>(&nonce_remainder_be), static_cast<std::streamsize>(sizeof(nonce_remainder_be)))
 	         .write(reinterpret_cast<const char *>(key.data()), static_cast<std::streamsize>(key.size()));
 	const AUTO(sha256, sha256_os.finalize());
 	dst.put(sha256.data(), 16); // 16 bytes: first half of checksum
@@ -39,8 +34,7 @@ void encrypt(Poseidon::StreamBuffer &dst, const Poseidon::Uuid &uuid, Poseidon::
 			break;
 		}
 		::AES_cbc_encrypt(block_src.data(), block_dst.data(), block_plain_len, aes_key, iv.data(), AES_ENCRYPT);
-		const AUTO(block_encrypted_len, block_dst.size());
-		dst.put(block_dst.data(), block_encrypted_len); // *: encrypted data
+		dst.put(block_dst.data(), block_dst.size()); // *: encrypted data
 	}
 }
 bool decrypt(Poseidon::Uuid &uuid, Poseidon::StreamBuffer &dst, Poseidon::StreamBuffer src, const std::string &key){
@@ -50,22 +44,14 @@ bool decrypt(Poseidon::Uuid &uuid, Poseidon::StreamBuffer &dst, Poseidon::Stream
 		LOG_MEDUSA_WARNING("Encrypted data is truncated, expecting UUID.");
 		return false;
 	}
-	boost::uint64_t length_be;
-	if(src.get(&length_be, sizeof(length_be)) < 8){ // 8 bytes: length of plaintext
-		LOG_MEDUSA_WARNING("Encrypted data is truncated, expecting length of plaintext.");
+	boost::uint64_t nonce_remainder_be;
+	if(src.get(&nonce_remainder_be, sizeof(nonce_remainder_be)) < 8){ // 8 bytes: nonce and number of bytes in the last block
+		LOG_MEDUSA_WARNING("Encrypted data is truncated, expecting nonce and number of bytes in the last block.");
 		return false;
 	}
-	const std::size_t plain_size = Poseidon::load_be(length_be);
-	boost::uint64_t nonce_be;
-	if(src.get(&nonce_be, sizeof(nonce_be)) < 8){ // 8 bytes: nonce
-		LOG_MEDUSA_WARNING("Encrypted data is truncated, expecting nonce.");
-		return false;
-	}
-	std::size_t plain_size_remaining = plain_size;
 	Poseidon::Sha256_ostream sha256_os;
 	sha256_os.write(reinterpret_cast<const char *>(uuid.data()), static_cast<std::streamsize>(uuid.size()))
-	         .write(reinterpret_cast<const char *>(&length_be), static_cast<std::streamsize>(sizeof(length_be)))
-	         .write(reinterpret_cast<const char *>(&nonce_be), static_cast<std::streamsize>(sizeof(nonce_be)))
+	         .write(reinterpret_cast<const char *>(&nonce_remainder_be), static_cast<std::streamsize>(sizeof(nonce_remainder_be)))
 	         .write(reinterpret_cast<const char *>(key.data()), static_cast<std::streamsize>(key.size()));
 	const AUTO(sha256, sha256_os.finalize());
 	boost::array<unsigned char, 16> checksum;
@@ -85,16 +71,16 @@ bool decrypt(Poseidon::Uuid &uuid, Poseidon::StreamBuffer &dst, Poseidon::Stream
 	boost::array<unsigned char, 16> iv, block_dst, block_src;
 	std::memcpy(iv.data(), uuid.data(), 16);
 	std::memset(block_src.data(), 0, block_src.size());
-	while(plain_size_remaining != 0){
+	for(;;){
 		const AUTO(block_encrypted_len, src.get(block_src.data(), 16));
 		if(block_encrypted_len == 0){
-			LOG_MEDUSA_WARNING("Encrypted data is truncated, leaving out ", plain_size_remaining, " byte(s) of plaintext.");
-			return false;
+			break;
 		}
 		::AES_cbc_encrypt(block_src.data(), block_dst.data(), block_encrypted_len, aes_key, iv.data(), AES_DECRYPT);
-		const AUTO(block_plain_len, std::min(plain_size_remaining, block_dst.size()));
-		plain_size_remaining -= block_plain_len;
-		dst.put(block_dst.data(), block_plain_len); // *: encrypted data
+		dst.put(block_dst.data(), block_dst.size()); // *: encrypted data
+	}
+	for(unsigned remainder = Poseidon::load_be(nonce_remainder_be) & 0x0F; remainder != 0; --remainder){
+		dst.unput();
 	}
 	return true;
 }
