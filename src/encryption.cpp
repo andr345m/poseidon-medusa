@@ -20,13 +20,13 @@ void encrypt(Poseidon::StreamBuffer &dst, const Poseidon::Uuid &uuid, Poseidon::
 	         .write(reinterpret_cast<const char *>(key.data()), static_cast<std::streamsize>(key.size()));
 	const AUTO(sha256, sha256_os.finalize());
 	::AES_KEY aes_key[1];
-	if(::AES_set_encrypt_key(sha256.data() + 16, 128, aes_key) != 0){
+	if(::AES_set_encrypt_key(sha256.data(), 128, aes_key) != 0){
 		LOG_MEDUSA_FATAL("::AES_set_encrypt_key() failed!");
 		std::abort();
 	}
 	boost::array<unsigned char, 16> iv, block_dst, block_src;
 	std::memset(iv.data(), 0xCC, iv.size());
-	std::memcpy(block_src.data(), uuid.data(), block_src.size());
+	std::memcpy(block_src.data(), sha256.data() + 16, block_src.size());
 	::AES_cbc_encrypt(block_src.data(), block_dst.data(), block_src.size(), aes_key, iv.data(), AES_ENCRYPT);
 	dst.put(block_dst.data(), 16); // 16 bytes: checksum
 	for(;;){
@@ -61,7 +61,7 @@ bool decrypt(Poseidon::Uuid &uuid, Poseidon::StreamBuffer &dst, Poseidon::Stream
 		return false;
 	}
 	::AES_KEY aes_key[1];
-	if(::AES_set_decrypt_key(sha256.data() + 16, 128, aes_key) != 0){
+	if(::AES_set_decrypt_key(sha256.data(), 128, aes_key) != 0){
 		LOG_MEDUSA_FATAL("::AES_set_decrypt_key() failed!");
 		std::abort();
 	}
@@ -69,7 +69,7 @@ bool decrypt(Poseidon::Uuid &uuid, Poseidon::StreamBuffer &dst, Poseidon::Stream
 	std::memset(iv.data(), 0xCC, iv.size());
 	std::memcpy(block_src.data(), checksum.data(), block_src.size());
 	::AES_cbc_encrypt(block_src.data(), block_dst.data(), block_src.size(), aes_key, iv.data(), AES_DECRYPT);
-	if(std::memcmp(block_dst.data(), uuid.data(), 16) != 0){
+	if(std::memcmp(block_dst.data(), sha256.data() + 16, block_dst.size()) != 0){
 		LOG_MEDUSA_WARNING("Encrypted data is invalid, checksum failure.");
 		return false;
 	}
