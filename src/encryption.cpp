@@ -19,15 +19,16 @@ void encrypt(Poseidon::StreamBuffer &dst, const Poseidon::Uuid &uuid, Poseidon::
 	         .write(reinterpret_cast<const char *>(&nonce_remainder_be), static_cast<std::streamsize>(sizeof(nonce_remainder_be)))
 	         .write(reinterpret_cast<const char *>(key.data()), static_cast<std::streamsize>(key.size()));
 	const AUTO(sha256, sha256_os.finalize());
-	dst.put(sha256.data(), 16); // 16 bytes: first half of checksum
 	::AES_KEY aes_key[1];
 	if(::AES_set_encrypt_key(sha256.data() + 16, 128, aes_key) != 0){
 		LOG_MEDUSA_FATAL("::AES_set_encrypt_key() failed!");
 		std::abort();
 	}
 	boost::array<unsigned char, 16> iv, block_dst, block_src;
-	std::memcpy(iv.data(), uuid.data(), 16);
-	std::memset(block_src.data(), 0, block_src.size());
+	std::memset(iv.data(), 0xCC, iv.size());
+	std::memcpy(block_src.data(), uuid.data(), block_src.size());
+	::AES_cbc_encrypt(block_src.data(), block_dst.data(), block_src.size(), aes_key, iv.data(), AES_ENCRYPT);
+	dst.put(block_dst.data(), 16); // 16 bytes: checksum
 	for(;;){
 		const AUTO(block_plain_len, src.get(block_src.data(), 16));
 		if(block_plain_len == 0){
@@ -59,18 +60,19 @@ bool decrypt(Poseidon::Uuid &uuid, Poseidon::StreamBuffer &dst, Poseidon::Stream
 		LOG_MEDUSA_WARNING("Encrypted data is truncated, expecting first half of checksum.");
 		return false;
 	}
-	if(std::memcmp(sha256.data(), checksum.data(), 16) != 0){
-		LOG_MEDUSA_WARNING("Encrypted data is invalid, checksum failure.");
-		return false;
-	}
 	::AES_KEY aes_key[1];
 	if(::AES_set_decrypt_key(sha256.data() + 16, 128, aes_key) != 0){
 		LOG_MEDUSA_FATAL("::AES_set_decrypt_key() failed!");
 		std::abort();
 	}
 	boost::array<unsigned char, 16> iv, block_dst, block_src;
-	std::memcpy(iv.data(), uuid.data(), 16);
-	std::memset(block_src.data(), 0, block_src.size());
+	std::memset(iv.data(), 0xCC, iv.size());
+	std::memcpy(block_src.data(), uuid.data(), block_src.size());
+	::AES_cbc_encrypt(block_src.data(), block_dst.data(), block_src.size(), aes_key, iv.data(), AES_DECRYPT);
+	if(std::memcmp(block_dst.data(), checksum.data(), 16) != 0){
+		LOG_MEDUSA_WARNING("Encrypted data is invalid, checksum failure.");
+		return false;
+	}
 	for(;;){
 		const AUTO(block_encrypted_len, src.get(block_src.data(), 16));
 		if(block_encrypted_len == 0){
