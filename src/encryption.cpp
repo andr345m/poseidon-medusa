@@ -67,9 +67,9 @@ bool decrypt(Poseidon::Uuid &uuid, Poseidon::StreamBuffer &dst, Poseidon::Stream
 	}
 	boost::array<unsigned char, 16> iv, block_dst, block_src;
 	std::memset(iv.data(), 0xCC, iv.size());
-	std::memcpy(block_src.data(), uuid.data(), block_src.size());
+	std::memcpy(block_src.data(), checksum.data(), block_src.size());
 	::AES_cbc_encrypt(block_src.data(), block_dst.data(), block_src.size(), aes_key, iv.data(), AES_DECRYPT);
-	if(std::memcmp(block_dst.data(), checksum.data(), 16) != 0){
+	if(std::memcmp(block_dst.data(), uuid.data(), 16) != 0){
 		LOG_MEDUSA_WARNING("Encrypted data is invalid, checksum failure.");
 		return false;
 	}
