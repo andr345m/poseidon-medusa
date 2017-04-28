@@ -56,8 +56,8 @@ bool decrypt(Poseidon::Uuid &uuid, Poseidon::StreamBuffer &dst, Poseidon::Stream
 	         .write(reinterpret_cast<const char *>(key.data()), static_cast<std::streamsize>(key.size()));
 	const AUTO(sha256, sha256_os.finalize());
 	boost::array<unsigned char, 16> checksum;
-	if(src.get(checksum.data(), checksum.size()) < 16){ // 16 bytes: first half of checksum
-		LOG_MEDUSA_WARNING("Encrypted data is truncated, expecting first half of checksum.");
+	if(src.get(checksum.data(), checksum.size()) < 16){ // 16 bytes: checksum
+		LOG_MEDUSA_WARNING("Encrypted data is truncated, expecting checksum.");
 		return false;
 	}
 	::AES_KEY aes_key[1];
