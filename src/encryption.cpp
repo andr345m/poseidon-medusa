@@ -79,7 +79,7 @@ bool decrypt(Poseidon::Uuid &uuid, Poseidon::StreamBuffer &dst, Poseidon::Stream
 		::AES_cbc_encrypt(block_src.data(), block_dst.data(), block_encrypted_len, aes_key, iv.data(), AES_DECRYPT);
 		dst.put(block_dst.data(), block_dst.size()); // *: encrypted data
 	}
-	for(unsigned remainder = Poseidon::load_be(nonce_remainder_be) & 0x0F; remainder != 0; --remainder){
+	for(unsigned remainder = -Poseidon::load_be(nonce_remainder_be) & 0x0F; remainder != 0; --remainder){
 		dst.unput();
 	}
 	return true;
