@@ -31,7 +31,7 @@ void encrypt(Poseidon::StreamBuffer &dst, const Poseidon::Uuid &uuid, Poseidon::
 	// Encrypt payload.
 	const std::size_t n_blocks_m1 = (src.size() + 1) / 16;
 	for(std::size_t i = 0; i < n_blocks_m1; ++i){
-		src.get(block_src.data(), 16);
+		DEBUG_THROW_ASSERT(src.get(block_src.data(), 16) == 16);
 		::AES_cbc_encrypt(block_src.data(), block_dst.data(), 16, aes_key, iv.data(), AES_ENCRYPT);
 		dst.put(block_dst.data(), 16);
 	}
@@ -88,15 +88,16 @@ bool decrypt(Poseidon::Uuid &uuid, Poseidon::StreamBuffer &dst, Poseidon::Stream
 		return false;
 	}
 	for(std::size_t i = 0; i < n_blocks_m1; ++i){
-		src.get(block_src.data(), 16);
+		DEBUG_THROW_ASSERT(src.get(block_src.data(), 16) == 16);
 		::AES_cbc_encrypt(block_src.data(), block_dst.data(), 16, aes_key, iv.data(), AES_DECRYPT);
 		dst.put(block_dst.data(), 16);
 	}
 	// Remove PKCS#7 padding.
-	src.get(block_src.data(), 16);
+	DEBUG_THROW_ASSERT(src.get(block_src.data(), 16) == 16);
 	::AES_cbc_encrypt(block_src.data(), block_dst.data(), 16, aes_key, iv.data(), AES_DECRYPT);
 	const unsigned bytes_padded = block_dst.back();
 	LOG_MEDUSA_DEBUG("Removing ", bytes_padded, " padding byte(s).");
+	DEBUG_THROW_ASSERT((1 <= bytes_padded) && (bytes_padded <= 16));
 	dst.put(block_dst.data(), 16 - bytes_padded);
 	return true;
 }
