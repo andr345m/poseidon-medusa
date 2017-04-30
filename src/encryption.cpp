@@ -24,8 +24,8 @@ void encrypt(Poseidon::StreamBuffer &dst, const Poseidon::Uuid &uuid, Poseidon::
 		std::abort();
 	}
 	boost::array<unsigned char, 16> iv, block_dst, block_src;
-	std::memset(iv.data(), 0xCC, 16);
-	std::memcpy(block_src.data(), sha256.data() + 16, 16);
+	std::fill(iv.begin(), iv.end(), 0xCC);
+	std::copy(sha256.begin() + 16, sha256.end(), block_src.begin());
 	::AES_cbc_encrypt(block_src.data(), block_dst.data(), 16, aes_key, iv.data(), AES_ENCRYPT);
 	dst.put(block_dst.data(), 16); // 16 bytes: checksum
 	// Encrypt payload.
@@ -38,7 +38,7 @@ void encrypt(Poseidon::StreamBuffer &dst, const Poseidon::Uuid &uuid, Poseidon::
 	// Append PKCS#7 padding.
 	const unsigned bytes_padded = 16 - src.get(block_src.data(), 16);
 	LOG_MEDUSA_DEBUG("Appending ", bytes_padded, " padding byte(s).");
-	std::memset(block_src.end() - bytes_padded, static_cast<int>(bytes_padded), bytes_padded);
+	std::fill(block_src.end() - bytes_padded, block_src.end(), bytes_padded);
 	::AES_cbc_encrypt(block_src.data(), block_dst.data(), 16, aes_key, iv.data(), AES_ENCRYPT);
 	dst.put(block_dst.data(), 16);
 }
@@ -70,10 +70,10 @@ bool decrypt(Poseidon::Uuid &uuid, Poseidon::StreamBuffer &dst, Poseidon::Stream
 		std::abort();
 	}
 	boost::array<unsigned char, 16> iv, block_dst, block_src;
-	std::memset(iv.data(), 0xCC, 16);
-	std::memcpy(block_src.data(), checksum.data(), 16);
+	std::fill(iv.begin(), iv.end(), 0xCC);
+	std::copy(checksum.begin(), checksum.end(), block_src.begin());
 	::AES_cbc_encrypt(block_src.data(), block_dst.data(), 16, aes_key, iv.data(), AES_DECRYPT);
-	if(std::memcmp(block_dst.data(), sha256.data() + 16, 16) != 0){
+	if(!std::equal(block_dst.begin(), block_dst.end(), sha256.begin() + 16)){
 		LOG_MEDUSA_WARNING("Encrypted data is invalid, erroneous checksum.");
 		return false;
 	}
