@@ -38,7 +38,7 @@ void encrypt(Poseidon::StreamBuffer &dst, const Poseidon::Uuid &uuid, Poseidon::
 	// Append PKCS#7 padding.
 	const unsigned bytes_padded = 16 - src.get(block_src.data(), 16);
 	LOG_MEDUSA_DEBUG("Appending ", bytes_padded, " padding byte(s).");
-	std::memset(block_src.data() + bytes_padded, static_cast<int>(bytes_padded), bytes_padded);
+	std::memset(block_src.end() - bytes_padded, static_cast<int>(bytes_padded), bytes_padded);
 	::AES_cbc_encrypt(block_src.data(), block_dst.data(), 16, aes_key, iv.data(), AES_ENCRYPT);
 	dst.put(block_dst.data(), 16);
 }
@@ -50,8 +50,8 @@ bool decrypt(Poseidon::Uuid &uuid, Poseidon::StreamBuffer &dst, Poseidon::Stream
 		return false;
 	}
 	boost::uint64_t nonce;
-	if(src.get(&nonce, sizeof(nonce)) < 8){ // 8 bytes: nonce and number of bytes in the last block
-		LOG_MEDUSA_WARNING("Encrypted data is truncated, expecting nonce and number of bytes in the last block.");
+	if(src.get(&nonce, sizeof(nonce)) < 8){ // 8 bytes: nonce
+		LOG_MEDUSA_WARNING("Encrypted data is truncated, expecting nonce.");
 		return false;
 	}
 	Poseidon::Sha256_ostream sha256_os;
