@@ -29,7 +29,7 @@ void encrypt(Poseidon::StreamBuffer &dst, const Poseidon::Uuid &uuid, Poseidon::
 	::AES_cbc_encrypt(block_src.data(), block_dst.data(), 16, aes_key, iv.data(), AES_ENCRYPT);
 	dst.put(block_dst.data(), 16); // 16 bytes: checksum
 	// Encrypt payload.
-	const std::size_t n_blocks_m1 = (src.size() + 1) / 16;
+	const std::size_t n_blocks_m1 = src.size() / 16 + 1;
 	for(std::size_t i = 0; i < n_blocks_m1; ++i){
 		DEBUG_THROW_ASSERT(src.get(block_src.data(), 16) == 16);
 		::AES_cbc_encrypt(block_src.data(), block_dst.data(), 16, aes_key, iv.data(), AES_ENCRYPT);
