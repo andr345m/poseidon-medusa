@@ -31,7 +31,7 @@ void encrypt(Poseidon::StreamBuffer &dst, const Poseidon::Uuid &uuid, Poseidon::
 	for(;;){
 		const AUTO(block_plain_len, src.get(block_src.data(), 16));
 		if(block_plain_len < 16){
-			// Add PKCS#7 padding bytes.
+			// Append PKCS#7 padding.
 			const unsigned bytes_padded = 16 - block_plain_len;
 			for(unsigned i = 0; i < bytes_padded; ++i){
 				block_src[block_plain_len + i] = bytes_padded;
@@ -40,7 +40,7 @@ void encrypt(Poseidon::StreamBuffer &dst, const Poseidon::Uuid &uuid, Poseidon::
 			dst.put(block_dst.data(), 16); // *: final block encrypted
 			break;
 		}
-		::AES_cbc_encrypt(block_src.data(), block_dst.data(), block_plain_len, aes_key, iv.data(), AES_ENCRYPT);
+		::AES_cbc_encrypt(block_src.data(), block_dst.data(), 16, aes_key, iv.data(), AES_ENCRYPT);
 		dst.put(block_dst.data(), 16); // *: block encrypted
 	}
 }
@@ -76,7 +76,7 @@ bool decrypt(Poseidon::Uuid &uuid, Poseidon::StreamBuffer &dst, Poseidon::Stream
 	std::memcpy(block_src.data(), checksum.data(), 16);
 	::AES_cbc_encrypt(block_src.data(), block_dst.data(), 16, aes_key, iv.data(), AES_DECRYPT);
 	if(std::memcmp(block_dst.data(), sha256.data() + 16, 16) != 0){
-		LOG_MEDUSA_WARNING("Encrypted data is invalid, checksum failure.");
+		LOG_MEDUSA_WARNING("Encrypted data is invalid, erroneous checksum.");
 		return false;
 	}
 	if((src.size() - 1) / 16 != src.size() / 16 - 1){ // (size % 16 != 0) || (size == 0)
@@ -86,16 +86,17 @@ bool decrypt(Poseidon::Uuid &uuid, Poseidon::StreamBuffer &dst, Poseidon::Stream
 	for(;;){
 		const AUTO(block_encrypted_len, src.get(block_src.data(), 16));
 		if(block_encrypted_len < 16){
-			// Remove PKCS#7 padding bytes.
+			// Remove PKCS#7 padding.
 			DEBUG_THROW_ASSERT(block_encrypted_len == 0);
 			DEBUG_THROW_ASSERT(!dst.empty());
 			const unsigned bytes_padded = static_cast<unsigned>(dst.back());
+			DEBUG_THROW_ASSERT((1 <= bytes_padded) && (bytes_padded <= 16));
 			for(unsigned i = 0; i < bytes_padded; ++i){
 				dst.unput();
 			}
 			break;
 		}
-		::AES_cbc_encrypt(block_src.data(), block_dst.data(), block_encrypted_len, aes_key, iv.data(), AES_DECRYPT);
+		::AES_cbc_encrypt(block_src.data(), block_dst.data(), 16, aes_key, iv.data(), AES_DECRYPT);
 		dst.put(block_dst.data(), 16); // *: block encrypted
 	}
 	return true;
