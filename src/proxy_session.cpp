@@ -445,7 +445,7 @@ public:
 						break;
 					}
 				}
-				entity_os <<"</p>";
+				entity_os <<".</p>";
 			}
 			entity_os <<"</body></html>";
 			Poseidon::Http::ServerWriter::put_response(STD_MOVE(response_headers), STD_MOVE(entity_os.get_buffer()), true);
