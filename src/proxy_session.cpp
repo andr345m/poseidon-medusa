@@ -560,7 +560,7 @@ protected:
 			session->shutdown(e.get_status_code(), e.what(), e.get_headers());
 		} catch(std::exception &e){
 			LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
-			session->shutdown(Poseidon::Http::ST_BAD_GATEWAY, e.what());
+			session->force_shutdown();
 		}
 	}
 };
