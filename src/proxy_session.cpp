@@ -110,6 +110,10 @@ protected:
 			Poseidon::add_flags(m_flags, FetchSession::FL_TUNNEL);
 		}
 
+		if(Poseidon::has_none_flags_of(m_flags, FetchSession::FL_KEEP_ALIVE)){
+			m_session->shutdown_read();
+		}
+
 		AUTO(fetch_client, m_session->m_weak_fetch_client.lock());
 		if(!fetch_client){
 			const VALUE_TYPE(m_session->m_weak_fetch_client) null_weak_fetch_client;
@@ -388,7 +392,6 @@ public:
 		m_response_valid = false;
 
 		if(Poseidon::has_none_flags_of(m_flags, FetchSession::FL_KEEP_ALIVE)){
-			m_session->shutdown_read();
 			m_session->shutdown_write();
 		}
 
