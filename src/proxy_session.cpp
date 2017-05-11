@@ -565,10 +565,12 @@ protected:
 			rewriter.put_encoded_data(STD_MOVE(m_data));
 		} catch(Poseidon::Http::Exception &e){
 			LOG_MEDUSA_WARNING("Http::Exception thrown: status_code = ", e.get_status_code(), ", what = ", e.what());
-			session->shutdown(e.get_status_code(),
-				(e.get_status_code() == Poseidon::Http::ST_PROXY_AUTH_REQUIRED) ? static_cast<unsigned>(Poseidon::Http::ST_BAD_REQUEST)
-				                                                                : e.get_status_code(),
-				Poseidon::Http::get_status_code_desc(e.get_status_code()).desc_long, e.get_headers());
+			unsigned pretend_status_code = e.get_status_code();
+			if(pretend_status_code == Poseidon::Http::ST_PROXY_AUTH_REQUIRED){
+				pretend_status_code = Poseidon::Http::ST_BAD_REQUEST;
+			}
+			session->shutdown(e.get_status_code(), pretend_status_code,
+				Poseidon::Http::get_status_code_desc(pretend_status_code).desc_long, e.get_headers());
 		} catch(std::exception &e){
 			LOG_MEDUSA_WARNING("std::exception thrown: what = ", e.what());
 			session->force_shutdown();
