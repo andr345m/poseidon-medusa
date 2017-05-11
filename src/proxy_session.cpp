@@ -424,10 +424,11 @@ public:
 			          <<status_code <<" " <<desc.desc_short <<"</h1><hr />";
 			if(err_msg){
 				entity_os <<"<p>";
-				const char *p = err_msg;
-				char ch;
-				while((ch = *(p++)) != 0){
-					switch(ch){
+				const std::size_t msg_len = std::strlen(err_msg);
+				int c = -1;
+				for(std::size_t i = 0; i < msg_len; ++i){
+					c = static_cast<unsigned char>(err_msg[i]);
+					switch(c){
 					case '<':
 						entity_os <<"&lt;";
 						break;
@@ -444,11 +445,14 @@ public:
 						entity_os <<"&apos;";
 						break;
 					default:
-						entity_os <<ch;
+						entity_os <<static_cast<char>(c);
 						break;
 					}
 				}
-				entity_os <<".</p>";
+				if((c >= 0) && (c != '.')){
+					entity_os <<'.';
+				}
+				entity_os <<"</p>";
 			}
 			entity_os <<"</body></html>";
 			Poseidon::Http::ServerWriter::put_response(STD_MOVE(response_headers), STD_MOVE(entity_os.get_buffer()), true);
@@ -559,10 +563,10 @@ protected:
 			AUTO_REF(rewriter, session->get_request_rewriter());
 			rewriter.put_encoded_data(STD_MOVE(m_data));
 		} catch(Poseidon::Http::Exception &e){
-			LOG_MEDUSA_INFO("Http::Exception thrown: status_code = ", e.get_status_code(), ", what = ", e.what());
-			session->shutdown(e.get_status_code(), e.what(), e.get_headers());
+			LOG_MEDUSA_WARNING("Http::Exception thrown: status_code = ", e.get_status_code(), ", what = ", e.what());
+			session->shutdown(e.get_status_code(), Poseidon::Http::get_status_code_desc(e.get_status_code()).desc_long, e.get_headers());
 		} catch(std::exception &e){
-			LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
+			LOG_MEDUSA_WARNING("std::exception thrown: what = ", e.what());
 			session->force_shutdown();
 		}
 	}
