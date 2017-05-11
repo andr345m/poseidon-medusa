@@ -4,6 +4,7 @@
 #include <poseidon/tcp_session_base.hpp>
 #include <poseidon/uuid.hpp>
 #include <poseidon/http/fwd.hpp>
+#include <poseidon/http/status_codes.hpp>
 #include <boost/scoped_ptr.hpp>
 #include <boost/shared_ptr.hpp>
 
@@ -42,7 +43,8 @@ public:
 private:
 	RequestRewriter &get_request_rewriter();
 	ResponseRewriter &get_response_rewriter();
-	void shutdown(unsigned http_status_code, const char *err_msg, Poseidon::OptionalMap headers = Poseidon::OptionalMap()) NOEXCEPT;
+	void shutdown(Poseidon::Http::StatusCode status_code, Poseidon::Http::StatusCode pretend_status_code,
+		const char *message, Poseidon::OptionalMap headers = Poseidon::OptionalMap()) NOEXCEPT;
 
 protected:
 	void on_connect() OVERRIDE;

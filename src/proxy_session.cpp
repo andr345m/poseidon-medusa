@@ -357,9 +357,9 @@ public:
 					LOG_MEDUSA_WARNING("Too many HTTP headers: remote = ", m_session->get_remote_info(),
 						", header_size = ", m_header_size, ", max_header_size = ", max_header_size);
 					// XXX; Do we have a better solution?
-					boost::scoped_ptr<ResponseRewriter> temp_rewriter;
-					temp_rewriter.reset(new ResponseRewriter(m_session));
-					temp_rewriter->put_closure_response(Poseidon::Http::ST_BAD_GATEWAY, "The origin server sent too many HTTP headers");
+					boost::scoped_ptr<ResponseRewriter> temp;
+					temp.reset(new ResponseRewriter(m_session));
+					temp->put_closure_response_if_none_exist(Poseidon::Http::ST_BAD_GATEWAY, "The origin server sent too many HTTP headers");
 					return;
 				}
 			}
@@ -404,30 +404,31 @@ public:
 		}
 	}
 
-	void put_closure_response(Poseidon::Http::StatusCode status_code, const char *err_msg, Poseidon::OptionalMap headers = Poseidon::OptionalMap()){
+	void put_closure_response(Poseidon::Http::StatusCode status_code, Poseidon::Http::StatusCode pretend_status_code,
+		const char *message, Poseidon::OptionalMap headers = Poseidon::OptionalMap())
+	{
 		PROFILE_ME;
 
 		if(Poseidon::has_any_flags_of(m_flags, FetchSession::FL_TUNNEL)){
 			// Don't send anything.
 		} else {
-			const AUTO(desc, Poseidon::Http::get_status_code_desc(status_code));
 			Poseidon::Http::ResponseHeaders response_headers = { };
 			response_headers.version = 10001;
 			response_headers.status_code = status_code;
-			response_headers.reason = desc.desc_short;
+			response_headers.reason = Poseidon::Http::get_status_code_desc(pretend_status_code).desc_short;
 			response_headers.headers.swap(headers);
 			response_headers.headers.set(Poseidon::sslit("Connection"), "Close");
 			response_headers.headers.set(Poseidon::sslit("Proxy-Connection"), "Close");
 			response_headers.headers.set(Poseidon::sslit("Content-Type"), "text/html");
 			Poseidon::Buffer_ostream entity_os;
-			entity_os <<"<html><head><title>" <<status_code <<" " <<desc.desc_short <<"</title></head><body><h1>"
-			          <<status_code <<" " <<desc.desc_short <<"</h1><hr />";
-			if(err_msg){
+			entity_os <<"<html><head><title>" <<pretend_status_code <<" " <<response_headers.reason <<"</title></head><body><h1>"
+			          <<pretend_status_code <<" " <<response_headers.reason <<"</h1><hr />";
+			if(message){
 				entity_os <<"<p>";
-				const std::size_t msg_len = std::strlen(err_msg);
+				const std::size_t msg_len = std::strlen(message);
 				int c = -1;
 				for(std::size_t i = 0; i < msg_len; ++i){
-					c = static_cast<unsigned char>(err_msg[i]);
+					c = static_cast<unsigned char>(message[i]);
 					switch(c){
 					case '<':
 						entity_os <<"&lt;";
@@ -460,11 +461,11 @@ public:
 		m_session->shutdown_read();
 		m_session->shutdown_write();
 	}
-	void put_closure_response_if_none_exist(Poseidon::Http::StatusCode status_code, const char *err_msg){
+	void put_closure_response_if_none_exist(Poseidon::Http::StatusCode status_code, const char *message){
 		PROFILE_ME;
 
 		if(!m_response_valid){
-			put_closure_response(status_code, err_msg);
+			put_closure_response(status_code, status_code, message);
 			m_response_valid = true;
 		}
 		m_session->shutdown_read();
@@ -564,7 +565,10 @@ protected:
 			rewriter.put_encoded_data(STD_MOVE(m_data));
 		} catch(Poseidon::Http::Exception &e){
 			LOG_MEDUSA_WARNING("Http::Exception thrown: status_code = ", e.get_status_code(), ", what = ", e.what());
-			session->shutdown(e.get_status_code(), Poseidon::Http::get_status_code_desc(e.get_status_code()).desc_long, e.get_headers());
+			session->shutdown(e.get_status_code(),
+				(e.get_status_code() == Poseidon::Http::ST_PROXY_AUTH_REQUIRED) ? static_cast<unsigned>(Poseidon::Http::ST_BAD_REQUEST)
+				                                                                : e.get_status_code(),
+				Poseidon::Http::get_status_code_desc(e.get_status_code()).desc_long, e.get_headers());
 		} catch(std::exception &e){
 			LOG_MEDUSA_WARNING("std::exception thrown: what = ", e.what());
 			session->force_shutdown();
@@ -599,12 +603,14 @@ ProxySession::ResponseRewriter &ProxySession::get_response_rewriter(){
 	}
 	return *m_response_rewriter;
 }
-void ProxySession::shutdown(unsigned http_status_code, const char *err_msg, Poseidon::OptionalMap headers) NOEXCEPT {
+void ProxySession::shutdown(Poseidon::Http::StatusCode status_code, Poseidon::Http::StatusCode pretend_status_code,
+	const char *message, Poseidon::OptionalMap headers) NOEXCEPT
+{
 	PROFILE_ME;
 
 	try {
 		AUTO_REF(rewriter, get_response_rewriter());
-		rewriter.put_closure_response(http_status_code, err_msg, STD_MOVE(headers));
+		rewriter.put_closure_response(status_code, pretend_status_code, message, STD_MOVE(headers));
 	} catch(std::exception &e){
 		LOG_MEDUSA_ERROR("std::exception thrown: what = ", e.what());
 		force_shutdown();
@@ -690,7 +696,7 @@ void ProxySession::on_fetch_closed(int err_code, const char *err_msg) NOEXCEPT {
 	LOG_MEDUSA_DEBUG("Received close response from fetch server: fetch_uuid = ", m_fetch_uuid, ", err_code = ", err_code, ", err_msg = ", err_msg);
 
 	if(err_code != 0){
-		shutdown(Poseidon::Http::ST_BAD_GATEWAY, err_msg);
+		shutdown(Poseidon::Http::ST_BAD_GATEWAY, Poseidon::Http::ST_BAD_GATEWAY, err_msg);
 	} else {
 		// Proxy-Connection: Close
 		shutdown_read();
