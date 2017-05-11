@@ -418,7 +418,7 @@ public:
 			response_headers.reason = Poseidon::Http::get_status_code_desc(pretend_status_code).desc_short;
 			response_headers.headers.swap(headers);
 			response_headers.headers.set(Poseidon::sslit("Connection"), "Close");
-			response_headers.headers.set(Poseidon::sslit("Proxy-Connection"), "Close");
+			// response_headers.headers.set(Poseidon::sslit("Proxy-Connection"), "Close");
 			response_headers.headers.set(Poseidon::sslit("Content-Type"), "text/html");
 			Poseidon::Buffer_ostream entity_os;
 			entity_os <<"<html><head><title>" <<pretend_status_code <<" " <<response_headers.reason <<"</title></head><body><h1>"
