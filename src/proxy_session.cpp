@@ -41,8 +41,9 @@ protected:
 		if(request_headers.uri[0] == '/'){
 			DEBUG_THROW(Poseidon::Http::Exception, Poseidon::Http::ST_FORBIDDEN);
 		}
-		LOG_MEDUSA_INFO("New fetch request: ", Poseidon::Http::get_string_from_verb(request_headers.verb), " ", request_headers.uri,
-			", Proxy-Authorization: ", request_headers.headers.get("Proxy-Authorization"));
+		LOG_MEDUSA_INFO("New fetch request: ", Poseidon::Http::get_string_from_verb(request_headers.verb), " ", request_headers.uri);
+		LOG_MEDUSA_INFO(">> Proxy-Authorization: ", request_headers.headers.get("Proxy-Authorization"));
+		LOG_MEDUSA_INFO(">> User-Agent: ", request_headers.headers.get("User-Agent"));
 
 		Poseidon::Http::check_and_throw_if_unauthorized(m_session->m_auth_info, m_session->get_remote_info(), request_headers, true);
 
