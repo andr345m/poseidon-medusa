@@ -565,7 +565,7 @@ protected:
 			AUTO_REF(rewriter, session->get_request_rewriter());
 			rewriter.put_encoded_data(STD_MOVE(m_data));
 		} catch(Poseidon::Http::Exception &e){
-			LOG_MEDUSA_INFO("Http::Exception thrown: status_code = ", e.get_status_code(), ", what = ", e.what());
+			LOG_MEDUSA_WARNING("Http::Exception thrown: status_code = ", e.get_status_code(), ", what = ", e.what());
 			unsigned pretend_status_code = e.get_status_code();
 			if(pretend_status_code == Poseidon::Http::ST_PROXY_AUTH_REQUIRED){
 				pretend_status_code = Poseidon::Http::ST_BAD_REQUEST;
