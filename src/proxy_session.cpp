@@ -41,7 +41,8 @@ protected:
 		if(request_headers.uri[0] == '/'){
 			DEBUG_THROW(Poseidon::Http::Exception, Poseidon::Http::ST_FORBIDDEN);
 		}
-		LOG_MEDUSA_INFO("New fetch request: ", Poseidon::Http::get_string_from_verb(request_headers.verb), " ", request_headers.uri);
+		LOG_MEDUSA_INFO("New fetch request: ", Poseidon::Http::get_string_from_verb(request_headers.verb), " ", request_headers.uri,
+			", Proxy-Authenticate: ", request_headers.headers.get("Proxy-Authenticate"));
 
 		Poseidon::Http::check_and_throw_if_unauthorized(m_session->m_auth_info, m_session->get_remote_info(), request_headers, true);
 
@@ -564,7 +565,7 @@ protected:
 			AUTO_REF(rewriter, session->get_request_rewriter());
 			rewriter.put_encoded_data(STD_MOVE(m_data));
 		} catch(Poseidon::Http::Exception &e){
-			LOG_MEDUSA_WARNING("Http::Exception thrown: status_code = ", e.get_status_code(), ", what = ", e.what());
+			LOG_MEDUSA_INFO("Http::Exception thrown: status_code = ", e.get_status_code(), ", what = ", e.what());
 			unsigned pretend_status_code = e.get_status_code();
 			if(pretend_status_code == Poseidon::Http::ST_PROXY_AUTH_REQUIRED){
 				pretend_status_code = Poseidon::Http::ST_BAD_REQUEST;
