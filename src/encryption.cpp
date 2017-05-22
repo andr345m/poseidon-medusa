@@ -24,7 +24,7 @@ void encrypt(Poseidon::StreamBuffer &dst, const Poseidon::Uuid &uuid, Poseidon::
 		std::abort();
 	}
 	boost::array<unsigned char, 16> iv, block_dst, block_src;
-	std::fill(iv.begin(), iv.end(), 0xCC);
+	std::fill(iv.begin(), iv.end(), 42);
 	std::copy(sha256.begin() + 16, sha256.end(), block_src.begin());
 	::AES_cbc_encrypt(block_src.data(), block_dst.data(), 16, aes_key, iv.data(), AES_ENCRYPT);
 	dst.put(block_dst.data(), 16); // 16 bytes: checksum
@@ -70,7 +70,7 @@ bool decrypt(Poseidon::Uuid &uuid, Poseidon::StreamBuffer &dst, Poseidon::Stream
 		std::abort();
 	}
 	boost::array<unsigned char, 16> iv, block_dst, block_src;
-	std::fill(iv.begin(), iv.end(), 0xCC);
+	std::fill(iv.begin(), iv.end(), 42);
 	std::copy(checksum.begin(), checksum.end(), block_src.begin());
 	::AES_cbc_encrypt(block_src.data(), block_dst.data(), 16, aes_key, iv.data(), AES_DECRYPT);
 	if(!std::equal(block_dst.begin(), block_dst.end(), sha256.begin() + 16)){
