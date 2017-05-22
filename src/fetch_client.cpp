@@ -80,10 +80,6 @@ void FetchClient::on_sync_data_message(boost::uint16_t message_id, Poseidon::Str
 		session->on_fetch_connected(req.flags);
 	}
 	ON_RAW_MESSAGE(Msg::SC_FetchReceived, req){
-		req.put((unsigned char)0x00);
-		req.put((unsigned char)0x00);
-		req.put((unsigned char)0xFF);
-		req.put((unsigned char)0xFF);
 		Poseidon::Inflator inflator;
 		inflator.put(req);
 		AUTO(data, inflator.finalize());
@@ -147,10 +143,6 @@ bool FetchClient::fetch_send(const boost::shared_ptr<ProxySession> &session, Pos
 	Poseidon::Deflator deflator;
 	deflator.put(data);
 	AUTO(req, deflator.finalize());
-	DEBUG_THROW_ASSERT(req.unput() == 0xFF);
-	DEBUG_THROW_ASSERT(req.unput() == 0xFF);
-	DEBUG_THROW_ASSERT(req.unput() == 0x00);
-	DEBUG_THROW_ASSERT(req.unput() == 0x00);
 	return send_explicit(fetch_uuid, Msg::CS_FetchSend::ID, STD_MOVE(req));
 }
 void FetchClient::fetch_close(const Poseidon::Uuid &fetch_uuid, int err_code, const char *err_msg) NOEXCEPT {

@@ -163,10 +163,6 @@ public:
 				Poseidon::Deflator deflator;
 				deflator.put(data);
 				AUTO(req, deflator.finalize());
-				DEBUG_THROW_ASSERT(req.unput() == 0xFF);
-				DEBUG_THROW_ASSERT(req.unput() == 0xFF);
-				DEBUG_THROW_ASSERT(req.unput() == 0x00);
-				DEBUG_THROW_ASSERT(req.unput() == 0x00);
 				session->send_explicit(fetch_uuid, Msg::SC_FetchReceived::ID, STD_MOVE(req));
 			}
 			const AUTO(err_code, req.origin_client->peek_err_code());
@@ -358,10 +354,6 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 			break;
 		}
 		channel = it->second;
-		req.put((unsigned char)0x00);
-		req.put((unsigned char)0x00);
-		req.put((unsigned char)0xFF);
-		req.put((unsigned char)0xFF);
 		Poseidon::Inflator inflator;
 		inflator.put(req);
 		AUTO(data, inflator.finalize());
