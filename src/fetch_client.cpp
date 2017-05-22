@@ -2,6 +2,7 @@
 #include "fetch_client.hpp"
 #include <poseidon/singletons/timer_daemon.hpp>
 #include <poseidon/job_base.hpp>
+#include <poseidon/zlib.hpp>
 #include "proxy_session.hpp"
 #include "encryption.hpp"
 #include "msg/cs_fetch.hpp"
@@ -79,9 +80,16 @@ void FetchClient::on_sync_data_message(boost::uint16_t message_id, Poseidon::Str
 		session->on_fetch_connected(req.flags);
 	}
 	ON_RAW_MESSAGE(Msg::SC_FetchReceived, req){
-		const AUTO(size, req.size());
+		req.put((unsigned char)0x00);
+		req.put((unsigned char)0x00);
+		req.put((unsigned char)0xFF);
+		req.put((unsigned char)0xFF);
+		Poseidon::Inflator inflator;
+		inflator.put(req);
+		AUTO(data, inflator.finalize());
+		const AUTO(size, data.size());
 		LOG_MEDUSA_DEBUG("Fetch received: fetch_uuid = ", fetch_uuid, ", size = ", size);
-		session->on_fetch_received(STD_MOVE(req));
+		session->on_fetch_received(STD_MOVE(data));
 		send(fetch_uuid, Msg::CS_FetchAcknowledge(size));
 	}
 	ON_MESSAGE(Msg::SC_FetchEnded, req){
@@ -136,7 +144,14 @@ bool FetchClient::fetch_send(const boost::shared_ptr<ProxySession> &session, Pos
 		LOG_MEDUSA_WARNING("Fetch client not connected? fetch_uuid = ", fetch_uuid);
 		return false;
 	}
-	return send_explicit(fetch_uuid, Msg::CS_FetchSend::ID, STD_MOVE(data));
+	Poseidon::Deflator deflator;
+	deflator.put(data);
+	AUTO(req, deflator.finalize());
+	DEBUG_THROW_ASSERT(req.unput() == 0xFF);
+	DEBUG_THROW_ASSERT(req.unput() == 0xFF);
+	DEBUG_THROW_ASSERT(req.unput() == 0x00);
+	DEBUG_THROW_ASSERT(req.unput() == 0x00);
+	return send_explicit(fetch_uuid, Msg::CS_FetchSend::ID, STD_MOVE(req));
 }
 void FetchClient::fetch_close(const Poseidon::Uuid &fetch_uuid, int err_code, const char *err_msg) NOEXCEPT {
 	PROFILE_ME;

@@ -7,6 +7,7 @@
 #include <poseidon/tcp_client_base.hpp>
 #include <poseidon/atomic.hpp>
 #include <poseidon/mutex.hpp>
+#include <poseidon/zlib.hpp>
 #include "encryption.hpp"
 #include "msg/cs_fetch.hpp"
 #include "msg/sc_fetch.hpp"
@@ -155,11 +156,18 @@ public:
 			const bool client_closed = req.origin_client->has_been_shutdown_read();
 			AUTO(recv_queue, req.origin_client->move_recv_queue());
 			for(;;){
-				AUTO(chunk, recv_queue.cut_off(8192));
-				if(chunk.empty()){
+				AUTO(data, recv_queue.cut_off(8192));
+				if(data.empty()){
 					break;
 				}
-				session->send_explicit(fetch_uuid, Msg::SC_FetchReceived::ID, STD_MOVE(chunk));
+				Poseidon::Deflator deflator;
+				deflator.put(data);
+				AUTO(req, deflator.finalize());
+				DEBUG_THROW_ASSERT(req.unput() == 0xFF);
+				DEBUG_THROW_ASSERT(req.unput() == 0xFF);
+				DEBUG_THROW_ASSERT(req.unput() == 0x00);
+				DEBUG_THROW_ASSERT(req.unput() == 0x00);
+				session->send_explicit(fetch_uuid, Msg::SC_FetchReceived::ID, STD_MOVE(req));
 			}
 			const AUTO(err_code, req.origin_client->peek_err_code());
 			if(err_code != 0){
@@ -350,7 +358,16 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 			break;
 		}
 		channel = it->second;
-		channel->push_send(STD_MOVE(req));
+		req.put((unsigned char)0x00);
+		req.put((unsigned char)0x00);
+		req.put((unsigned char)0xFF);
+		req.put((unsigned char)0xFF);
+		Poseidon::Inflator inflator;
+		inflator.put(req);
+		AUTO(data, inflator.finalize());
+		const AUTO(size, data.size());
+		channel->push_send(STD_MOVE(data));
+		LOG_MEDUSA_DEBUG("Fetch sent: fetch_uuid = ", fetch_uuid, ", size = ", size);
 	}
 	ON_MESSAGE(Msg::CS_FetchAcknowledge, req){
 		const AUTO(it, m_channels.find(fetch_uuid));

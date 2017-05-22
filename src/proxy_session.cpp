@@ -7,6 +7,7 @@
 #include <poseidon/http/client_writer.hpp>
 #include <poseidon/http/exception.hpp>
 #include <poseidon/http/authorization.hpp>
+#include <poseidon/zlib.hpp>
 #include "singletons/fetch_connector.hpp"
 #include "msg/error_codes.hpp"
 #include "fetch_session.hpp"
