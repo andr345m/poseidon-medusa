@@ -6,29 +6,6 @@
 
 namespace Medusa {
 
-namespace {
-	void aes_cfb_set_key_128(::AES_KEY *aes_key, const unsigned char *data){
-		if(::AES_set_encrypt_key(data, 128, aes_key) != 0){
-			LOG_MEDUSA_FATAL("::AES_set_encrypt_key() failed!");
-			std::abort();
-		}
-	}
-	void aes_cfb_encrypt_block(unsigned char *out, const unsigned char *in, unsigned char *iv, const AES_KEY *aes_key){
-		::AES_encrypt(iv, iv, aes_key);
-		for(unsigned i = 0; i < 16; ++i){
-			out[i] = in[i] ^ iv[i];
-		}
-		std::memcpy(iv, out, 16);
-	}
-	void aes_cfb_decrypt_block(unsigned char *out, const unsigned char *in, unsigned char *iv, const AES_KEY *aes_key){
-		::AES_encrypt(iv, iv, aes_key);
-		for(unsigned i = 0; i < 16; ++i){
-			out[i] = in[i] ^ iv[i];
-		}
-		std::memcpy(iv, in, 16);
-	}
-}
-
 void encrypt(Poseidon::StreamBuffer &dst, const Poseidon::Uuid &uuid, Poseidon::StreamBuffer src, const std::string &key){
 	PROFILE_ME;
 
@@ -42,17 +19,24 @@ void encrypt(Poseidon::StreamBuffer &dst, const Poseidon::Uuid &uuid, Poseidon::
 	         .write(reinterpret_cast<const char *>(key.data()), static_cast<std::streamsize>(key.size()));
 	const AUTO(sha256, sha256_os.finalize());
 	::AES_KEY aes_key[1];
-	aes_cfb_set_key_128(aes_key, sha256.data());
-	unsigned char iv[16], out[16], in[16];
+	if(::AES_set_encrypt_key(sha256.data(), 128, aes_key) != 0){
+		LOG_MEDUSA_FATAL("::AES_set_encrypt_key() failed!");
+		std::abort();
+	}
+	unsigned char out[16], in[16], iv[16], ecount_buf[16];
+	unsigned num;
 	std::memset(iv, 42, 16);
-	aes_cfb_encrypt_block(out, sha256.data() + 16, iv, aes_key);
+	std::memset(ecount_buf, 0, 16);
+	num = 0;
+	::AES_ctr128_encrypt(sha256.data() + 16, out, 16, aes_key, iv, ecount_buf, &num);
+	assert(num == 0);
 	dst.put(out, 16); // 16 bytes: checksum
 	for(;;){
 		const unsigned n = src.get(in, 16);
 		if(n == 0){
 			break;
 		}
-		aes_cfb_encrypt_block(out, in, iv, aes_key);
+		::AES_ctr128_encrypt(in, out, n, aes_key, iv, ecount_buf, &num);
 		dst.put(out, n);
 	}
 }
@@ -74,14 +58,21 @@ bool decrypt(Poseidon::Uuid &uuid, Poseidon::StreamBuffer &dst, Poseidon::Stream
 	         .write(reinterpret_cast<const char *>(key.data()), static_cast<std::streamsize>(key.size()));
 	const AUTO(sha256, sha256_os.finalize());
 	::AES_KEY aes_key[1];
-	aes_cfb_set_key_128(aes_key, sha256.data());
-	unsigned char iv[16], out[16], in[16];
-	std::memset(iv, 42, 16);
+	if(::AES_set_encrypt_key(sha256.data(), 128, aes_key) != 0){
+		LOG_MEDUSA_FATAL("::AES_set_encrypt_key() failed!");
+		std::abort();
+	}
+	unsigned char out[16], in[16], iv[16], ecount_buf[16];
+	unsigned num;
 	if(src.get(in, 16) < 16){ // 16 bytes: checksum
 		LOG_MEDUSA_WARNING("Encrypted data is truncated, expecting checksum.");
 		return false;
 	}
-	aes_cfb_decrypt_block(out, in, iv, aes_key);
+	std::memset(iv, 42, 16);
+	std::memset(ecount_buf, 0, 16);
+	num = 0;
+	::AES_ctr128_encrypt(in, out, 16, aes_key, iv, ecount_buf, &num);
+	assert(num == 0);
 	if(std::memcmp(out, sha256.data() + 16, 16) != 0){
 		LOG_MEDUSA_WARNING("Encrypted data is invalid, erroneous checksum.");
 		return false;
@@ -91,7 +82,7 @@ bool decrypt(Poseidon::Uuid &uuid, Poseidon::StreamBuffer &dst, Poseidon::Stream
 		if(n == 0){
 			break;
 		}
-		aes_cfb_decrypt_block(out, in, iv, aes_key);
+		::AES_ctr128_encrypt(in, out, n, aes_key, iv, ecount_buf, &num);
 		dst.put(out, n);
 	}
 	return true;
