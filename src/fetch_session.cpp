@@ -155,6 +155,8 @@ public:
 			}
 			const bool client_closed = req.origin_client->has_been_shutdown_read();
 			AUTO(recv_queue, req.origin_client->move_recv_queue());
+
+			Poseidon::Deflator deflator;
 			::boost::container::vector<unsigned char> temp;
 			for(;;){
 				temp.resize(8192);
@@ -162,7 +164,6 @@ public:
 				if(temp.empty()){
 					break;
 				}
-				Poseidon::Deflator deflator;
 				deflator.put(temp.data(), temp.size());
 				AUTO(data, deflator.finalize());
 				temp.resize(data.size());
@@ -170,6 +171,7 @@ public:
 				DEBUG_THROW_ASSERT(data.empty());
 				session->send(fetch_uuid, Msg::SC_FetchReceived(STD_MOVE(temp)));
 			}
+
 			const AUTO(err_code, req.origin_client->peek_err_code());
 			if(err_code != 0){
 				LOG_MEDUSA_DEBUG("Fetch error: err_code = ", err_code);
@@ -179,6 +181,7 @@ public:
 				LOG_MEDUSA_DEBUG("Error sending data to origin server: host:port = ", req.host, ":", req.port);
 				DEBUG_THROW(Poseidon::Cbpp::Exception, Msg::ERR_CONNECTION_LOST, Poseidon::sslit("Error sending data to origin server"));
 			}
+
 			if(!client_closed){
 				break;
 			}
