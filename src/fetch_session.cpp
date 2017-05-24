@@ -156,8 +156,12 @@ public:
 			const bool client_closed = req.origin_client->has_been_shutdown_read();
 			AUTO(recv_queue, req.origin_client->move_recv_queue());
 			::boost::container::vector<unsigned char> temp;
-			std::size_t n_avail;
-			while((temp.resize(8192), n_avail = recv_queue.get(temp.data(), temp.size())) != 0){
+			for(;;){
+				temp.resize(8192);
+				temp.resize(recv_queue.get(temp.data(), temp.size()));
+				if(temp.empty()){
+					break;
+				}
 				Poseidon::Deflator deflator;
 				deflator.put(temp.data(), temp.size());
 				AUTO(data, deflator.finalize());
@@ -338,7 +342,7 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 		}
 		channel = it->second;
 		Poseidon::Inflator inflator;
-		inflator.put(req.data.data(), req.data.size());
+		inflator.put(req.send_queue.data(), req.send_queue.size());
 		AUTO(data, inflator.finalize());
 		const AUTO(size, data.size());
 		channel->push_send(STD_MOVE(data));

@@ -16,7 +16,7 @@ namespace Msg {
 #define MESSAGE_NAME    SC_FetchReceived
 #define MESSAGE_ID      198
 #define MESSAGE_FIELDS  \
-	FIELD_FLEXIBLE      (data)
+	FIELD_FLEXIBLE      (recv_queue)
 #include <poseidon/cbpp/message_generator.hpp>
 
 #define MESSAGE_NAME    SC_FetchEnded

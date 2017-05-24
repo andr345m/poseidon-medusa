@@ -63,7 +63,7 @@ void FetchClient::on_sync_data_message(boost::uint16_t message_id, Poseidon::Str
 	}
 	ON_MESSAGE(Msg::SC_FetchReceived, resp){
 		Poseidon::Inflator inflator;
-		inflator.put(resp.data.data(), resp.data.size());
+		inflator.put(resp.recv_queue.data(), resp.recv_queue.size());
 		AUTO(data, inflator.finalize());
 		const AUTO(size, data.size());
 		LOG_MEDUSA_DEBUG("Fetch received: fetch_uuid = ", fetch_uuid, ", size = ", size);
@@ -133,8 +133,12 @@ bool FetchClient::fetch_send(const boost::shared_ptr<ProxySession> &session, Pos
 	}
 
 	::boost::container::vector<unsigned char> temp;
-	std::size_t n_avail;
-	while((temp.resize(8192), n_avail = send_queue.get(temp.data(), temp.size())) != 0){
+	for(;;){
+		temp.resize(8192);
+		temp.resize(send_queue.get(temp.data(), temp.size()));
+		if(temp.empty()){
+			break;
+		}
 		Poseidon::Deflator deflator;
 		deflator.put(temp.data(), temp.size());
 		AUTO(data, deflator.finalize());
