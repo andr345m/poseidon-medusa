@@ -297,7 +297,7 @@ bool FetchSession::send_explicit(const Poseidon::Uuid &fetch_uuid, boost::uint16
 bool FetchSession::send(const Poseidon::Uuid &fetch_uuid, const Poseidon::Cbpp::MessageBase &msg){
 	PROFILE_ME;
 
-	return send_explicit(fetch_uuid, msg.get_message_id(), msg);
+	return send_explicit(fetch_uuid, msg.get_id(), msg);
 }
 
 void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::StreamBuffer payload){
