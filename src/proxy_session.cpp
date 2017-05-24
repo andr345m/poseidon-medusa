@@ -572,11 +572,11 @@ protected:
 			if(pretend_status_code == Poseidon::Http::ST_PROXY_AUTH_REQUIRED){
 				pretend_status_code = Poseidon::Http::ST_BAD_REQUEST;
 			}
-			session->shutdown(e.get_status_code(), pretend_status_code,
-				Poseidon::Http::get_status_code_desc(pretend_status_code).desc_long, e.get_headers());
+			AUTO(pretend_desc, Poseidon::Http::get_status_code_desc(pretend_status_code));
+			session->shutdown(e.get_status_code(), pretend_status_code, pretend_desc.desc_long, e.get_headers());
 		} catch(std::exception &e){
 			LOG_MEDUSA_WARNING("std::exception thrown: what = ", e.what());
-			session->force_shutdown();
+			session->shutdown(Poseidon::Http::ST_BAD_REQUEST, Poseidon::Http::ST_BAD_REQUEST, e.what());
 		}
 	}
 };
