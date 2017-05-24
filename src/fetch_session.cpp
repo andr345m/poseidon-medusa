@@ -157,17 +157,17 @@ public:
 			AUTO(recv_queue, req.origin_client->move_recv_queue());
 
 			Poseidon::Deflator deflator;
-			::boost::container::vector<unsigned char> temp;
+			std::string temp;
 			for(;;){
 				temp.resize(8192);
-				temp.resize(recv_queue.get(temp.data(), temp.size()));
+				temp.resize(recv_queue.get(&*temp.begin(), temp.size()));
 				if(temp.empty()){
 					break;
 				}
-				deflator.put(temp.data(), temp.size());
+				deflator.put(temp);
 				AUTO(data, deflator.finalize());
 				temp.resize(data.size());
-				data.get(temp.data(), temp.size());
+				data.get(&*temp.begin(), temp.size());
 				DEBUG_THROW_ASSERT(data.empty());
 				session->send(fetch_uuid, Msg::SC_FetchReceived(STD_MOVE(temp)));
 			}

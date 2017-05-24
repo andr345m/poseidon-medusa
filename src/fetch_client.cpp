@@ -132,18 +132,18 @@ bool FetchClient::fetch_send(const boost::shared_ptr<ProxySession> &session, Pos
 		return false;
 	}
 
-	::boost::container::vector<unsigned char> temp;
+	std::string temp;
 	Poseidon::Deflator deflator;
 	for(;;){
 		temp.resize(8192);
-		temp.resize(send_queue.get(temp.data(), temp.size()));
+		temp.resize(send_queue.get(&*temp.begin(), temp.size()));
 		if(temp.empty()){
 			break;
 		}
-		deflator.put(temp.data(), temp.size());
+		deflator.put(temp);
 		AUTO(data, deflator.finalize());
 		temp.resize(data.size());
-		data.get(temp.data(), temp.size());
+		data.get(&*temp.begin(), temp.size());
 		DEBUG_THROW_ASSERT(data.empty());
 		send(fetch_uuid, Msg::CS_FetchSend(STD_MOVE(temp)));
 	}
