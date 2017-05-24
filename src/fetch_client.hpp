@@ -21,16 +21,13 @@ public:
 	FetchClient(const Poseidon::SockAddr &sock_addr, bool use_ssl, bool verify_peer, std::string password);
 	~FetchClient() OVERRIDE;
 
-private:
-	bool send_explicit(const Poseidon::Uuid &fetch_uuid, boost::uint16_t message_id, Poseidon::StreamBuffer plain);
-	bool send(const Poseidon::Uuid &fetch_uuid, const Poseidon::Cbpp::MessageBase &msg);
-
 protected:
 	void on_sync_data_message(boost::uint16_t message_id, Poseidon::StreamBuffer payload) OVERRIDE;
+	bool send(const Poseidon::Uuid &fetch_uuid, const Poseidon::Cbpp::MessageBase &msg);
 
 public:
 	bool fetch_connect(const boost::shared_ptr<ProxySession> &session, std::string host, unsigned port, bool use_ssl, boost::uint64_t flags);
-	bool fetch_send(const boost::shared_ptr<ProxySession> &session, Poseidon::StreamBuffer data);
+	bool fetch_send(const boost::shared_ptr<ProxySession> &session, Poseidon::StreamBuffer send_queue);
 	void fetch_close(const Poseidon::Uuid &fetch_uuid, int err_code, const char *err_msg) NOEXCEPT;
 };
 

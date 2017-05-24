@@ -155,15 +155,16 @@ public:
 			}
 			const bool client_closed = req.origin_client->has_been_shutdown_read();
 			AUTO(recv_queue, req.origin_client->move_recv_queue());
-			for(;;){
-				AUTO(data, recv_queue.cut_off(8192));
-				if(data.empty()){
-					break;
-				}
+			::boost::container::vector<unsigned char> temp;
+			std::size_t n_avail;
+			while((temp.resize(8192), n_avail = recv_queue.get(temp.data(), temp.size())) != 0){
 				Poseidon::Deflator deflator;
-				deflator.put(data);
-				AUTO(req, deflator.finalize());
-				session->send_explicit(fetch_uuid, Msg::SC_FetchReceived::ID, STD_MOVE(req));
+				deflator.put(temp.data(), temp.size());
+				AUTO(data, deflator.finalize());
+				temp.resize(data.size());
+				data.get(temp.data(), temp.size());
+				DEBUG_THROW_ASSERT(data.empty());
+				session->send(fetch_uuid, Msg::SC_FetchReceived(STD_MOVE(temp)));
 			}
 			const AUTO(err_code, req.origin_client->peek_err_code());
 			if(err_code != 0){
@@ -287,19 +288,6 @@ FetchSession::~FetchSession(){
 	LOG_MEDUSA_INFO("FetchSession destructor: remote = ", get_remote_info());
 }
 
-bool FetchSession::send_explicit(const Poseidon::Uuid &fetch_uuid, boost::uint16_t message_id, Poseidon::StreamBuffer plain){
-	PROFILE_ME;
-
-	Poseidon::StreamBuffer encrypted;
-	encrypt(encrypted, fetch_uuid, STD_MOVE(plain), m_password);
-	return Poseidon::Cbpp::Session::send(message_id, STD_MOVE(encrypted));
-}
-bool FetchSession::send(const Poseidon::Uuid &fetch_uuid, const Poseidon::Cbpp::MessageBase &msg){
-	PROFILE_ME;
-
-	return send_explicit(fetch_uuid, msg.get_id(), msg);
-}
-
 void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::StreamBuffer payload){
 	PROFILE_ME;
 
@@ -318,13 +306,8 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 			}}  \
 			break;  \
 		case Msg_::ID: {    \
+			PROFILE_ME;	\
 			Msg_ (req_)(plain); \
-			{ //
-#define ON_RAW_MESSAGE(Msg_, req_)  \
-			}}  \
-			break;  \
-		case Msg_::ID: {    \
-			::Poseidon::StreamBuffer & (req_) = plain;  \
 			{ //
 //=============================================================================
 	ON_MESSAGE(Msg::CS_FetchOpen, req){
@@ -347,7 +330,7 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 		channel = it->second;
 		channel->push_connect(STD_MOVE(req.host), req.port, req.use_ssl, req.flags);
 	}
-	ON_RAW_MESSAGE(Msg::CS_FetchSend, req){
+	ON_MESSAGE(Msg::CS_FetchSend, req){
 		const AUTO(it, m_channels.find(fetch_uuid));
 		if(it == m_channels.end()){
 			LOG_MEDUSA_DEBUG("Fetch channel not found: fetch_uuid = ", fetch_uuid);
@@ -355,7 +338,7 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 		}
 		channel = it->second;
 		Poseidon::Inflator inflator;
-		inflator.put(req);
+		inflator.put(req.data.data(), req.data.size());
 		AUTO(data, inflator.finalize());
 		const AUTO(size, data.size());
 		channel->push_send(STD_MOVE(data));
@@ -424,6 +407,13 @@ void FetchSession::on_sync_timer(){
 	if(m_channels.empty()){
 		m_timer.reset();
 	}
+}
+bool FetchSession::send(const Poseidon::Uuid &fetch_uuid, const Poseidon::Cbpp::MessageBase &msg){
+	PROFILE_ME;
+
+	Poseidon::StreamBuffer encrypted;
+	encrypt(encrypted, fetch_uuid, Poseidon::StreamBuffer(msg), m_password);
+	return Poseidon::Cbpp::Session::send(msg.get_id(), STD_MOVE(encrypted));
 }
 
 }

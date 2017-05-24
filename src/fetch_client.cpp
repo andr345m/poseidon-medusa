@@ -28,19 +28,6 @@ FetchClient::~FetchClient(){
 	}
 }
 
-bool FetchClient::send_explicit(const Poseidon::Uuid &fetch_uuid, boost::uint16_t message_id, Poseidon::StreamBuffer plain){
-	PROFILE_ME;
-
-	Poseidon::StreamBuffer encrypted;
-	encrypt(encrypted, fetch_uuid, STD_MOVE(plain), m_password);
-	return Poseidon::Cbpp::Client::send(message_id, STD_MOVE(encrypted));
-}
-bool FetchClient::send(const Poseidon::Uuid &fetch_uuid, const Poseidon::Cbpp::MessageBase &msg){
-	PROFILE_ME;
-
-	return send_explicit(fetch_uuid, msg.get_id(), msg);
-}
-
 void FetchClient::on_sync_data_message(boost::uint16_t message_id, Poseidon::StreamBuffer payload){
 	PROFILE_ME;
 	LOG_MEDUSA_DEBUG("Fetch data message: message_id = ", message_id, ", payload_size = ", payload.size());
@@ -66,37 +53,33 @@ void FetchClient::on_sync_data_message(boost::uint16_t message_id, Poseidon::Str
 				}}  \
 				break;  \
 			case Msg_::ID: {    \
+				PROFILE_ME;	\
 				Msg_ (req_)(plain); \
 				{ //
-#define ON_RAW_MESSAGE(Msg_, req_)  \
-				}}  \
-				break;  \
-			case Msg_::ID: {    \
-				::Poseidon::StreamBuffer & (req_) = plain;  \
-				{ //
 //=============================================================================
-	ON_MESSAGE(Msg::SC_FetchConnected, req){
-		LOG_MEDUSA_DEBUG("Fetch connected: fetch_uuid = ", fetch_uuid, ", flags = ", req.flags);
-		session->on_fetch_connected(req.flags);
+	ON_MESSAGE(Msg::SC_FetchConnected, resp){
+		LOG_MEDUSA_DEBUG("Fetch connected: fetch_uuid = ", fetch_uuid, ", flags = ", resp.flags);
+		session->on_fetch_connected(resp.flags);
 	}
-	ON_RAW_MESSAGE(Msg::SC_FetchReceived, req){
+	ON_MESSAGE(Msg::SC_FetchReceived, resp){
 		Poseidon::Inflator inflator;
-		inflator.put(req);
+		inflator.put(resp.data.data(), resp.data.size());
 		AUTO(data, inflator.finalize());
 		const AUTO(size, data.size());
 		LOG_MEDUSA_DEBUG("Fetch received: fetch_uuid = ", fetch_uuid, ", size = ", size);
 		session->on_fetch_received(STD_MOVE(data));
 		send(fetch_uuid, Msg::CS_FetchAcknowledge(size));
 	}
-	ON_MESSAGE(Msg::SC_FetchEnded, req){
+	ON_MESSAGE(Msg::SC_FetchEnded, resp){
 		LOG_MEDUSA_DEBUG("Fetch ended: fetch_uuid = ", fetch_uuid);
 		session->on_fetch_ended();
 	}
-	ON_MESSAGE(Msg::SC_FetchClosed, req){
-		LOG_MEDUSA_DEBUG("Fetch closed: fetch_uuid = ", fetch_uuid, ", err_code = ", req.err_code, ", err_msg = ", req.err_msg);
-		session->on_fetch_closed(req.err_code, req.err_msg.c_str());
+	ON_MESSAGE(Msg::SC_FetchClosed, resp){
+		LOG_MEDUSA_DEBUG("Fetch closed: fetch_uuid = ", fetch_uuid, ", err_code = ", resp.err_code, ", err_msg = ", resp.err_msg);
+		session->on_fetch_closed(resp.err_code, resp.err_msg.c_str());
 	}
 //=============================================================================
+#undef ON_MESSAGE
 				}}
 				break;
 			default:
@@ -120,6 +103,14 @@ void FetchClient::on_sync_data_message(boost::uint16_t message_id, Poseidon::Str
 		}
 	}
 }
+bool FetchClient::send(const Poseidon::Uuid &fetch_uuid, const Poseidon::Cbpp::MessageBase &msg){
+	PROFILE_ME;
+
+	Poseidon::StreamBuffer encrypted;
+	encrypt(encrypted, fetch_uuid, Poseidon::StreamBuffer(msg), m_password);
+	return Poseidon::Cbpp::Client::send(msg.get_id(), STD_MOVE(encrypted));
+}
+
 
 bool FetchClient::fetch_connect(const boost::shared_ptr<ProxySession> &session, std::string host, unsigned port, bool use_ssl, boost::uint64_t flags){
 	PROFILE_ME;
@@ -131,7 +122,7 @@ bool FetchClient::fetch_connect(const boost::shared_ptr<ProxySession> &session, 
 	}
 	return send(fetch_uuid, Msg::CS_FetchConnect(STD_MOVE(host), port, use_ssl, flags));
 }
-bool FetchClient::fetch_send(const boost::shared_ptr<ProxySession> &session, Poseidon::StreamBuffer data){
+bool FetchClient::fetch_send(const boost::shared_ptr<ProxySession> &session, Poseidon::StreamBuffer send_queue){
 	PROFILE_ME;
 
 	const AUTO_REF(fetch_uuid, session->get_fetch_uuid());
@@ -140,10 +131,19 @@ bool FetchClient::fetch_send(const boost::shared_ptr<ProxySession> &session, Pos
 		LOG_MEDUSA_WARNING("Fetch client not connected? fetch_uuid = ", fetch_uuid);
 		return false;
 	}
-	Poseidon::Deflator deflator;
-	deflator.put(data);
-	AUTO(req, deflator.finalize());
-	return send_explicit(fetch_uuid, Msg::CS_FetchSend::ID, STD_MOVE(req));
+
+	::boost::container::vector<unsigned char> temp;
+	std::size_t n_avail;
+	while((temp.resize(8192), n_avail = send_queue.get(temp.data(), temp.size())) != 0){
+		Poseidon::Deflator deflator;
+		deflator.put(temp.data(), temp.size());
+		AUTO(data, deflator.finalize());
+		temp.resize(data.size());
+		data.get(temp.data(), temp.size());
+		DEBUG_THROW_ASSERT(data.empty());
+		send(fetch_uuid, Msg::CS_FetchSend(STD_MOVE(data)));
+	}
+	return true;
 }
 void FetchClient::fetch_close(const Poseidon::Uuid &fetch_uuid, int err_code, const char *err_msg) NOEXCEPT {
 	PROFILE_ME;

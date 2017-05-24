@@ -25,7 +25,7 @@ namespace Msg {
 #define MESSAGE_NAME    CS_FetchSend
 #define MESSAGE_ID      101
 #define MESSAGE_FIELDS  \
-	// 这个结构并不使用，我们只用协议号。
+	FIELD_FLEXIBLE      (data)
 #include <poseidon/cbpp/message_generator.hpp>
 
 #define MESSAGE_NAME    CS_FetchAcknowledge

@@ -33,13 +33,10 @@ public:
 	FetchSession(Poseidon::UniqueFile socket, std::string password);
 	~FetchSession() OVERRIDE;
 
-private:
-	bool send_explicit(const Poseidon::Uuid &fetch_uuid, boost::uint16_t message_id, Poseidon::StreamBuffer plain);
-	bool send(const Poseidon::Uuid &fetch_uuid, const Poseidon::Cbpp::MessageBase &msg);
-
 protected:
 	void on_sync_data_message(boost::uint16_t message_id, Poseidon::StreamBuffer payload) OVERRIDE;
 	void on_sync_timer();
+	bool send(const Poseidon::Uuid &fetch_uuid, const Poseidon::Cbpp::MessageBase &msg);
 };
 
 }
