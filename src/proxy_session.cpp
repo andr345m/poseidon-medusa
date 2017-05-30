@@ -341,7 +341,7 @@ public:
 			Poseidon::Http::ResponseHeaders response_headers = { };
 			response_headers.version = 10001;
 			response_headers.status_code = Poseidon::Http::ST_OK;
-			response_headers.reason = "Connection established";
+			response_headers.reason = "Connection Established";
 			response_headers.headers.set(Poseidon::sslit("Proxy-Connection"), "Keep-Alive");
 			Poseidon::Http::ServerWriter::put_response(STD_MOVE(response_headers), VAL_INIT, false);
 		}
