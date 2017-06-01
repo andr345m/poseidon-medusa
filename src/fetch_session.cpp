@@ -91,12 +91,17 @@ private:
 		boost::uint64_t creation_time;
 	};
 	boost::container::deque<Request> m_requests;
+
 	volatile boost::uint64_t m_bytes_received;
 	volatile boost::uint64_t m_bytes_acknowledged;
 
+	boost::uint64_t m_last_activity_time;
+
 public:
 	Channel()
-		: m_requests(), m_bytes_received(0), m_bytes_acknowledged(0)
+		: m_requests()
+		, m_bytes_received(0), m_bytes_acknowledged(0)
+		, m_last_activity_time(0)
 	{
 	}
 	~Channel();
@@ -252,6 +257,13 @@ public:
 			}
 		}
 	}
+
+	boost::uint64_t get_last_activity_time() const {
+		return m_last_activity_time;
+	}
+	void set_last_activity_time(boost::uint64_t last_activity_time){
+		m_last_activity_time = last_activity_time;
+	}
 };
 
 FetchSession::Channel::~Channel(){
@@ -384,6 +396,10 @@ void FetchSession::on_sync_data_message(boost::uint16_t message_id, Poseidon::St
 		send(fetch_uuid, Msg::SC_FetchClosed(Msg::ST_INTERNAL_ERROR, 0, e.what()));
 		channel.reset();
 	}
+	if(channel){
+		const AUTO(now, Poseidon::get_fast_mono_clock());
+		channel->set_last_activity_time(now);
+	}
 	if(!channel){
 		LOG_MEDUSA_DEBUG("Reclaiming fetch request: fetch_uuid = ", fetch_uuid);
 		m_channels.erase(fetch_uuid);
@@ -399,13 +415,21 @@ void FetchSession::on_sync_timer(){
 		try {
 			channel->fetch_some(fetch_uuid, this);
 		} catch(Poseidon::Cbpp::Exception &e){
-			LOG_MEDUSA_DEBUG("Cbpp::Exception thrown: status_code = ", e.get_status_code(), ", what = ", e.what());
+			LOG_MEDUSA_DEBUG("Cbpp::Exception thrown: fetch_uuid = ", fetch_uuid, ", status_code = ", e.get_status_code(), ", what = ", e.what());
 			send(fetch_uuid, Msg::SC_FetchClosed(e.get_status_code(), 0, e.what()));
 			channel.reset();
 		} catch(std::exception &e){
-			LOG_MEDUSA_DEBUG("Cbpp::Exception thrown: what = ", e.what());
+			LOG_MEDUSA_DEBUG("Cbpp::Exception thrown: fetch_uuid = ", fetch_uuid, ", what = ", e.what());
 			send(fetch_uuid, Msg::SC_FetchClosed(Msg::ERR_CONNECTION_LOST, 0, e.what()));
 			channel.reset();
+		}
+		if(channel){
+			const AUTO(now, Poseidon::get_fast_mono_clock());
+			const AUTO(expiry_timeout, get_config<boost::uint64_t>("fetch_channel_expiry_timeout", 300000));
+			if(Poseidon::saturated_sub(now, channel->get_last_activity_time()) > expiry_timeout){
+				LOG_MEDUSA_DEBUG("Reclaiming expired channel: fetch_uuid = ", fetch_uuid);
+				channel.reset();
+			}
 		}
 		if(!channel){
 			m_channels.erase(fetch_uuid);
