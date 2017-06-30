@@ -27,6 +27,9 @@ lib_libposeidon_medusa_la_SOURCES = \
 	src/encryption.cpp	\
 	src/mmain.cpp
 
+lib_libposeidon_medusa_la_LDFLAGS = \
+	-no-undefined -version-info 0:0:0
+
 pkgsysconfdir = $(sysconfdir)/@PACKAGE@
 pkgsysconf_DATA = \
 	etc/poseidon-medusa/main-template.conf	\
