@@ -19,7 +19,7 @@ namespace {
 		}
 
 	public:
-		boost::shared_ptr<Poseidon::TcpSessionBase> on_client_connect(Poseidon::UniqueFile client) const OVERRIDE {
+		boost::shared_ptr<Poseidon::TcpSessionBase> on_client_connect(Poseidon::Move<Poseidon::UniqueFile> client) const OVERRIDE {
 			return boost::make_shared<ProxySession>(STD_MOVE(client), m_auth_info);
 		}
 	};
