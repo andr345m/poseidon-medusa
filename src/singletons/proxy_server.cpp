@@ -31,7 +31,7 @@ MODULE_RAII(handles){
 	AUTO(auth, get_config_v<std::string> ("proxy_http_auth_user_pass"));
 	if(auth.empty()){
 		LOG_MEDUSA_FATAL("You must provide at least one proxy_server_auth_user_pass.");
-		std::abort();
+		DEBUG_THROW_ASSERT(false);
 	}
 	const Poseidon::IpPort bind_addr(Poseidon::SharedNts(bind), port);
 	LOG_MEDUSA_INFO("Creating proxy HTTP server on ", bind_addr);
