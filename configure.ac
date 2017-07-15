@@ -6,6 +6,8 @@ AC_CONFIG_MACRO_DIR([m4])
 AC_PROG_CXX
 AC_PROG_LIBTOOL
 
+PKG_CHECK_MODULES([openssl], [openssl])
+AC_CHECK_LIB([ssl], [main], [], [echo "***** FIX THIS ERROR *****"; exit -2;])
 AC_CHECK_LIB([poseidon-main], [main], [], [echo "***** FIX THIS ERROR *****"; exit -2;])
 
 AM_INIT_AUTOMAKE
