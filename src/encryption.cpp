@@ -6,6 +6,23 @@
 
 namespace Medusa {
 
+namespace {
+	void aes_ctr_gen(boost::uint8_t *mask, const boost::uint8_t *nonce, boost::uint64_t *cnt, const ::AES_KEY *key){
+		boost::uint8_t temp[16];
+		boost::uint64_t word = ++*cnt;
+		for(unsigned i = 0; i < 16; ++i){
+			temp[i] = nonce[i] ^ (boost::uint8_t)word;
+			word = (word << 56) | (word >> 8);
+		}
+		::AES_encrypt(temp, mask, key);
+	}
+	void aes_ctr_xor(boost::uint8_t *out, const boost::uint8_t *mask, const boost::uint8_t *in){
+		for(unsigned i = 0; i < 16; ++i){
+			out[i] = mask[i] ^ in[i];
+		}
+	}
+}
+
 void encrypt(Poseidon::StreamBuffer &dst, const Poseidon::Uuid &uuid, Poseidon::StreamBuffer src, const std::string &key){
 	PROFILE_ME;
 
@@ -18,25 +35,23 @@ void encrypt(Poseidon::StreamBuffer &dst, const Poseidon::Uuid &uuid, Poseidon::
 	         .write(reinterpret_cast<const char *>(&nonce), 8)
 	         .write(reinterpret_cast<const char *>(key.data()), static_cast<std::streamsize>(key.size()));
 	const AUTO(sha256, sha256_os.finalize());
-	::AES_KEY aes_key[1];
-	if(::AES_set_encrypt_key(sha256.data(), 128, aes_key) != 0){
+	::AES_KEY aes_key;
+	if(::AES_set_encrypt_key(sha256.data(), 128, &aes_key) != 0){
 		LOG_MEDUSA_FATAL("::AES_set_encrypt_key() failed!");
 		std::abort();
 	}
-	unsigned char out[16], in[16], iv[16], ecount_buf[16];
-	unsigned num;
-	std::memset(iv, 42, 16);
-	std::memset(ecount_buf, 0, 16);
-	num = 0;
-	::AES_ctr128_encrypt(sha256.data() + 16, out, 16, aes_key, iv, ecount_buf, &num);
-	assert(num == 0);
+	boost::uint8_t out[16], in[16], mask[16];
+	boost::uint64_t cnt = 0;
+	aes_ctr_gen(mask, sha256.data(), &cnt, &aes_key);
+	aes_ctr_xor(out, mask, sha256.data() + 16);
 	dst.put(out, 16); // 16 bytes: checksum
 	for(;;){
 		const unsigned n = src.get(in, 16);
 		if(n == 0){
 			break;
 		}
-		::AES_ctr128_encrypt(in, out, n, aes_key, iv, ecount_buf, &num);
+		aes_ctr_gen(mask, sha256.data(), &cnt, &aes_key);
+		aes_ctr_xor(out, mask, in);
 		dst.put(out, n);
 	}
 }
@@ -57,22 +72,19 @@ bool decrypt(Poseidon::Uuid &uuid, Poseidon::StreamBuffer &dst, Poseidon::Stream
 	         .write(reinterpret_cast<const char *>(&nonce), 8)
 	         .write(reinterpret_cast<const char *>(key.data()), static_cast<std::streamsize>(key.size()));
 	const AUTO(sha256, sha256_os.finalize());
-	::AES_KEY aes_key[1];
-	if(::AES_set_encrypt_key(sha256.data(), 128, aes_key) != 0){
+	::AES_KEY aes_key;
+	if(::AES_set_encrypt_key(sha256.data(), 128, &aes_key) != 0){
 		LOG_MEDUSA_FATAL("::AES_set_encrypt_key() failed!");
 		std::abort();
 	}
-	unsigned char out[16], in[16], iv[16], ecount_buf[16];
-	unsigned num;
+	boost::uint8_t out[16], in[16], mask[16];
 	if(src.get(in, 16) < 16){ // 16 bytes: checksum
 		LOG_MEDUSA_WARNING("Encrypted data is truncated, expecting checksum.");
 		return false;
 	}
-	std::memset(iv, 42, 16);
-	std::memset(ecount_buf, 0, 16);
-	num = 0;
-	::AES_ctr128_encrypt(in, out, 16, aes_key, iv, ecount_buf, &num);
-	assert(num == 0);
+	boost::uint64_t cnt = 0;
+	aes_ctr_gen(mask, sha256.data(), &cnt, &aes_key);
+	aes_ctr_xor(out, mask, in);
 	if(std::memcmp(out, sha256.data() + 16, 16) != 0){
 		LOG_MEDUSA_WARNING("Encrypted data is invalid, erroneous checksum.");
 		return false;
@@ -82,7 +94,8 @@ bool decrypt(Poseidon::Uuid &uuid, Poseidon::StreamBuffer &dst, Poseidon::Stream
 		if(n == 0){
 			break;
 		}
-		::AES_ctr128_encrypt(in, out, n, aes_key, iv, ecount_buf, &num);
+		aes_ctr_gen(mask, sha256.data(), &cnt, &aes_key);
+		aes_ctr_xor(out, mask, in);
 		dst.put(out, n);
 	}
 	return true;
