@@ -162,14 +162,14 @@ public:
 			AUTO(recv_queue, req.origin_client->move_recv_queue());
 
 			Poseidon::Deflator deflator;
-			std::string temp;
+			std::basic_string<unsigned char> temp;
 			for(;;){
 				temp.resize(8192);
 				temp.resize(recv_queue.get(&*temp.begin(), temp.size()));
 				if(temp.empty()){
 					break;
 				}
-				deflator.put(temp);
+				deflator.put(&*temp.begin(), temp.size());
 				AUTO(data, deflator.finalize());
 				temp.resize(data.size());
 				data.get(&*temp.begin(), temp.size());
