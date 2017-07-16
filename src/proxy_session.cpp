@@ -571,7 +571,7 @@ protected:
 			LOG_MEDUSA_WARNING("Http::Exception thrown: status_code = ", e.get_status_code(), ", what = ", e.what());
 			unsigned pretend_status_code = e.get_status_code();
 			if(pretend_status_code == Poseidon::Http::ST_PROXY_AUTH_REQUIRED){
-				pretend_status_code = Poseidon::Http::ST_BAD_REQUEST;
+				pretend_status_code = Poseidon::Http::ST_NOT_FOUND;
 			}
 			AUTO(pretend_desc, Poseidon::Http::get_status_code_desc(pretend_status_code));
 			session->shutdown(e.get_status_code(), pretend_status_code, pretend_desc.desc_long, e.get_headers());
